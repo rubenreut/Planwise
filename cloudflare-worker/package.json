@@ -1,0 +1,35 @@
+{
+  "name": "momentum-ai-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker for Momentum app's OpenAI integration",
+  "main": "worker.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:dev": "wrangler deploy --env development",
+    "test": "node test-worker.js",
+    "test:errors": "node test-worker.js --errors",
+    "test:cors": "node test-worker.js --cors",
+    "tail": "wrangler tail",
+    "secret:app": "wrangler secret put APP_SECRET",
+    "secret:openai": "wrangler secret put OPENAI_API_KEY",
+    "kv:create": "npm run kv:create:rate && npm run kv:create:logs",
+    "kv:create:rate": "wrangler kv:namespace create RATE_LIMIT",
+    "kv:create:logs": "wrangler kv:namespace create REQUEST_LOGS"
+  },
+  "keywords": [
+    "cloudflare-worker",
+    "openai",
+    "ai",
+    "productivity",
+    "momentum"
+  ],
+  "author": "Ruben Reut",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="22522" systemVersion="23F79" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithCloudKit="YES" userDefinedModelVersionIdentifier="">
+    <entity name="Category" representedClassName="Category" syncable="YES" codeGenerationType="class">
+        <attribute name="colorHex" attributeType="String" defaultValueString="#007AFF"/>
+        <attribute name="createdAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="iconName" attributeType="String" defaultValueString="folder.fill"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isActive" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="isDefault" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="name" attributeType="String" defaultValueString="New Category"/>
+        <attribute name="sortOrder" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="events" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Event" inverseName="category" inverseEntity="Event"/>
+    </entity>
+    <entity name="Event" representedClassName="Event" syncable="YES" codeGenerationType="class">
+        <attribute name="bufferTimeAfter" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="bufferTimeBefore" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="colorHex" attributeType="String" defaultValueString="#007AFF"/>
+        <attribute name="completedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="completionDuration" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="completionMetrics" optional="YES" attributeType="Binary"/>
+        <attribute name="createdAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="dataSource" attributeType="String" defaultValueString="manual"/>
+        <attribute name="endTime" attributeType="Date" defaultDateTimeInterval="3600" usesScalarValueType="NO"/>
+        <attribute name="energyLevel" optional="YES" attributeType="String"/>
+        <attribute name="externalAppID" optional="YES" attributeType="String"/>
+        <attribute name="externalEventID" optional="YES" attributeType="String"/>
+        <attribute name="iconName" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isCompleted" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="location" optional="YES" attributeType="String"/>
+        <attribute name="modifiedAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="priority" optional="YES" attributeType="String"/>
+        <attribute name="rawMetrics" optional="YES" attributeType="Binary"/>
+        <attribute name="recurrenceEndDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="recurrenceID" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="recurrenceRule" optional="YES" attributeType="String"/>
+        <attribute name="startTime" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="syncToken" optional="YES" attributeType="String"/>
+        <attribute name="tags" optional="YES" attributeType="String"/>
+        <attribute name="title" attributeType="String" defaultValueString="New Event"/>
+        <attribute name="url" optional="YES" attributeType="String"/>
+        <attribute name="weatherRequired" optional="YES" attributeType="String"/>
+        <relationship name="category" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Category" inverseName="events" inverseEntity="Category"/>
+    </entity>
+    <entity name="UserPreferences" representedClassName="UserPreferences" syncable="YES" codeGenerationType="class">
+        <attribute name="accentColor" attributeType="String" defaultValueString="blue"/>
+        <attribute name="aiSuggestionsEnabled" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="analyticsEnabled" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="crashReportingEnabled" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="defaultDuration" attributeType="Integer 32" defaultValueString="60" usesScalarValueType="YES"/>
+        <attribute name="defaultReminderMinutes" attributeType="Integer 32" defaultValueString="10" usesScalarValueType="YES"/>
+        <attribute name="enableNotifications" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="firstDayOfWeek" attributeType="Integer 32" defaultValueString="2" usesScalarValueType="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isPremium" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="lastAIRequestCount" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="lastAIRequestDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="premiumExpiryDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="selectedTheme" attributeType="String" defaultValueString="default"/>
+        <attribute name="timeFormat" attributeType="String" defaultValueString="12h"/>
+    </entity>
+</model>
