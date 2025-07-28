@@ -13,6 +13,9 @@ final class DependencyContainer: ObservableObject {
     private(set) var scheduleManager: any ScheduleManaging
     private(set) var scrollPositionManager: any ScrollPositionProviding
     private(set) var openAIService: OpenAIService
+    private(set) var taskManager: any TaskManaging
+    private(set) var habitManager: any HabitManaging
+    private(set) var goalManager: GoalManager
     
     // MARK: - Initialization
     
@@ -22,6 +25,9 @@ final class DependencyContainer: ObservableObject {
         self.persistenceProvider = PersistenceController.shared
         self.scheduleManager = ScheduleManager.shared
         self.scrollPositionManager = ScrollPositionManager.shared
+        self.taskManager = TaskManager.shared
+        self.habitManager = HabitManager.shared
+        self.goalManager = GoalManager.shared
         #if DEBUG
         self.openAIService = APIConfiguration.useMockService ? MockOpenAIService() : OpenAIService()
         #else
@@ -34,11 +40,17 @@ final class DependencyContainer: ObservableObject {
         persistenceProvider: any PersistenceProviding,
         scheduleManager: any ScheduleManaging,
         scrollPositionManager: any ScrollPositionProviding,
+        taskManager: (any TaskManaging)? = nil,
+        habitManager: (any HabitManaging)? = nil,
+        goalManager: GoalManager? = nil,
         openAIService: OpenAIService? = nil
     ) {
         self.persistenceProvider = persistenceProvider
         self.scheduleManager = scheduleManager
         self.scrollPositionManager = scrollPositionManager
+        self.taskManager = taskManager ?? TaskManager(persistence: persistenceProvider)
+        self.habitManager = habitManager ?? HabitManager.shared
+        self.goalManager = goalManager ?? GoalManager.shared
         self.openAIService = openAIService ?? OpenAIService()
     }
     
@@ -49,11 +61,13 @@ final class DependencyContainer: ObservableObject {
         let mockPersistence = MockPersistenceProvider()
         let mockSchedule = MockScheduleManager()
         let mockScroll = MockScrollPositionManager()
+        let mockTasks = MockTaskManager(context: mockPersistence.container.viewContext)
         
         return DependencyContainer(
             persistenceProvider: mockPersistence,
             scheduleManager: mockSchedule,
-            scrollPositionManager: mockScroll
+            scrollPositionManager: mockScroll,
+            taskManager: mockTasks
         )
     }
     
@@ -65,6 +79,7 @@ final class DependencyContainer: ObservableObject {
             persistenceProvider: configuration.persistenceProvider,
             scheduleManager: configuration.scheduleManager,
             scrollPositionManager: configuration.scrollPositionManager,
+            taskManager: configuration.taskManager,
             openAIService: configuration.openAIService
         )
     }
@@ -75,6 +90,7 @@ struct DependencyConfiguration {
     let persistenceProvider: any PersistenceProviding
     let scheduleManager: any ScheduleManaging
     let scrollPositionManager: any ScrollPositionProviding
+    let taskManager: (any TaskManaging)?
     let openAIService: OpenAIService?
 }
 

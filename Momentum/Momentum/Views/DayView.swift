@@ -22,12 +22,19 @@ struct DayView: View {
         ]
     }()
     
+    // Cache events for all three visible days
+    @State private var eventsCache: [Date: [Event]] = [:]
+    
     // Mathematical constants
-    private let hourHeight: CGFloat = 68
-    private let timeColumnWidth: CGFloat = 58
-    private let rightPadding: CGFloat = 16
+    private var hourHeight: CGFloat {
+        DeviceType.isIPad ? 80 : 68
+    }
+    private var timeColumnWidth: CGFloat {
+        DeviceType.isIPad ? 70 : 58
+    }
+    private let rightPadding: CGFloat = DesignSystem.Spacing.md
     private let animationDuration: Double = 0.2
-    private let minDragDistance: CGFloat = 8
+    private let minDragDistance: CGFloat = DesignSystem.Spacing.xs
     private let velocityThreshold: CGFloat = 150
     
     private var todayDate: Date {
@@ -38,25 +45,32 @@ struct DayView: View {
         ZStack {
             // Background
             Rectangle()
-                .fill(colorScheme == .dark ? Color.black : Color.white)
+                .fill(Color.adaptiveBackground)
                 .ignoresSafeArea()
             
-            // Three-view sliding system
-            GeometryReader { geometry in
-                if viewDates.count >= 3 {
-                    HStack(spacing: 0) {
-                        ForEach(0..<3, id: \.self) { index in
-                            dayView(for: viewDates[index])
-                                .frame(width: geometry.size.width, height: geometry.size.height)
+            // Three-view sliding system (disabled for iPad/Mac)
+            Group {
+                if DeviceType.isIPhone {
+                    GeometryReader { geometry in
+                        if viewDates.count >= 3 {
+                            HStack(spacing: 0) {
+                                ForEach(0..<3, id: \.self) { index in
+                                    dayView(for: viewDates[index])
+                                        .frame(width: geometry.size.width, height: geometry.size.height)
+                                }
+                            }
+                            .offset(x: -geometry.size.width + (isDraggingTimeBlock ? 0 : dragOffset))
                         }
                     }
-                    .offset(x: -geometry.size.width + dragOffset)
+                } else {
+                    // iPad/Mac: Single day view with navigation
+                    dayView(for: viewDates[1])
                 }
             }
             .gesture(
                 DragGesture(minimumDistance: minDragDistance)
                     .onChanged { value in
-                        guard !isAnimatingSwipe else { return }
+                        guard !isAnimatingSwipe && !isDraggingTimeBlock else { return }
                         
                         // Horizontal drag ratio check
                         let horizontalAmount = abs(value.translation.width)
@@ -68,7 +82,7 @@ struct DayView: View {
                         }
                     }
                     .onEnded { value in
-                        guard !isAnimatingSwipe else { return }
+                        guard !isAnimatingSwipe && !isDraggingTimeBlock else { return }
                         
                         let screenWidth = UIScreen.main.bounds.width
                         let velocity = value.predictedEndLocation.x - value.location.x
@@ -78,9 +92,8 @@ struct DayView: View {
                         let verticalAmount = abs(value.translation.height)
                         
                         guard horizontalAmount > verticalAmount * 1.5 else {
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                dragOffset = 0
-                            }
+                            // Removed animation for faster navigation
+                            dragOffset = 0
                             return
                         }
                         
@@ -99,57 +112,59 @@ struct DayView: View {
                                 swipeToNextDay(screenWidth: screenWidth)
                             }
                         } else {
-                            // Snap back
-                            withAnimation(.easeOut(duration: 0.2)) {
+                            // Snap back smoothly
+                            withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.9)) {
                                 dragOffset = 0
                             }
                         }
                     }
             )
             
-            // Floating Action Button
+            
+            // Floating Action Button with Voice Recording
             VStack {
                 Spacer()
                 HStack {
                     Spacer()
-                    Button(action: {
+                    Button {
                         viewModel.showingAddEvent = true
-                    }) {
+                    } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 22, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(
-                                Circle()
-                                    .fill(Color.blue)
-                            )
-                            .shadow(radius: 4)
                     }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 20)
+                    .buttonStyle(FloatingActionButtonStyle())
+                    .accessibilityLabel("Add new event")
+                    .accessibilityHint("Opens event creation view")
+                    .padding(.trailing, DesignSystem.Spacing.lg)
+                    .padding(.bottom, DesignSystem.Spacing.lg)
                 }
             }
         }
         .onAppear {
             setupInitialDates()
             viewModel.selectedDate = Calendar.current.date(byAdding: .day, value: dayOffset, to: todayDate) ?? todayDate
-            viewModel.refreshEvents()
             preloadSurroundingDays()
         }
         .onChange(of: dayOffset) { _, _ in
             viewModel.selectedDate = Calendar.current.date(byAdding: .day, value: dayOffset, to: todayDate) ?? todayDate
-            preloadSurroundingDays()
+            // Don't refresh events, they're already loaded
         }
-        .sheet(isPresented: $viewModel.showingAddEvent) {
-            AddEventView()
-        }
-        .sheet(item: $viewModel.selectedEvent) { event in
-            EventDetailView(event: event)
-        }
-        .sheet(isPresented: $showingSettings) {
-            NavigationView {
-                SettingsView()
+        .onChange(of: isDraggingTimeBlock) { _, isDragging in
+            if isDragging {
+                // Reset any partial drag when starting to drag a time block
+                dragOffset = 0
             }
+        }
+        .optimizedSheet(isPresented: $viewModel.showingAddEvent) {
+            LazyView(AddEventView())
+        }
+        .optimizedSheet(item: $viewModel.selectedEvent) { event in
+            LazyView(EventDetailView(event: event))
+        }
+        .optimizedSheet(isPresented: $showingSettings) {
+            LazyView(NavigationView {
+                SettingsView()
+            })
         }
     }
     
@@ -164,29 +179,35 @@ struct DayView: View {
     
     private func swipeToNextDay(screenWidth: CGFloat) {
         isAnimatingSwipe = true
-        withAnimation(.easeOut(duration: animationDuration)) {
+        
+        withAnimation(.easeInOut(duration: 0.3)) {
             dragOffset = -screenWidth
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) {
-            dayOffset += 1
-            dragOffset = 0
-            updateViewDates()
-            isAnimatingSwipe = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.dayOffset += 1
+            self.updateViewDates()
+            self.preloadSurroundingDays()
+            // Reset without animation - the view already moved
+            self.dragOffset = 0
+            self.isAnimatingSwipe = false
         }
     }
     
     private func swipeToPreviousDay(screenWidth: CGFloat) {
         isAnimatingSwipe = true
-        withAnimation(.easeOut(duration: animationDuration)) {
+        
+        withAnimation(.easeInOut(duration: 0.3)) {
             dragOffset = screenWidth
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) {
-            dayOffset -= 1
-            dragOffset = 0
-            updateViewDates()
-            isAnimatingSwipe = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.dayOffset -= 1
+            self.updateViewDates()
+            self.preloadSurroundingDays()
+            // Reset without animation - the view already moved
+            self.dragOffset = 0
+            self.isAnimatingSwipe = false
         }
     }
     
@@ -200,8 +221,9 @@ struct DayView: View {
     }
     
     private func preloadSurroundingDays() {
+        // Only preload immediate surrounding days for performance
         var datesToPreload: [Date] = []
-        for offset in -15...15 {
+        for offset in -1...1 {
             if let date = Calendar.current.date(byAdding: .day, value: dayOffset + offset, to: todayDate) {
                 datesToPreload.append(date)
             }
@@ -211,62 +233,70 @@ struct DayView: View {
     
     @ViewBuilder
     private func dayView(for date: Date) -> some View {
-        VStack(spacing: 0) {
-            // Header
-            PremiumHeaderView(
-                dateTitle: formatDate(date),
-                selectedDate: date,
-                onPreviousDay: { 
-                    if !isAnimatingSwipe {
-                        swipeToPreviousDay(screenWidth: UIScreen.main.bounds.width)
-                    }
-                },
-                onNextDay: { 
-                    if !isAnimatingSwipe {
-                        swipeToNextDay(screenWidth: UIScreen.main.bounds.width)
-                    }
-                },
-                onToday: { 
-                    dayOffset = 0
-                    setupInitialDates()
-                },
-                onSettings: { showingSettings = true },
-                onAddEvent: { viewModel.showingAddEvent = true }
-            )
-            
-            // Timeline
-            let isCurrentDay = Calendar.current.isDate(date, inSameDayAs: viewModel.selectedDate)
-            let scrollBinding = Binding<CGFloat>(
-                get: { dependencyContainer.scrollPositionManager.offset(for: 0, default: 612) },
-                set: { newValue in
-                    if isCurrentDay {
-                        dependencyContainer.scrollPositionManager.update(dayOffset: 0, to: newValue)
-                    }
-                }
-            )
-            
-            PersistentScrollView(
-                offset: scrollBinding,
-                isScrollEnabled: !isDraggingTimeBlock
-            ) {
-                VStack(spacing: 0) {
-                    ForEach(0..<24, id: \.self) { hour in
-                        Color.clear
-                            .frame(height: hourHeight)
-                    }
-                }
-                .background(
-                    DayTimelineView(selectedDate: date, showCurrentTime: false)
-                        .overlay(alignment: .topLeading) {
-                            eventsLayerForDate(date)
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Header - sticky at the top
+                PremiumHeaderView(
+                    dateTitle: formatDate(date),
+                    selectedDate: date,
+                    onPreviousDay: { 
+                        if !isAnimatingSwipe {
+                            swipeToPreviousDay(screenWidth: UIScreen.main.bounds.width)
                         }
-                        .overlay(alignment: .topLeading) {
-                            if Calendar.current.isDateInToday(date) {
-                                CurrentTimeIndicator()
-                            }
+                    },
+                    onNextDay: { 
+                        if !isAnimatingSwipe {
+                            swipeToNextDay(screenWidth: UIScreen.main.bounds.width)
                         }
-                        .frame(maxWidth: .infinity)
+                    },
+                    onToday: { 
+                        dayOffset = 0
+                        setupInitialDates()
+                    },
+                    onSettings: { showingSettings = true },
+                    onAddEvent: { viewModel.showingAddEvent = true },
+                    onDateSelected: { selectedDate in
+                        navigateToDate(selectedDate)
+                    }
                 )
+                .background(Color(UIColor.systemBackground))
+                .zIndex(1) // Keep header on top
+                
+                // Timeline
+                let isCurrentDay = Calendar.current.isDate(date, inSameDayAs: viewModel.selectedDate)
+                let scrollBinding = Binding<CGFloat>(
+                    get: { dependencyContainer.scrollPositionManager.offset(for: 0, default: 612) },
+                    set: { newValue in
+                        if isCurrentDay {
+                            dependencyContainer.scrollPositionManager.update(dayOffset: 0, to: newValue)
+                        }
+                    }
+                )
+                
+                PersistentScrollView(
+                    offset: scrollBinding,
+                    isScrollEnabled: !isDraggingTimeBlock
+                ) {
+                    VStack(spacing: 0) {
+                        ForEach(0..<24, id: \.self) { hour in
+                            Color.clear
+                                .frame(height: hourHeight)
+                        }
+                    }
+                    .background(
+                        DayTimelineView(selectedDate: date, showCurrentTime: false)
+                            .overlay(alignment: .topLeading) {
+                                // Always show events layer
+                                eventsLayerForDate(date)
+                            }
+                            .overlay(alignment: .topLeading) {
+                                if Calendar.current.isDateInToday(date) {
+                                    CurrentTimeIndicator()
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                    )
+                }
             }
         }
     }
@@ -297,18 +327,19 @@ struct DayView: View {
                     y: layout.yPosition
                 )
                 .allowsHitTesting(isToday)
+                .id(layout.event.id) // Ensure proper view recycling
             }
         }
     }
     
     private func calculateEventWidth(layout: EventLayout, totalWidth: CGFloat) -> CGFloat {
-        let gapBetweenColumns: CGFloat = 4
+        let gapBetweenColumns: CGFloat = DesignSystem.Spacing.xxs
         let columnWidth = (totalWidth - (CGFloat(layout.totalColumns - 1) * gapBetweenColumns)) / CGFloat(layout.totalColumns)
         return columnWidth
     }
     
     private func calculateEventXOffset(layout: EventLayout, availableWidth: CGFloat) -> CGFloat {
-        let gapBetweenColumns: CGFloat = 4
+        let gapBetweenColumns: CGFloat = DesignSystem.Spacing.xxs
         let columnWidth = (availableWidth - (CGFloat(layout.totalColumns - 1) * gapBetweenColumns)) / CGFloat(layout.totalColumns)
         return CGFloat(layout.column) * (columnWidth + gapBetweenColumns)
     }
@@ -317,5 +348,24 @@ struct DayView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d"
         return formatter.string(from: date)
+    }
+    
+    private func navigateToDate(_ targetDate: Date) {
+        let calendar = Calendar.current
+        let targetStartOfDay = calendar.startOfDay(for: targetDate)
+        let currentStartOfDay = calendar.startOfDay(for: todayDate)
+        
+        guard let daysDifference = calendar.dateComponents([.day], from: currentStartOfDay, to: targetStartOfDay).day else {
+            return
+        }
+        
+        // Update the dayOffset to jump to the selected date
+        dayOffset = daysDifference
+        setupInitialDates()
+        
+        // Update the view model's selected date
+        viewModel.selectedDate = targetStartOfDay
+        viewModel.refreshEvents()
+        preloadSurroundingDays()
     }
 }

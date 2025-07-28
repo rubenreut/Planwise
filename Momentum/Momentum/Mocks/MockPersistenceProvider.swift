@@ -8,7 +8,17 @@ class MockPersistenceProvider: ObservableObject, PersistenceProviding {
     let container: NSPersistentCloudKitContainer
     private(set) var saveCallCount = 0
     private(set) var lastPerformedOperation: String?
-    var shouldFailSave = false
+    var shouldFailSave = false {
+        didSet {
+            saveFailureLock.lock()
+            _threadSafeShouldFailSave = shouldFailSave
+            saveFailureLock.unlock()
+        }
+    }
+    
+    // Thread-safe flag for save failures
+    private let saveFailureLock = NSLock()
+    nonisolated(unsafe) private var _threadSafeShouldFailSave = false
     
     init() {
         container = NSPersistentCloudKitContainer(name: "Momentum")
@@ -31,36 +41,35 @@ class MockPersistenceProvider: ObservableObject, PersistenceProviding {
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
     }
     
-    nonisolated func save() {
-        Task { @MainActor in
-            saveCallCount += 1
-            
-            guard !shouldFailSave else {
-                print("MockPersistenceProvider: Save failed (mock)")
-                return
-            }
-            
-            let context = container.viewContext
-            
-            guard context.hasChanges else { return }
-            
-            do {
-                try context.save()
-                print("MockPersistenceProvider: Context saved successfully")
-            } catch {
-                print("MockPersistenceProvider: Failed to save context: \(error)")
-            }
+    nonisolated func save() throws {
+        let context = container.viewContext
+        
+        guard context.hasChanges else { return }
+        
+        // Check if we should fail (thread-safe)
+        saveFailureLock.lock()
+        let shouldFail = _threadSafeShouldFailSave
+        saveFailureLock.unlock()
+        
+        if shouldFail {
+            throw NSError(domain: "MockPersistenceProvider", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock save failure"])
         }
+        
+        // Update counter asynchronously
+        _Concurrency.Task { @MainActor in
+            self.saveCallCount += 1
+        }
+        
+        try context.save()
     }
     
     nonisolated func performAndMeasure<T>(_ operation: String, block: () throws -> T) rethrows -> T {
-        Task { @MainActor in
+        _Concurrency.Task { @MainActor in
             lastPerformedOperation = operation
         }
         let startTime = CFAbsoluteTimeGetCurrent()
         defer {
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-            print("MockPersistenceProvider: Operation '\(operation)' took \(String(format: "%.3f", elapsed))s")
         }
         return try block()
     }
@@ -96,12 +105,13 @@ class MockPersistenceProvider: ObservableObject, PersistenceProviding {
             category.createdAt = Date()
         }
         
-        save()
+        do {
+            try save()
+        } catch {
+        }
     }
     
     nonisolated func forceSyncWithCloudKit() {
-        Task { @MainActor in
-            print("MockPersistenceProvider: Force sync called (no-op in mock)")
-        }
+        // No-op for testing
     }
 }

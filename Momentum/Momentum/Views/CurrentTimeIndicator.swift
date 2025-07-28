@@ -3,9 +3,9 @@ import SwiftUI
 struct CurrentTimeIndicator: View {
     @State private var currentTime = Date()
     
-    // Constants
-    private let hourHeight: CGFloat = 68
-    private let timeColumnWidth: CGFloat = 58
+    // Constants - MUST match device type
+    private let hourHeight: CGFloat = DeviceType.isIPad ? 80 : 68
+    private let timeColumnWidth: CGFloat = DeviceType.isIPad ? 70 : 58
     private let ballSize: CGFloat = 8
     
     private let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
@@ -26,13 +26,13 @@ struct CurrentTimeIndicator: View {
             HStack(spacing: 0) {
                 // Ball centered on the vertical separator line
                 Circle()
-                    .fill(Color.black)
+                    .fill(Color.adaptiveRed)
                     .frame(width: ballSize, height: ballSize)
                     .padding(.leading, timeColumnWidth - (ballSize / 2))
                 
-                // Black line extending to the right
+                // Red line extending to the right
                 Rectangle()
-                    .fill(Color.black)
+                    .fill(Color.adaptiveRed)
                     .frame(height: 1)
             }
             

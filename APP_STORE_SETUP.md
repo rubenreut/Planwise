@@ -103,8 +103,8 @@
    
    Free users get 10 messages total to try the app.
    Premium subscription unlocks:
-   - Unlimited AI messages
-   - Image upload and analysis
+   - 500 daily AI messages
+   - 20 daily image/PDF uploads
    - Advanced scheduling features
    
    Test credentials: [provide if needed]

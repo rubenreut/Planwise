@@ -1,0 +1,8 @@
+app_identifier("com.rubenreut.Momentum") # The bundle identifier of your app
+apple_id("ruben.reut@icloud.com") # Your Apple Developer Portal username
+
+itc_team_id("127770569") # App Store Connect Team ID
+team_id("9658TG25VL") # Developer Portal Team ID
+
+# For more information about the Appfile, see:
+#     https://docs.fastlane.tools/advanced/#appfile

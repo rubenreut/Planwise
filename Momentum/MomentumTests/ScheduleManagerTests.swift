@@ -489,7 +489,7 @@ class ScheduleManagerTests: XCTestCase {
         expectation.expectedFulfillmentCount = 10
         
         for _ in 0..<10 {
-            Task {
+            Swift.Task {
                 _ = manager.events(for: date)
                 expectation.fulfill()
             }

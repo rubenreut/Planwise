@@ -89,14 +89,14 @@ class MomentumTests: XCTestCase {
         }
         
         // Wait for the view model to update
-        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        try await _Concurrency.Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         
         // Verify the event appears in the view model
         dayViewModel.selectedDate = testDate
         dayViewModel.refreshEvents()
         
         // Wait for refresh
-        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        try await _Concurrency.Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         
         // Clean up
         _ = scheduleManager.deleteEvent(event)

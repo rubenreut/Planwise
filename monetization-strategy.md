@@ -2,26 +2,23 @@
 
 ## 💰 Pricing Structure
 
-### Free Tier - "Momentum Basic"
+### Free Tier - "Planwise Basic"
 - ✅ Full scheduling features
-- ✅ 3 default categories + 2 custom
-- ✅ 3 months of history
-- ✅ 10 AI requests per day
-- ✅ Basic widget (today view)
+- ✅ All categories
 - ✅ CloudKit sync
 - ✅ Reminders
-- ❌ Custom themes
+- ✅ 10 total AI messages to try
+- ❌ Image/PDF uploads
 - ❌ Analytics/insights
-- ❌ Unlimited AI
-- ❌ Advanced widgets
+- ❌ Priority support
 
-### Premium Tier - "Momentum Pro"
-**$4.99/month or $39.99/year (save 33%)**
+### Premium Tier - "Planwise Pro"
+**$12.99/month or $79.99/year (save 49%)**
 
 - ✅ Everything in Basic
-- ✅ Unlimited categories
-- ✅ Unlimited history
-- ✅ Unlimited AI requests
+- ✅ 500 daily AI messages
+- ✅ 20 daily image/PDF uploads
+- ✅ Analytics & insights
 - ✅ All widgets
 - ✅ Custom themes
 - ✅ Analytics & insights

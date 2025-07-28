@@ -156,8 +156,7 @@ struct CategoryManagementView: View {
             newCategoryName = ""
             selectedIcon = "folder.fill"
             selectedColor = "#007AFF"
-        case .failure(let error):
-            print("Failed to create category: \(error)")
+        case .failure(let error): break
         }
     }
     
@@ -167,7 +166,6 @@ struct CategoryManagementView: View {
         do {
             try PersistenceController.shared.container.viewContext.save()
         } catch {
-            print("Failed to delete category: \(error)")
         }
     }
 }

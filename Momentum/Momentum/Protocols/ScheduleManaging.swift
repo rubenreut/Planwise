@@ -39,7 +39,19 @@ protocol ScheduleManaging: AnyObject {
         category: Category?,
         notes: String?,
         location: String?,
-        isCompleted: Bool?
+        isCompleted: Bool?,
+        colorHex: String?,
+        iconName: String?,
+        priority: String?,
+        tags: String?,
+        url: String?,
+        energyLevel: String?,
+        weatherRequired: String?,
+        bufferTimeBefore: Int32?,
+        bufferTimeAfter: Int32?,
+        recurrenceRule: String?,
+        recurrenceEndDate: Date?,
+        linkedTasks: NSSet?
     ) -> Result<Void, Error>
     
     func deleteEvent(_ event: Event) -> Result<Void, Error>
@@ -53,6 +65,7 @@ protocol ScheduleManaging: AnyObject {
     
     // MARK: - Category Management
     func createCategory(name: String, icon: String, colorHex: String) -> Result<Category, Error>
+    func getCategories() -> [Category]
     
     // MARK: - Refresh
     func forceRefresh()

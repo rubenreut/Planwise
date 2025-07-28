@@ -24,7 +24,7 @@ struct EventDetailView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: DesignSystem.Spacing.lg) {
                     if isEditing {
                         editingContent
                     } else {
@@ -33,8 +33,7 @@ struct EventDetailView: View {
                 }
                 .padding()
             }
-            .navigationTitle(isEditing ? "Edit Event" : "Event Details")
-            .navigationBarTitleDisplayMode(.inline)
+            .standardNavigationTitle(isEditing ? "Edit Event" : "Event Details")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     if isEditing {
@@ -79,9 +78,9 @@ struct EventDetailView: View {
     
     // MARK: - Viewing Content
     private var viewingContent: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md + 4) {
             // Title and Category
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                 Text(event.title ?? "Untitled")
                     .font(.largeTitle)
                     .fontWeight(.bold)
@@ -90,7 +89,7 @@ struct EventDetailView: View {
                     HStack {
                         Circle()
                             .fill(Color(hex: category.colorHex ?? "#007AFF"))
-                            .frame(width: 12, height: 12)
+                            .frame(width: DesignSystem.Spacing.sm, height: DesignSystem.Spacing.sm)
                         Text(category.name ?? "")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
@@ -101,12 +100,12 @@ struct EventDetailView: View {
             Divider()
             
             // Time Information
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                 Label {
                     if isAllDay {
                         Text("All Day")
                     } else if let start = event.startTime, let end = event.endTime {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs) {
                             Text(formatTimeRange(start: start, end: end))
                                 .font(.headline)
                             Text(formatDuration(start: start, end: end))
@@ -147,14 +146,20 @@ struct EventDetailView: View {
             if let notes = event.notes, !notes.isEmpty, !notes.contains("[ALL_DAY]") {
                 Divider()
                 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                     Label("Notes", systemImage: "note.text")
                         .font(.headline)
                         .foregroundColor(.secondary)
                     
-                    Text(notes)
-                        .font(.body)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if let attributedString = try? AttributedString(markdown: notes) {
+                        Text(attributedString)
+                            .font(.body)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text(notes)
+                            .font(.body)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             
@@ -165,18 +170,18 @@ struct EventDetailView: View {
                 Label("Delete Event", systemImage: "trash")
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.red.opacity(0.1))
+                    .background(Color.red.opacity(DesignSystem.Opacity.light))
                     .foregroundColor(.red)
-                    .cornerRadius(12)
+                    .cornerRadius(DesignSystem.CornerRadius.sm)
             }
         }
     }
     
     // MARK: - Editing Content
     private var editingContent: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DesignSystem.Spacing.md + 4) {
             // Title
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                 Text("Title")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -184,19 +189,19 @@ struct EventDetailView: View {
                     .font(.headline)
                     .padding()
                     .background(Color(.systemGray6))
-                    .cornerRadius(10)
+                    .cornerRadius(DesignSystem.CornerRadius.sm)
             }
             
             // Category
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                 Text("Category")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: DesignSystem.Spacing.sm) {
                         ForEach(scheduleManager.categories, id: \.self) { category in
-                            CategoryChip(
+                            EventCategoryChip(
                                 category: category,
                                 isSelected: editCategory == category,
                                 onTap: { editCategory = category }
@@ -208,11 +213,11 @@ struct EventDetailView: View {
             
             // All Day Toggle
             Toggle("All Day", isOn: $editIsAllDay)
-                .padding(.vertical, 8)
+                .padding(.vertical, DesignSystem.Spacing.xs)
             
             // Time Selection
             if !editIsAllDay {
-                VStack(spacing: 16) {
+                VStack(spacing: DesignSystem.Spacing.md) {
                     DatePicker("Start", selection: $editStartTime)
                         .datePickerStyle(.compact)
                     
@@ -222,18 +227,18 @@ struct EventDetailView: View {
             }
             
             // Location
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                 Text("Location")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 TextField("Add location", text: $editLocation)
                     .padding()
                     .background(Color(.systemGray6))
-                    .cornerRadius(10)
+                    .cornerRadius(DesignSystem.CornerRadius.sm)
             }
             
             // Notes
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                 Text("Notes")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -241,7 +246,7 @@ struct EventDetailView: View {
                     .lineLimit(3...6)
                     .padding()
                     .background(Color(.systemGray6))
-                    .cornerRadius(10)
+                    .cornerRadius(DesignSystem.CornerRadius.sm)
             }
         }
     }
@@ -275,15 +280,28 @@ struct EventDetailView: View {
             endTime: editIsAllDay ? nil : editEndTime,
             category: editCategory,
             notes: editIsAllDay ? "[ALL_DAY]" + (editNotes.isEmpty ? "" : "\n\(editNotes)") : (editNotes.isEmpty ? nil : editNotes),
-            location: editLocation.isEmpty ? nil : editLocation
+            location: editLocation.isEmpty ? nil : editLocation,
+            isCompleted: nil,
+            colorHex: nil,
+            iconName: nil,
+            priority: nil,
+            tags: nil,
+            url: nil,
+            energyLevel: nil,
+            weatherRequired: nil,
+            bufferTimeBefore: nil,
+            bufferTimeAfter: nil,
+            recurrenceRule: nil,
+            recurrenceEndDate: nil,
+            linkedTasks: nil
         )
         
         switch result {
         case .success:
             isEditing = false
         case .failure(let error):
-            print("Failed to update event: \(error)")
             // Could show an error alert here
+            break
         }
     }
     
@@ -335,15 +353,15 @@ struct EventDetailView: View {
     }
 }
 
-// MARK: - Category Chip
-private struct CategoryChip: View {
+// MARK: - Event Category Chip
+private struct EventCategoryChip: View {
     let category: Category
     let isSelected: Bool
     let onTap: () -> Void
     
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 6) {
+            HStack(spacing: DesignSystem.Spacing.xxs + 2) {
                 Circle()
                     .fill(Color(hex: category.colorHex ?? "#007AFF"))
                     .frame(width: 12, height: 12)
@@ -352,14 +370,14 @@ private struct CategoryChip: View {
                     .font(.subheadline)
                     .fontWeight(isSelected ? .semibold : .regular)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.horizontal, DesignSystem.Spacing.md)
+            .padding(.vertical, DesignSystem.Spacing.xs)
             .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(isSelected ? Color(hex: category.colorHex ?? "#007AFF").opacity(0.2) : Color(.systemGray6))
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.full)
+                    .fill(isSelected ? Color(hex: category.colorHex ?? "#007AFF").opacity(DesignSystem.Opacity.medium) : Color(.systemGray6))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 20)
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.full)
                     .strokeBorder(
                         isSelected ? Color(hex: category.colorHex ?? "#007AFF") : Color.clear,
                         lineWidth: 2

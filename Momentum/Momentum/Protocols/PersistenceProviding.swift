@@ -6,7 +6,7 @@ protocol PersistenceProviding: AnyObject {
     var container: NSPersistentCloudKitContainer { get }
     
     /// Save the current context
-    func save()
+    func save() throws
     
     /// Perform an operation and measure its performance
     func performAndMeasure<T>(_ operation: String, block: () throws -> T) rethrows -> T

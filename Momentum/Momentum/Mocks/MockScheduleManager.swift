@@ -107,7 +107,19 @@ class MockScheduleManager: ObservableObject, ScheduleManaging {
         category: Category? = nil,
         notes: String? = nil,
         location: String? = nil,
-        isCompleted: Bool? = nil
+        isCompleted: Bool? = nil,
+        colorHex: String? = nil,
+        iconName: String? = nil,
+        priority: String? = nil,
+        tags: String? = nil,
+        url: String? = nil,
+        energyLevel: String? = nil,
+        weatherRequired: String? = nil,
+        bufferTimeBefore: Int32? = nil,
+        bufferTimeAfter: Int32? = nil,
+        recurrenceRule: String? = nil,
+        recurrenceEndDate: Date? = nil,
+        linkedTasks: NSSet? = nil
     ) -> Result<Void, Error> {
         updateEventCallCount += 1
         
@@ -157,6 +169,54 @@ class MockScheduleManager: ObservableObject, ScheduleManaging {
             } else {
                 event.completedAt = nil
             }
+        }
+        
+        if let colorHex = colorHex {
+            event.colorHex = colorHex
+        }
+        
+        if let iconName = iconName {
+            event.iconName = iconName
+        }
+        
+        if let priority = priority {
+            event.priority = priority
+        }
+        
+        if let tags = tags {
+            event.tags = tags
+        }
+        
+        if let url = url {
+            event.url = url
+        }
+        
+        if let energyLevel = energyLevel {
+            event.energyLevel = energyLevel
+        }
+        
+        if let weatherRequired = weatherRequired {
+            event.weatherRequired = weatherRequired
+        }
+        
+        if let bufferTimeBefore = bufferTimeBefore {
+            event.bufferTimeBefore = bufferTimeBefore
+        }
+        
+        if let bufferTimeAfter = bufferTimeAfter {
+            event.bufferTimeAfter = bufferTimeAfter
+        }
+        
+        if let recurrenceRule = recurrenceRule {
+            event.recurrenceRule = recurrenceRule
+        }
+        
+        if let recurrenceEndDate = recurrenceEndDate {
+            event.recurrenceEndDate = recurrenceEndDate
+        }
+        
+        if let linkedTasks = linkedTasks {
+            event.linkedTasks = linkedTasks
         }
         
         event.modifiedAt = Date()
@@ -236,10 +296,13 @@ class MockScheduleManager: ObservableObject, ScheduleManaging {
     
     func preloadEvents(for dates: [Date]) {
         // Mock implementation - no actual preloading needed
-        print("MockScheduleManager: Preloading events for \(dates.count) dates")
     }
     
     // MARK: - Category Management
+    
+    func getCategories() -> [Category] {
+        return categories
+    }
     
     func createCategory(name: String, icon: String, colorHex: String) -> Result<Category, Error> {
         guard !shouldFailOperations else {

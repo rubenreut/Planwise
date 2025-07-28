@@ -6,8 +6,8 @@ struct DayTimelineView: View {
     
     // Mathematical constants
     private let φ: CGFloat = 1.618033988749895 // Golden ratio
-    private let hourHeight: CGFloat = 68 // φ³ - Golden ratio cubed
-    private let timeColumnWidth: CGFloat = 58 // φ² + base unit for perfect proportion
+    private let hourHeight: CGFloat = DeviceType.isIPad ? 80 : 68 // Device-specific height
+    private let timeColumnWidth: CGFloat = DeviceType.isIPad ? 70 : 58 // Device-specific width
     private let baseUnit: CGFloat = 8
     private let timeGridUnit: CGFloat = 4
     
@@ -24,6 +24,9 @@ struct DayTimelineView: View {
     @State private var gridOpacity: Double = 1
     
     private let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+    private var isShowingToday: Bool {
+        Calendar.current.isDateInToday(selectedDate)
+    }
     
     private var calendar: Calendar {
         var cal = Calendar.current
@@ -62,14 +65,16 @@ struct DayTimelineView: View {
             // Removed fade-in animation
         }
         .onReceive(timer) { _ in
-            currentTime = Date()
+            if isShowingToday {
+                currentTime = Date()
+            }
         }
     }
     
     // MARK: - Background Layer
     private var backgroundLayer: some View {
-        Rectangle()
-            .fill(colorScheme == .dark ? Color.black : Color.white)
+        // Use clear background so parent view's background shows through
+        Color.clear
     }
     
     // MARK: - Grid Layer
@@ -86,7 +91,7 @@ struct DayTimelineView: View {
             )
             
             // Hour lines only - clean and minimal
-            for (index, _) in hours.enumerated() {
+            for (index, hour) in hours.enumerated() {
                 let y = CGFloat(index) * hourHeight
                 
                 // Main hour line
@@ -129,7 +134,7 @@ struct DayTimelineView: View {
         
         return Text(timeString)
             .font(.system(size: 12, weight: .regular, design: .default))
-            .foregroundColor(colorScheme == .dark ? Color(white: 0.6) : Color(white: 0.5))
+            .foregroundColor(.adaptiveSecondaryText)
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.trailing, baseUnit)
     }
@@ -170,7 +175,7 @@ struct DayTimelineView: View {
                     // Time badge
                     ZStack {
                         RoundedRectangle(cornerRadius: baseUnit / 2, style: .continuous)
-                            .fill(Color.red)
+                            .fill(Color.adaptiveRed)
                             .frame(width: timeColumnWidth - baseUnit, height: baseUnit * 3)
                         
                         Text(formatCurrentTime())
@@ -241,14 +246,11 @@ struct DayTimelineView: View {
         
         // Debug one more time
         if deviceCalendar.isDateInToday(date) {
-            print("🔴 Final debug - Hour: \(Int(hour)), Position: \((hour * hourHeight) + (minute * (hourHeight / 60)))")
             
             // Check if this matches what we see visually
             // 9 AM should be at position 612 (9 * 68)
             // 9 PM should be at position 1428 (21 * 68)
             if Int(hour) == 9 {
-                print("   This should appear at the 9 AM position (around pixel 612)")
-                print("   If it appears at 9 PM position (around pixel 1428), something is adding 816 pixels")
             }
         }
         
@@ -266,9 +268,7 @@ struct DayTimelineView: View {
     // MARK: - Colors
     
     private var hourLineColor: Color {
-        colorScheme == .dark
-            ? Color(white: 0.2)
-            : Color(white: 0.9)
+        Color.adaptiveSeparator
     }
     
     @State private var pulseOffset: CGFloat = -0.2

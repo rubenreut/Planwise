@@ -7,6 +7,8 @@
 
 import Foundation
 
+// Using global AsyncTask typealias to avoid naming conflict with Core Data Task entity
+
 /// Mock OpenAI Service for testing without real API calls
 @MainActor
 class MockOpenAIService: OpenAIService {
@@ -31,7 +33,7 @@ class MockOpenAIService: OpenAIService {
         userContext: UserContext? = nil
     ) async throws -> ChatResponse {
         // Simulate network delay
-        try await Task.sleep(nanoseconds: UInt64(simulatedDelay * 1_000_000_000))
+        try await _Concurrency.Task.sleep(nanoseconds: UInt64(simulatedDelay * 1_000_000_000))
         
         // Simulate errors if configured
         if shouldSimulateError {
@@ -109,10 +111,10 @@ class MockOpenAIService: OpenAIService {
         userContext: UserContext? = nil
     ) -> AsyncThrowingStream<ChatStreamEvent, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            AsyncTask {
                 do {
                     // Simulate initial delay
-                    try await Task.sleep(nanoseconds: UInt64(simulatedDelay * 1_000_000_000))
+                    try await _Concurrency.Task.sleep(nanoseconds: UInt64(simulatedDelay * 1_000_000_000))
                     
                     if shouldSimulateError {
                         throw simulatedErrorType
@@ -163,7 +165,7 @@ class MockOpenAIService: OpenAIService {
                         continuation.yield(.data(streamData))
                         
                         // Small delay between words
-                        try await Task.sleep(nanoseconds: 50_000_000) // 50ms
+                        try await _Concurrency.Task.sleep(nanoseconds: 50_000_000) // 50ms
                     }
                     
                     continuation.yield(.done)

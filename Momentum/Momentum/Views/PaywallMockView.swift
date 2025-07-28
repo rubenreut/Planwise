@@ -88,27 +88,27 @@ struct PaywallMockView: View {
     private var featuresView: some View {
         VStack(alignment: .leading, spacing: baseUnit * 2) {
             FeatureRow(
-                icon: "infinity",
-                title: "Unlimited AI Messages",
-                description: "No limits on scheduling assistance"
+                icon: "message.badge.filled.fill",
+                title: "500 Daily AI Messages",
+                description: "50x more than free plan for all your scheduling needs"
             )
             
             FeatureRow(
                 icon: "photo.on.rectangle.angled",
-                title: "Image Analysis",
-                description: "Upload screenshots and photos for AI to analyze"
+                title: "20 Daily Image/PDF Uploads",
+                description: "Analyze screenshots, PDFs, and photos with AI"
             )
             
             FeatureRow(
                 icon: "clock.arrow.circlepath",
-                title: "Smart Scheduling",
-                description: "AI learns your patterns and suggests optimal times"
+                title: "Smart AI Assistant",
+                description: "Natural language scheduling - just say what you need"
             )
             
             FeatureRow(
                 icon: "chart.line.uptrend.xyaxis",
-                title: "Advanced Analytics",
-                description: "Track productivity and time usage insights"
+                title: "Voice & Vision Input",
+                description: "Speak or upload screenshots to create events instantly"
             )
             
             FeatureRow(

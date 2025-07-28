@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		D530334C2E16B0CD00E8341F /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D530334B2E16B0CD00E8341F /* WidgetKit.framework */; };
+		D530334E2E16B0CD00E8341F /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D530334D2E16B0CD00E8341F /* SwiftUI.framework */; };
+		D53033602E16B0CF00E8341F /* MomentumWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D53033492E16B0CD00E8341F /* MomentumWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		D530315C2E113ACD00E8341F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,12 +27,38 @@
 			remoteGlobalIDString = D53031432E113ACB00E8341F;
 			remoteInfo = Momentum;
 		};
+		D530335D2E16B0CF00E8341F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D530313C2E113ACB00E8341F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D53033482E16B0CD00E8341F;
+			remoteInfo = MomentumWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		D530335F2E16B0CF00E8341F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D53033602E16B0CF00E8341F /* MomentumWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		D50147C72E293AF200BB39DC /* maynooth.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = maynooth.xcodeproj; sourceTree = "<group>"; };
 		D53031442E113ACB00E8341F /* Momentum.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Momentum.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D530315B2E113ACD00E8341F /* MomentumTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MomentumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D53031652E113ACD00E8341F /* MomentumUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MomentumUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D53033492E16B0CD00E8341F /* MomentumWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MomentumWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D530334B2E16B0CD00E8341F /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		D530334D2E16B0CD00E8341F /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		D53033712E16BE4400E8341F /* MomentumWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MomentumWidgetExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -37,6 +69,22 @@
 			);
 			target = D53031432E113ACB00E8341F /* Momentum */;
 		};
+		D530336F2E16BD9B00E8341F /* Exceptions for "Momentum" folder in "MomentumWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Managers/PersistenceController.swift,
+				Momentum.xcdatamodeld,
+				Protocols/PersistenceProviding.swift,
+			);
+			target = D53033482E16B0CD00E8341F /* MomentumWidgetExtension */;
+		};
+		D53033752E16BFF400E8341F /* Exceptions for "MomentumWidget" folder in "MomentumWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D53033482E16B0CD00E8341F /* MomentumWidgetExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -44,6 +92,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				D530316D2E113ACD00E8341F /* Exceptions for "Momentum" folder in "Momentum" target */,
+				D530336F2E16BD9B00E8341F /* Exceptions for "Momentum" folder in "MomentumWidgetExtension" target */,
 			);
 			path = Momentum;
 			sourceTree = "<group>";
@@ -56,6 +105,14 @@
 		D53031682E113ACD00E8341F /* MomentumUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = MomentumUITests;
+			sourceTree = "<group>";
+		};
+		D530334F2E16B0CD00E8341F /* MomentumWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D53033752E16BFF400E8341F /* Exceptions for "MomentumWidget" folder in "MomentumWidgetExtension" target */,
+			);
+			path = MomentumWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -82,15 +139,34 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D53033462E16B0CD00E8341F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D530334E2E16B0CD00E8341F /* SwiftUI.framework in Frameworks */,
+				D530334C2E16B0CD00E8341F /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		D50147C92E293AF200BB39DC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		D530313B2E113ACB00E8341F = {
 			isa = PBXGroup;
 			children = (
+				D53033712E16BE4400E8341F /* MomentumWidgetExtension.entitlements */,
 				D53031462E113ACB00E8341F /* Momentum */,
 				D530315E2E113ACD00E8341F /* MomentumTests */,
 				D53031682E113ACD00E8341F /* MomentumUITests */,
+				D530334F2E16B0CD00E8341F /* MomentumWidget */,
+				D530334A2E16B0CD00E8341F /* Frameworks */,
 				D53031452E113ACB00E8341F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -101,8 +177,18 @@
 				D53031442E113ACB00E8341F /* Momentum.app */,
 				D530315B2E113ACD00E8341F /* MomentumTests.xctest */,
 				D53031652E113ACD00E8341F /* MomentumUITests.xctest */,
+				D53033492E16B0CD00E8341F /* MomentumWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D530334A2E16B0CD00E8341F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D530334B2E16B0CD00E8341F /* WidgetKit.framework */,
+				D530334D2E16B0CD00E8341F /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -115,10 +201,12 @@
 				D53031402E113ACB00E8341F /* Sources */,
 				D53031412E113ACB00E8341F /* Frameworks */,
 				D53031422E113ACB00E8341F /* Resources */,
+				D530335F2E16B0CF00E8341F /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D530335E2E16B0CF00E8341F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				D53031462E113ACB00E8341F /* Momentum */,
@@ -176,6 +264,28 @@
 			productReference = D53031652E113ACD00E8341F /* MomentumUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		D53033482E16B0CD00E8341F /* MomentumWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D53033612E16B0CF00E8341F /* Build configuration list for PBXNativeTarget "MomentumWidgetExtension" */;
+			buildPhases = (
+				D53033452E16B0CD00E8341F /* Sources */,
+				D53033462E16B0CD00E8341F /* Frameworks */,
+				D53033472E16B0CD00E8341F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D530334F2E16B0CD00E8341F /* MomentumWidget */,
+			);
+			name = MomentumWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = MomentumWidgetExtension;
+			productReference = D53033492E16B0CD00E8341F /* MomentumWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -197,6 +307,9 @@
 						CreatedOnToolsVersion = 16.0;
 						TestTargetID = D53031432E113ACB00E8341F;
 					};
+					D53033482E16B0CD00E8341F = {
+						CreatedOnToolsVersion = 16.0;
+					};
 				};
 			};
 			buildConfigurationList = D530313F2E113ACB00E8341F /* Build configuration list for PBXProject "Momentum" */;
@@ -211,11 +324,18 @@
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D53031452E113ACB00E8341F /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = D50147C92E293AF200BB39DC /* Products */;
+					ProjectRef = D50147C72E293AF200BB39DC /* maynooth.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				D53031432E113ACB00E8341F /* Momentum */,
 				D530315A2E113ACD00E8341F /* MomentumTests */,
 				D53031642E113ACD00E8341F /* MomentumUITests */,
+				D53033482E16B0CD00E8341F /* MomentumWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -236,6 +356,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		D53031632E113ACD00E8341F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D53033472E16B0CD00E8341F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -266,6 +393,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D53033452E16B0CD00E8341F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -279,6 +413,11 @@
 			target = D53031432E113ACB00E8341F /* Momentum */;
 			targetProxy = D53031662E113ACD00E8341F /* PBXContainerItemProxy */;
 		};
+		D530335E2E16B0CF00E8341F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D53033482E16B0CD00E8341F /* MomentumWidgetExtension */;
+			targetProxy = D530335D2E16B0CF00E8341F /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -289,7 +428,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Momentum/Momentum.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_ASSET_PATHS = "\"Momentum/Preview Content\"";
 				DEVELOPMENT_TEAM = 9658TG25VL;
 				ENABLE_PREVIEWS = YES;
@@ -304,9 +443,12 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rubenreut.Momentum;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -320,7 +462,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Momentum/Momentum.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_ASSET_PATHS = "\"Momentum/Preview Content\"";
 				DEVELOPMENT_TEAM = 9658TG25VL;
 				ENABLE_PREVIEWS = YES;
@@ -335,9 +477,12 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rubenreut.Momentum;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -468,16 +613,16 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = 9658TG25VL;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rubenreut.MomentumTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Momentum.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Momentum";
 			};
 			name = Debug;
@@ -487,16 +632,16 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = 9658TG25VL;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rubenreut.MomentumTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Momentum.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Momentum";
 			};
 			name = Release;
@@ -505,15 +650,15 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = 9658TG25VL;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rubenreut.MomentumUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_TARGET_NAME = Momentum;
 			};
 			name = Debug;
@@ -522,16 +667,80 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = 9658TG25VL;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rubenreut.MomentumUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_TARGET_NAME = Momentum;
+			};
+			name = Release;
+		};
+		D53033622E16B0CF00E8341F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = MomentumWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				DEVELOPMENT_TEAM = 9658TG25VL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MomentumWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = com.rubenreut.momentum.widget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rubenreut.Momentum.MomentumWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D53033632E16B0CF00E8341F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = MomentumWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				DEVELOPMENT_TEAM = 9658TG25VL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MomentumWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = com.rubenreut.momentum.widget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rubenreut.Momentum.MomentumWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -570,6 +779,15 @@
 			buildConfigurations = (
 				D53031772E113ACD00E8341F /* Debug */,
 				D53031782E113ACD00E8341F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D53033612E16B0CF00E8341F /* Build configuration list for PBXNativeTarget "MomentumWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D53033622E16B0CF00E8341F /* Debug */,
+				D53033632E16B0CF00E8341F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

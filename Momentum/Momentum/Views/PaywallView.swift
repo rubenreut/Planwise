@@ -8,23 +8,25 @@ struct PaywallView: View {
     @State private var selectedProduct: Product?
     @State private var showingError = false
     @State private var errorMessage = ""
+    @State private var selectedPlanIndex = 1 // Default to annual
     
     // MARK: - Mathematical Constants
     
     private let φ: Double = 1.618033988749895
     private let baseUnit: Double = 8.0
     
+    // Screenshot mode - set to true for App Store screenshots
+    private let screenshotMode = false
+    
     var body: some View {
         NavigationStack {
             ZStack {
                 // Background gradient
-                LinearGradient(
-                    colors: [
-                        Color.accentColor.opacity(0.1),
-                        Color.accentColor.opacity(0.05)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
+                LinearGradient.adaptiveGradient(
+                    from: Color.adaptiveBackground,
+                    to: Color.adaptiveSecondaryBackground,
+                    darkFrom: Color.black,
+                    darkTo: Color(white: 0.05)
                 )
                 .ignoresSafeArea()
                 
@@ -102,26 +104,26 @@ struct PaywallView: View {
         VStack(alignment: .leading, spacing: baseUnit * 2) {
             FeatureRow(
                 icon: "infinity",
-                title: "Unlimited AI Messages",
-                description: "No limits on scheduling assistance"
+                title: "Unlimited Events, Tasks, Habits & Goals",
+                description: "Free users limited to 3 of each"
+            )
+            
+            FeatureRow(
+                icon: "message.badge.filled.fill",
+                title: "500 Daily AI Messages",
+                description: "50x more than free plan for all your scheduling needs"
             )
             
             FeatureRow(
                 icon: "photo.on.rectangle.angled",
-                title: "Image Analysis",
-                description: "Upload screenshots and photos for AI to analyze"
+                title: "20 Daily Image/PDF Uploads",
+                description: "Analyze screenshots, PDFs, and photos with AI"
             )
             
             FeatureRow(
-                icon: "clock.arrow.circlepath",
-                title: "Smart Scheduling",
-                description: "AI learns your patterns and suggests optimal times"
-            )
-            
-            FeatureRow(
-                icon: "chart.line.uptrend.xyaxis",
-                title: "Advanced Analytics",
-                description: "Track productivity and time usage insights"
+                icon: "mic.fill",
+                title: "Voice Input",
+                description: "Speak to create events and tasks instantly"
             )
             
             FeatureRow(
@@ -137,8 +139,79 @@ struct PaywallView: View {
     
     private var pricingView: some View {
         VStack(spacing: baseUnit * 1.5) {
+            // Screenshot mode - show fake products
+            if screenshotMode {
+                // Best value badge
+                HStack {
+                    Spacer()
+                    Text("SAVE 49%")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, baseUnit * 1.5)
+                        .padding(.vertical, baseUnit / 2)
+                        .background(Color.green)
+                        .cornerRadius(baseUnit * 2)
+                        .offset(y: baseUnit)
+                        .zIndex(1)
+                }
+                .padding(.horizontal, baseUnit * 2)
+                
+                // Monthly option
+                Button(action: { selectedPlanIndex = 0 }) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: baseUnit / 2) {
+                            Text("Monthly")
+                                .font(.system(size: 18, weight: .semibold))
+                            Text("€12.99 / month")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: selectedPlanIndex == 0 ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 24))
+                            .foregroundColor(selectedPlanIndex == 0 ? .accentColor : .secondary)
+                    }
+                    .padding(baseUnit * 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: baseUnit * 1.5)
+                            .stroke(selectedPlanIndex == 0 ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: 2)
+                    )
+                }
+                .buttonStyle(.ghost)
+                
+                // Annual option
+                Button(action: { selectedPlanIndex = 1 }) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: baseUnit / 2) {
+                            Text("Annual")
+                                .font(.system(size: 18, weight: .semibold))
+                            Text("€79.99 / year")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: selectedPlanIndex == 1 ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 24))
+                            .foregroundColor(selectedPlanIndex == 1 ? .accentColor : .secondary)
+                    }
+                    .padding(baseUnit * 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: baseUnit * 1.5)
+                            .fill(selectedPlanIndex == 1 ? Color.accentColor.opacity(0.1) : Color.clear)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: baseUnit * 1.5)
+                                    .stroke(selectedPlanIndex == 1 ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: 2)
+                            )
+                    )
+                }
+                .buttonStyle(.ghost)
+            }
             // Loading state
-            if subscriptionManager.products.isEmpty && subscriptionManager.isLoading {
+            else if subscriptionManager.products.isEmpty && subscriptionManager.isLoading {
                 ProgressView("Loading products...")
                     .padding(.vertical, baseUnit * 4)
             } else if subscriptionManager.products.isEmpty {
@@ -156,11 +229,15 @@ struct PaywallView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                     
-                    Button("Retry") {
-                        Task {
+                    MomentumButton("Retry", icon: "arrow.clockwise", style: .secondary, size: .small) {
+                        AsyncTask {
                             await subscriptionManager.loadProducts()
                         }
                     }
+                    
+                    Text("Bundle: \(Bundle.main.bundleIdentifier ?? "unknown")")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
                     .padding(.top)
                 }
                 .padding(.vertical, baseUnit * 4)
@@ -201,31 +278,21 @@ struct PaywallView: View {
     private var actionButtons: some View {
         VStack(spacing: baseUnit * 2) {
             // Purchase button
-            Button(action: purchase) {
-                Group {
-                    if subscriptionManager.isLoading {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    } else {
-                        Text(purchaseButtonTitle)
-                            .font(.system(size: 18, weight: .semibold))
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 56)
-                .background(Color.accentColor)
-                .foregroundColor(.white)
-                .cornerRadius(baseUnit * 2)
+            LoadingButton(
+                action: purchase,
+                isLoading: subscriptionManager.isLoading,
+                style: .primary,
+                size: .large
+            ) {
+                Text(purchaseButtonTitle)
             }
-            .disabled(selectedProduct == nil || subscriptionManager.isLoading)
+            .disabled(!screenshotMode && selectedProduct == nil)
             
             // Restore button
-            Button(action: restore) {
-                Text("Restore Purchases")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.accentColor)
+            MomentumButton("Restore Purchases", style: .tertiary, size: .medium) {
+                restore()
             }
-            .disabled(subscriptionManager.isLoading)
+            .disabled(!screenshotMode && subscriptionManager.isLoading)
             
         }
         .padding(.top, baseUnit * 2)
@@ -234,25 +301,54 @@ struct PaywallView: View {
     // MARK: - Terms View
     
     private var termsView: some View {
-        VStack(spacing: baseUnit) {
-            Text("By subscribing, you agree to our")
+        VStack(spacing: baseUnit * 1.5) {
+            // More prominent legal links
+            HStack(spacing: baseUnit * 3) {
+                Link(destination: URL(string: "https://rubenreut.github.io/Planwise-legal/terms-of-service.html")!) {
+                    Text("Terms of Service")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.accentColor)
+                        .underline()
+                }
+                
+                Link(destination: URL(string: "https://rubenreut.github.io/Planwise-legal/privacy-policy.html")!) {
+                    Text("Privacy Policy")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.accentColor)
+                        .underline()
+                }
+            }
+            .padding(.vertical, baseUnit)
+            .padding(.horizontal, baseUnit * 2)
+            .background(
+                RoundedRectangle(cornerRadius: baseUnit)
+                    .fill(Color.accentColor.opacity(0.1))
+            )
+            
+            Text("Subscriptions automatically renew unless cancelled")
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
             
-            HStack(spacing: baseUnit * 2) {
-                Link("Terms of Service", destination: URL(string: "https://rubenreut.github.io/Planwise-legal/terms-of-service.html")!)
+            Button(action: {
+                if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+                    UIApplication.shared.open(url)
+                }
+            }) {
+                Text("Manage Subscriptions")
                     .font(.system(size: 12, weight: .medium))
-                
-                Link("Privacy Policy", destination: URL(string: "https://rubenreut.github.io/Planwise-legal/privacy-policy.html")!)
-                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.accentColor)
             }
         }
-        .padding(.top, baseUnit * 3)
+        .padding(.top, baseUnit * 2)
     }
     
     // MARK: - Computed Properties
     
     private var purchaseButtonTitle: String {
+        if screenshotMode {
+            return "Subscribe Now"
+        }
         guard let product = selectedProduct else { return "Select a Plan" }
         
         return "Subscribe Now"
@@ -263,7 +359,7 @@ struct PaywallView: View {
     private func purchase() {
         guard let product = selectedProduct else { return }
         
-        Task {
+        AsyncTask {
             do {
                 if try await subscriptionManager.purchase(product) != nil {
                     // Success! Dismiss the paywall
@@ -277,7 +373,7 @@ struct PaywallView: View {
     }
     
     private func restore() {
-        Task {
+        AsyncTask {
             do {
                 try await subscriptionManager.restorePurchases()
                 

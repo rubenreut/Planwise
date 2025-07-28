@@ -39,14 +39,11 @@ class PersistenceController: ObservableObject, PersistenceProviding {
         if let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID) {
             let storeURL = appGroupURL.appendingPathComponent("Momentum.sqlite")
             description.url = storeURL
-            print("📁 Using App Group URL: \(storeURL.path)")
         } else {
-            print("⚠️ App Group not available, using default location")
             // Fall back to documents directory
             let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
             let storeURL = documentsURL.appendingPathComponent("Momentum.sqlite")
             description.url = storeURL
-            print("📁 Using Documents URL: \(storeURL.path)")
         }
         
         // Add semaphore to ensure store loads before continuing
@@ -55,25 +52,23 @@ class PersistenceController: ObservableObject, PersistenceProviding {
         
         container.loadPersistentStores { [weak self] storeDescription, error in
             if let error = error as NSError? {
-                print("❌ Core Data failed to load: \(error), \(error.userInfo)")
                 
                 // Detailed CloudKit error diagnosis
                 if error.domain == "CKErrorDomain" {
-                    print("🔍 CloudKit specific error detected:")
                     switch error.code {
-                    case 1: print("   → Network unavailable")
-                    case 2: print("   → Network timeout") 
-                    case 3: print("   → Bad container (check identifier)")
-                    case 4: print("   → Service unavailable")
-                    case 5: print("   → Request rate limited")
-                    case 6: print("   → Missing entitlement")
-                    case 7: print("   → Not authenticated (not signed into iCloud)")
-                    case 9: print("   → Permission failure")
-                    case 26: print("   → Quota exceeded")
-                    case 28: print("   → Account temporarily unavailable")
-                    case 35: print("   → User deleted zone")
-                    case 36: print("   → iCloud Drive not enabled")
-                    default: print("   → Unknown CloudKit error code: \(error.code)")
+                    case 1: break //print("   → Network unavailable")
+                    case 2: break //print("   → Network timeout") 
+                    case 3: break //print("   → Bad container (check identifier)")
+                    case 4: break //print("   → Service unavailable")
+                    case 5: break //print("   → Request rate limited")
+                    case 6: break //print("   → Missing entitlement")
+                    case 7: break //print("   → Not authenticated (not signed into iCloud)")
+                    case 9: break //print("   → Permission failure")
+                    case 26: break //print("   → Quota exceeded")
+                    case 28: break //print("   → Account temporarily unavailable")
+                    case 35: break //print("   → User deleted zone")
+                    case 36: break //print("   → iCloud Drive not enabled")
+                    default: break //print("   → Unknown CloudKit error code: \(error.code)")
                     }
                 }
                 
@@ -81,17 +76,12 @@ class PersistenceController: ObservableObject, PersistenceProviding {
                 // Try to handle the error
                 self?.handlePersistentStoreError(error)
             } else {
-                print("✅ Core Data loaded successfully")
-                print("Store URL: \(storeDescription.url?.absoluteString ?? "unknown")")
-                print("Store Type: \(storeDescription.type)")
                 
                 // Verify we actually have stores
                 if self?.container.persistentStoreCoordinator.persistentStores.isEmpty == true {
-                    print("❌ WARNING: No persistent stores loaded!")
                     // Force create a store
                     self?.createInMemoryStoreIfNeeded()
                 } else {
-                    print("✅ Persistent stores count: \(self?.container.persistentStoreCoordinator.persistentStores.count ?? 0)")
                     // Initialize default categories on first launch
                     self?.initializeDefaultCategoriesIfNeeded()
                 }
@@ -103,7 +93,6 @@ class PersistenceController: ObservableObject, PersistenceProviding {
         _ = loadSemaphore.wait(timeout: .now() + 5.0)
         
         if let error = loadError {
-            print("⚠️ Store failed to load with error: \(error)")
             // Don't fall back to in-memory - we want CloudKit!
             // createInMemoryStoreIfNeeded()
         }
@@ -118,25 +107,18 @@ class PersistenceController: ObservableObject, PersistenceProviding {
         // Ensure view context name for debugging
         container.viewContext.name = "ViewContext"
         
-        print("🔧 Core Data configured:")
-        print("   Store type: \(description.type)")
-        print("   CloudKit: \(description.cloudKitContainerOptions != nil)")
     }
     
     private func handlePersistentStoreError(_ error: NSError) {
         // Common recovery strategies
         if error.code == 134110 { // Model version mismatch
-            print("⚠️ Core Data model version mismatch - attempting migration")
             // In production, implement proper migration
         } else if error.code == 134100 { // Persistent store not found
-            print("⚠️ Persistent store not found - will create new one")
         } else {
-            print("⚠️ Unknown Core Data error: \(error)")
         }
     }
     
     private func createInMemoryStoreIfNeeded() {
-        print("🔧 Creating in-memory store as fallback...")
         
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -149,17 +131,13 @@ class PersistenceController: ObservableObject, PersistenceProviding {
                 at: nil,
                 options: nil
             )
-            print("✅ In-memory store created successfully")
-            print("   Store count: \(coordinator.persistentStores.count)")
         } catch {
-            print("❌ Failed to create in-memory store: \(error)")
             // Last resort - create a basic SQLite store
             createBasicSQLiteStore()
         }
     }
     
     private func createBasicSQLiteStore() {
-        print("🔧 Creating basic SQLite store...")
         
         let storeURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
             .appendingPathComponent("Momentum.sqlite")
@@ -175,9 +153,7 @@ class PersistenceController: ObservableObject, PersistenceProviding {
                     NSInferMappingModelAutomaticallyOption: true
                 ]
             )
-            print("✅ SQLite store created at: \(storeURL.path)")
         } catch {
-            print("❌ CRITICAL: Failed to create any persistent store: \(error)")
             fatalError("Unable to create Core Data store")
         }
     }
@@ -189,14 +165,11 @@ class PersistenceController: ObservableObject, PersistenceProviding {
         do {
             let count = try context.count(for: fetchRequest)
             if count == 0 {
-                print("📁 Initializing default categories...")
                 createDefaultCategories()
             } else {
-                print("✅ Categories already exist (\(count) found), checking for duplicates...")
                 removeDuplicateCategories()
             }
         } catch {
-            print("❌ Failed to fetch categories: \(error)")
         }
     }
     
@@ -218,7 +191,6 @@ class PersistenceController: ObservableObject, PersistenceProviding {
                     if seenNames.contains(name) {
                         // This is a duplicate
                         categoriesToDelete.append(category)
-                        print("🗑️ Found duplicate category: \(name)")
                     } else {
                         seenNames.insert(name)
                     }
@@ -232,12 +204,9 @@ class PersistenceController: ObservableObject, PersistenceProviding {
             
             if !categoriesToDelete.isEmpty {
                 try context.save()
-                print("✅ Removed \(categoriesToDelete.count) duplicate categories")
             } else {
-                print("✅ No duplicate categories found")
             }
         } catch {
-            print("❌ Failed to remove duplicate categories: \(error)")
         }
     }
     
@@ -270,67 +239,46 @@ class PersistenceController: ObservableObject, PersistenceProviding {
                     category.isDefault = true
                     category.sortOrder = Int32(index)
                     category.createdAt = Date()
-                    print("✅ Created category: \(name)")
                 } else {
-                    print("⏭️ Category '\(name)' already exists, skipping")
                 }
             } catch {
-                print("❌ Error checking for existing category '\(name)': \(error)")
             }
         }
         
         do {
             try context.save()
-            print("✅ Default categories initialization complete")
         } catch {
-            print("❌ Failed to save default categories: \(error)")
         }
     }
     
     private func checkiCloudAvailability() {
-        print("🔍 Checking iCloud availability...")
         
-        FileManager.default.ubiquityIdentityToken != nil ? 
-            print("✅ iCloud account is signed in") : 
-            print("❌ No iCloud account found - CloudKit sync will not work")
+        _ = FileManager.default.ubiquityIdentityToken != nil ? true : false 
         
         // Check CloudKit container directly
         let container = CKContainer(identifier: "iCloud.com.rubnereut.ecosystem")
         container.accountStatus { status, error in
             if let error = error {
-                print("❌ CloudKit account check failed: \(error)")
             } else {
                 switch status {
-                case .available:
-                    print("✅ CloudKit is available")
-                case .noAccount:
-                    print("❌ No iCloud account")
-                case .restricted:
-                    print("❌ iCloud restricted (parental controls?)")
-                case .temporarilyUnavailable:
-                    print("⚠️ iCloud temporarily unavailable")
-                case .couldNotDetermine:
-                    print("❓ Could not determine iCloud status")
-                @unknown default:
-                    print("❓ Unknown iCloud status")
+                case .available: break
+                case .noAccount: break
+                case .restricted: break
+                case .temporarilyUnavailable: break
+                case .couldNotDetermine: break
+                @unknown default: break
                 }
             }
         }
     }
     
     // MARK: - Core Data Saving
-    func save() {
+    func save() throws {
         let context = container.viewContext
         
         guard context.hasChanges else { return }
         
-        do {
-            try context.save()
-            print("✅ Context saved successfully")
-        } catch {
-            print("❌ Failed to save context: \(error)")
-            // In production, implement proper error recovery
-        }
+        try context.save()
     }
     
     // MARK: - Performance Monitoring
@@ -339,7 +287,6 @@ class PersistenceController: ObservableObject, PersistenceProviding {
         defer {
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
             if elapsed > 1.0 {
-                print("⚠️ PERF: Slow operation (\(String(format: "%.3f", elapsed))s): \(operation)")
             }
         }
         return try block()
@@ -378,7 +325,6 @@ extension PersistenceController {
         do {
             try viewContext.save()
         } catch {
-            print("❌ Failed to create preview data: \(error)")
         }
         
         return result
@@ -389,16 +335,13 @@ extension PersistenceController {
 extension PersistenceController {
     // Force CloudKit sync
     func forceSyncWithCloudKit() {
-        print("🔄 Forcing CloudKit sync...")
         
         // Trigger a save to force sync
         let context = container.viewContext
         if context.hasChanges {
             do {
                 try context.save()
-                print("✅ Context saved for CloudKit sync")
             } catch {
-                print("❌ Failed to save context for sync: \(error)")
             }
         }
         
@@ -408,6 +351,5 @@ extension PersistenceController {
             object: container.persistentStoreCoordinator
         )
         
-        print("📤 CloudKit sync triggered")
     }
 }

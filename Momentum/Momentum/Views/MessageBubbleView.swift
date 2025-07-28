@@ -4,9 +4,13 @@ import SwiftUI
 
 struct MessageBubbleView: View {
     let message: ChatMessage
+    let acceptedEventIds: Set<String>
+    let deletedEventIds: Set<String>
+    let acceptedMultiEventMessageIds: Set<UUID>
+    let completedBulkActionIds: Set<String>
     var onRetry: (() -> Void)? = nil
     var onEventAction: ((String, EventAction) -> Void)? = nil
-    var onMultiEventAction: ((MultiEventAction) -> Void)? = nil
+    var onMultiEventAction: ((MultiEventAction, UUID) -> Void)? = nil
     var onBulkAction: ((UUID, BulkActionPreview.BulkAction) -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
     
@@ -20,10 +24,10 @@ struct MessageBubbleView: View {
     private var bubbleColor: Color {
         if message.sender.isUser {
             // User messages use accent color
-            return Color.accentColor
+            return Color.userBubbleBackground
         } else {
-            // AI messages use secondary background
-            return colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.95)
+            // AI messages use adaptive background
+            return Color.aiBubbleBackground
         }
     }
     
@@ -31,7 +35,7 @@ struct MessageBubbleView: View {
         if message.sender.isUser {
             return .white
         } else {
-            return colorScheme == .dark ? .white : .black
+            return Color.aiBubbleText
         }
     }
     
@@ -47,6 +51,32 @@ struct MessageBubbleView: View {
         return UIScreen.main.bounds.width - (baseUnit * 4) // Full width minus padding for both
     }
     
+    private func documentIcon(for extension: String) -> String {
+        switch `extension`.lowercased() {
+        case "pdf":
+            return "doc.fill"
+        case "doc", "docx":
+            return "doc.richtext.fill"
+        case "txt":
+            return "doc.text.fill"
+        default:
+            return "doc.fill"
+        }
+    }
+    
+    private func documentColor(for extension: String) -> Color {
+        switch `extension`.lowercased() {
+        case "pdf":
+            return .red
+        case "doc", "docx":
+            return .blue
+        case "txt":
+            return .gray
+        default:
+            return .orange
+        }
+    }
+    
     var body: some View {
         HStack(alignment: .top, spacing: baseUnit) {
             // Remove spacer to make both user and AI messages full width
@@ -60,25 +90,128 @@ struct MessageBubbleView: View {
                         .tracking(-0.2)
                 }
                 
-                // Message bubble
-                VStack(alignment: .leading, spacing: baseUnit) {
-                    // Function call result
-                    if let functionCall = message.functionCall {
-                        FunctionCallResultView(result: functionCall)
-                            .padding(.horizontal, horizontalPadding)
-                            .padding(.vertical, verticalPadding)
+                // Check if this is a function call card message
+                if message.eventPreview != nil || message.multipleEventsPreview != nil || message.bulkActionPreview != nil {
+                    // Render event previews without bubble background
+                    Group {
+                        // Rich event preview
+                        if let eventPreview = message.eventPreview {
+                            EventPreviewView(
+                                event: eventPreview,
+                                isAccepted: acceptedEventIds.contains(eventPreview.id),
+                                isDeleted: deletedEventIds.contains(eventPreview.id),
+                                onAction: { action in
+                                    onEventAction?(eventPreview.id, action)
+                                },
+                                inMessageBubble: false
+                            )
+                        }
+                        
+                        // Multiple events preview
+                        if let multipleEvents = message.multipleEventsPreview {
+                            MultipleEventsPreviewView(
+                                events: multipleEvents,
+                                isAccepted: acceptedMultiEventMessageIds.contains(message.id),
+                                onAction: { action in
+                                    onMultiEventAction?(action, message.id)
+                                },
+                                inMessageBubble: false
+                            )
+                        }
+                        
+                        // Bulk action preview
+                        if let bulkActionPreview = message.bulkActionPreview {
+                            BulkActionPreviewView(
+                                preview: bulkActionPreview,
+                                isCompleted: completedBulkActionIds.contains(bulkActionPreview.id),
+                                onAction: { action in
+                                    onBulkAction?(message.id, action)
+                                },
+                                inMessageBubble: false
+                            )
+                        }
                     }
+                    .frame(maxWidth: maxWidth, alignment: message.sender.isUser ? .trailing : .leading)
+                } else {
+                    // Regular message bubble
+                    VStack(alignment: .leading, spacing: baseUnit) {
                     
-                    // Attached image
+                    // Attached file/image preview
                     if let image = message.attachedImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxHeight: 200)
-                            .cornerRadius(12)
-                            .padding(.horizontal, horizontalPadding)
-                            .padding(.top, verticalPadding)
-                            .padding(.bottom, message.content.isEmpty ? verticalPadding : baseUnit / 2)
+                        VStack(alignment: .leading, spacing: baseUnit / 2) {
+                            // Show file name for PDFs and other documents
+                            if let fileName = message.attachedFileName {
+                                HStack(spacing: baseUnit / 2) {
+                                    Image(systemName: documentIcon(for: message.attachedFileExtension ?? ""))
+                                        .font(.system(size: 14))
+                                        .foregroundColor(documentColor(for: message.attachedFileExtension ?? ""))
+                                    
+                                    Text(fileName)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(textColor.opacity(0.9))
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                        .textSelection(.enabled)
+                                }
+                            }
+                            
+                            // Image preview
+                            HStack {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 120, height: 120)
+                                    .clipped()
+                                    .cornerRadius(8)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.adaptiveBorder.opacity(0.5), lineWidth: 1)
+                                    )
+                                Spacer()
+                            }
+                        }
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.top, verticalPadding)
+                        .padding(.bottom, message.content.isEmpty ? verticalPadding : baseUnit / 2)
+                    } else if let fileName = message.attachedFileName,
+                              let fileExtension = message.attachedFileExtension {
+                        // Non-image file attachment
+                        HStack(spacing: baseUnit) {
+                            // Document icon
+                            VStack {
+                                Image(systemName: documentIcon(for: fileExtension))
+                                    .font(.system(size: 28))
+                                    .foregroundColor(documentColor(for: fileExtension))
+                                Text(fileExtension.uppercased())
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(textColor.opacity(0.6))
+                            }
+                            .frame(width: 60, height: 60)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(documentColor(for: fileExtension).opacity(0.1))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(documentColor(for: fileExtension).opacity(0.3), lineWidth: 1)
+                                    )
+                            )
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(fileName)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(textColor)
+                                    .lineLimit(2)
+                                    .truncationMode(.middle)
+                                Text("Document")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(textColor.opacity(0.6))
+                            }
+                            
+                            Spacer()
+                        }
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.top, verticalPadding)
+                        .padding(.bottom, message.content.isEmpty ? verticalPadding : baseUnit / 2)
                     }
                     
                     // Main message content
@@ -99,6 +232,7 @@ struct MessageBubbleView: View {
                             Text(error)
                                 .font(.system(size: 13))
                                 .foregroundColor(.secondary)
+                                .textSelection(.enabled)
                             
                             if let onRetry = onRetry {
                                 Spacer()
@@ -117,54 +251,19 @@ struct MessageBubbleView: View {
                         .padding(.horizontal, horizontalPadding)
                         .padding(.bottom, baseUnit)
                     }
-                    
-                    // Rich event preview
-                    if let eventPreview = message.eventPreview {
-                        EventPreviewView(
-                            event: eventPreview,
-                            onAction: { action in
-                                onEventAction?(eventPreview.id, action)
-                            }
-                        )
-                        .padding(.horizontal, baseUnit)
-                        .padding(.bottom, baseUnit)
                     }
-                    
-                    // Multiple events preview
-                    if let multipleEvents = message.multipleEventsPreview {
-                        MultipleEventsPreviewView(
-                            events: multipleEvents,
-                            onAction: { action in
-                                onMultiEventAction?(action)
-                            }
-                        )
-                        .padding(.horizontal, baseUnit)
-                        .padding(.bottom, baseUnit)
-                    }
-                    
-                    // Bulk action preview
-                    if let bulkActionPreview = message.bulkActionPreview {
-                        BulkActionPreviewView(
-                            preview: bulkActionPreview,
-                            onAction: { action in
-                                onBulkAction?(message.id, action)
-                            }
-                        )
-                        .padding(.horizontal, baseUnit)
-                        .padding(.bottom, baseUnit)
-                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: baseUnit * 2.5)
+                            .fill(bubbleColor)
+                            .shadow(
+                                color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.1),
+                                radius: 4,
+                                x: 0,
+                                y: 2
+                            )
+                    )
+                    .frame(maxWidth: maxWidth, alignment: message.sender.isUser ? .trailing : .leading)
                 }
-                .background(
-                    RoundedRectangle(cornerRadius: baseUnit * 2.5) // 20px
-                        .fill(bubbleColor)
-                        .shadow(
-                            color: Color.black.opacity(colorScheme == .dark ? 0.4 : 0.1),
-                            radius: baseUnit / 2,
-                            x: 0,
-                            y: 2
-                        )
-                )
-                .frame(maxWidth: maxWidth, alignment: message.sender.isUser ? .trailing : .leading)
                 
                 // Streaming indicator
                 if message.isStreaming {
@@ -177,6 +276,53 @@ struct MessageBubbleView: View {
         }
         .padding(.horizontal, baseUnit * 2) // 16px
         .padding(.vertical, baseUnit / 2) // 4px
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(message.error != nil && onRetry != nil ? "Double tap to retry" : "")
+    }
+    
+    private var accessibilityLabel: String {
+        var components: [String] = []
+        
+        // Sender
+        switch message.sender {
+        case .user(let name):
+            components.append("Message from \(name)")
+        case .assistant:
+            components.append("Response from Planwise Assistant")
+        }
+        
+        // Function call
+        if let functionCall = message.functionCall {
+            components.append("Function call: \(functionCall.displayName)")
+        }
+        
+        // Content
+        if !message.content.isEmpty {
+            let cleanContent = message.content
+                .replacingOccurrences(of: "**", with: "")
+                .replacingOccurrences(of: "*", with: "")
+                .replacingOccurrences(of: "`", with: "")
+                .replacingOccurrences(of: "#", with: "")
+            components.append(cleanContent)
+        }
+        
+        // Error
+        if let error = message.error {
+            components.append("Error: \(error)")
+        }
+        
+        // Event preview
+        if let event = message.eventPreview {
+            components.append("Event preview: \(event.title)")
+        }
+        
+        // Multiple events
+        if let events = message.multipleEventsPreview {
+            components.append("Preview of \(events.count) events")
+        }
+        
+        return components.joined(separator: ". ")
     }
 }
 
@@ -191,19 +337,29 @@ struct MarkdownText: View {
             ForEach(text.components(separatedBy: "\n\n").indices, id: \.self) { index in
                 let paragraph = text.components(separatedBy: "\n\n")[index]
                 if !paragraph.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    if let attributedString = try? AttributedString(markdown: paragraph) {
-                        Text(attributedString)
-                            .font(.system(size: 15, weight: .regular, design: .default))
-                            .foregroundColor(textColor)
-                            .tracking(-0.2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        // Fallback for each paragraph
-                        Text(processSimpleMarkdown(paragraph))
-                            .font(.system(size: 15, weight: .regular, design: .default))
-                            .foregroundColor(textColor)
-                            .tracking(-0.2)
-                            .fixedSize(horizontal: false, vertical: true)
+                    // Handle single line breaks within paragraphs
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(paragraph.components(separatedBy: "\n").indices, id: \.self) { lineIndex in
+                            let line = paragraph.components(separatedBy: "\n")[lineIndex]
+                            if !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                if let attributedString = try? AttributedString(markdown: line) {
+                                    Text(attributedString)
+                                        .font(.system(size: 15, weight: .regular, design: .default))
+                                        .foregroundColor(textColor)
+                                        .tracking(-0.2)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .textSelection(.enabled)
+                                } else {
+                                    // Fallback for each line
+                                    Text(processSimpleMarkdown(line))
+                                        .font(.system(size: 15, weight: .regular, design: .default))
+                                        .foregroundColor(textColor)
+                                        .tracking(-0.2)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .textSelection(.enabled)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -340,7 +496,11 @@ struct FunctionCallResultView: View {
                 content: "How can I better manage my time today?",
                 sender: .user(name: "Ruben"),
                 timestamp: Date()
-            )
+            ),
+            acceptedEventIds: [],
+            deletedEventIds: [],
+            acceptedMultiEventMessageIds: [],
+            completedBulkActionIds: []
         )
         
         MessageBubbleView(
@@ -348,7 +508,11 @@ struct FunctionCallResultView: View {
                 content: "Based on your schedule, I recommend time-blocking your morning for deep work. You have a 2-hour window from 9-11 AM that would be perfect for focused tasks.",
                 sender: .assistant,
                 timestamp: Date()
-            )
+            ),
+            acceptedEventIds: [],
+            deletedEventIds: [],
+            acceptedMultiEventMessageIds: [],
+            completedBulkActionIds: []
         )
         
         MessageBubbleView(
@@ -362,7 +526,11 @@ struct FunctionCallResultView: View {
                     message: "Deep Work Session",
                     details: ["Time": "9:00 AM - 11:00 AM", "Category": "Work"]
                 )
-            )
+            ),
+            acceptedEventIds: [],
+            deletedEventIds: [],
+            acceptedMultiEventMessageIds: [],
+            completedBulkActionIds: []
         )
         
         MessageBubbleView(
@@ -371,7 +539,11 @@ struct FunctionCallResultView: View {
                 sender: .assistant,
                 timestamp: Date(),
                 isStreaming: true
-            )
+            ),
+            acceptedEventIds: [],
+            deletedEventIds: [],
+            acceptedMultiEventMessageIds: [],
+            completedBulkActionIds: []
         )
         
         MessageBubbleView(
@@ -380,7 +552,11 @@ struct FunctionCallResultView: View {
                 sender: .assistant,
                 timestamp: Date(),
                 error: "Rate limit exceeded. Please try again in 60 seconds."
-            )
+            ),
+            acceptedEventIds: [],
+            deletedEventIds: [],
+            acceptedMultiEventMessageIds: [],
+            completedBulkActionIds: []
         )
     }
     .background(Color(.systemBackground))

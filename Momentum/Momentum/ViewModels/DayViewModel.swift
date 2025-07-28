@@ -27,16 +27,23 @@ class DayViewModel: ObservableObject {
     @Published var selectedEvent: Event?
     @Published var isLoading = false
     
+    // View state management
+    @Published var viewState: ViewState<[Event]> = .loading
+    @Published var loadError: Error?
+    
     // For new event creation from timeline tap
     @Published var newEventStartTime: Date?
     
     private var cancellables = Set<AnyCancellable>()
     private let calendar = Calendar.current
     
+    // Layout cache for performance
+    private var layoutCache = [Date: [EventLayout]]()
+    private let layoutCacheLock = NSLock()
+    
     private func checkForTodayEvents() {
         // If today has no events, find the most recent date with events
         if events.isEmpty && !scheduleManager.events.isEmpty {
-            print("📅 No events today, finding nearest date with events...")
             
             // Sort all events by date
             let sortedEvents = scheduleManager.events
@@ -46,11 +53,9 @@ class DayViewModel: ObservableObject {
             if let mostRecentPastEvent = sortedEvents.last(where: { $0 < Date() }) {
                 // Found a past event, go to that date
                 selectedDate = mostRecentPastEvent
-                print("📅 Switching to \(mostRecentPastEvent) which has events")
             } else if let nearestFutureEvent = sortedEvents.first(where: { $0 > Date() }) {
                 // No past events, use nearest future event
                 selectedDate = nearestFutureEvent
-                print("📅 Switching to \(nearestFutureEvent) which has events")
             }
         }
     }
@@ -62,7 +67,6 @@ class DayViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
-                print("🔄 DayViewModel: Detected events change from ScheduleManager")
                 self?.loadEvents()
             }
             .store(in: &cancellables)
@@ -78,31 +82,57 @@ class DayViewModel: ObservableObject {
     
     // MARK: - Data Loading
     func refreshEvents() {
+        // Clear layout cache when events refresh
+        layoutCacheLock.lock()
+        layoutCache.removeAll()
+        layoutCacheLock.unlock()
+        
         loadEvents()
     }
     
     private func loadEvents() {
-        // ISSUE: Need to efficiently filter events for selected date
-        // RESOLUTION: Use ScheduleManager's filtered method instead of filtering all events
-        let allEvents = scheduleManager.events
-        print("📊 Total events in ScheduleManager: \(allEvents.count)")
+        // Set loading state
+        viewState = .loading
+        loadError = nil
         
-        // Debug: Show what day we're looking at
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        print("📅 Loading events for selected date: \(formatter.string(from: selectedDate))")
-        
-        events = scheduleManager.events(for: selectedDate)
-            .sorted { ($0.startTime ?? Date.distantPast) < ($1.startTime ?? Date.distantPast) }
-        
-        print("📅 DayViewModel loaded \(events.count) events for \(selectedDate)")
-        for event in events {
-            formatter.dateFormat = "yyyy-MM-dd HH:mm"
-            print("  - \(event.title ?? "Untitled") at \(formatter.string(from: event.startTime ?? Date()))")
+        // Simulate async loading with proper error handling
+        _Concurrency.Task {
+            do {
+                // Add a small delay for better UX on fast operations
+                try await _Concurrency.Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                
+                // ISSUE: Need to efficiently filter events for selected date
+                // RESOLUTION: Use ScheduleManager's filtered method instead of filtering all events
+                let allEvents = scheduleManager.events
+                
+                // Debug: Show what day we're looking at
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                
+                let fetchedEvents = scheduleManager.events(for: selectedDate)
+                    .sorted { ($0.startTime ?? Date.distantPast) < ($1.startTime ?? Date.distantPast) }
+                
+                for event in fetchedEvents {
+                    formatter.dateFormat = "yyyy-MM-dd HH:mm"
+                }
+                
+                // Update state
+                await MainActor.run {
+                    self.events = fetchedEvents
+                    self.viewState = fetchedEvents.isEmpty ? .empty : .loaded(fetchedEvents)
+                    self.isLoading = false
+                    
+                    // Force UI update
+                    self.objectWillChange.send()
+                }
+            } catch {
+                await MainActor.run {
+                    self.loadError = error
+                    self.viewState = .error(error)
+                    self.isLoading = false
+                }
+            }
         }
-        
-        // Force UI update
-        objectWillChange.send()
     }
     
     // MARK: - Event Positioning
@@ -115,26 +145,40 @@ class DayViewModel: ObservableObject {
         let hour = CGFloat(components.hour ?? 0)
         let minute = CGFloat(components.minute ?? 0)
         
-        // 68pt per hour (φ³), so 68/60 pt per minute
-        let position = (hour * 68) + (minute * 68 / 60)
+        // Use the actual hour height from the view
+        let hourHeight: CGFloat = DeviceType.isIPad ? 80 : 68
+        let position = (hour * hourHeight) + (minute * hourHeight / 60)
+        
         return position
     }
     
     func calculateEventHeight(_ event: Event) -> CGFloat {
         guard let startTime = event.startTime,
-              let endTime = event.endTime else { return 44 }
+              let endTime = event.endTime else { return 0 }
         
         let duration = endTime.timeIntervalSince(startTime)
         let minutes = duration / 60
-        let height = CGFloat(minutes) * (68.0 / 60.0) // φ³ per hour
+        let hourHeight: CGFloat = DeviceType.isIPad ? 80 : 68
+        let height = CGFloat(minutes) * (hourHeight / 60.0)
         
-        // Minimum height for tappability
-        return max(height, 44)
+        // Return exact height - no minimum
+        return height
     }
     
     // MARK: - Overlapping Events
     func calculateEventLayout(for events: [Event]? = nil) -> [EventLayout] {
         let eventsToLayout = events ?? self.events
+        
+        // Check cache first
+        if events == nil {
+            layoutCacheLock.lock()
+            if let cached = layoutCache[selectedDate] {
+                layoutCacheLock.unlock()
+                return cached
+            }
+            layoutCacheLock.unlock()
+        }
+        
         // ISSUE: Events can overlap on timeline
         // RESOLUTION: Calculate columns for overlapping events
         
@@ -185,7 +229,7 @@ class DayViewModel: ObservableObject {
         
         // Update total columns for all layouts
         let totalColumns = columns.count
-        return layouts.map { layout in
+        let finalLayouts = layouts.map { layout in
             EventLayout(
                 event: layout.event,
                 column: layout.column,
@@ -194,6 +238,15 @@ class DayViewModel: ObservableObject {
                 height: layout.height
             )
         }
+        
+        // Cache if using default events
+        if events == nil {
+            layoutCacheLock.lock()
+            layoutCache[selectedDate] = finalLayouts
+            layoutCacheLock.unlock()
+        }
+        
+        return finalLayouts
     }
     
     // MARK: - User Actions

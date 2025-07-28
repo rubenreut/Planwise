@@ -9,10 +9,14 @@ import SwiftUI
 
 struct EventPreviewView: View {
     let event: EventPreview
+    let isAccepted: Bool
+    let isDeleted: Bool
     let onAction: (EventAction) -> Void
+    var inMessageBubble: Bool = false
     @Environment(\.colorScheme) var colorScheme
-    @State private var isPressed = false
+    @State private var pressedAction: EventAction? = nil
     @State private var showingActions = true
+    @State private var buttonScale: [EventAction: CGFloat] = [:]
     
     private let φ: Double = 1.618033988749895
     
@@ -140,36 +144,87 @@ struct EventPreviewView: View {
                     HStack(spacing: 0) {
                         ForEach(event.actions, id: \.self) { action in
                             Button(action: {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    isPressed = true
+                                // Disable if already accepted/deleted
+                                if action == .complete && isAccepted { return }
+                                if action == .delete && isDeleted { return }
+                                
+                                // Haptic feedback
+                                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                                impactFeedback.impactOccurred()
+                                
+                                // Animate button press
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                    pressedAction = action
+                                    buttonScale[action] = 0.92
                                 }
                                 
+                                // Reset after a short delay
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        buttonScale[action] = 1.0
+                                    }
+                                }
+                                
+                                // Perform action after animation starts
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    // Add haptic feedback based on action type
+                                    switch action {
+                                    case .complete:
+                                        HapticFeedback.success.trigger()
+                                    case .delete:
+                                        HapticFeedback.warning.trigger()
+                                    default:
+                                        HapticFeedback.light.trigger()
+                                    }
+                                    
                                     onAction(action)
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        isPressed = false
+                                    
+                                    // Keep pressed state a bit longer for visual feedback
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            pressedAction = nil
+                                        }
                                     }
                                 }
                             }) {
                                 HStack {
                                     Spacer()
                                     
-                                    Image(systemName: action.icon)
-                                        .font(.system(size: 14, weight: .medium))
+                                    Image(systemName: 
+                                        action == .complete && isAccepted ? "checkmark.circle.fill" :
+                                        action == .delete && isDeleted ? "trash.circle.fill" :
+                                        action.icon
+                                    )
+                                    .font(.system(size: 14, weight: .medium))
                                     
-                                    Text(action.label)
-                                        .font(.system(size: 14, weight: .semibold))
+                                    Text(
+                                        action == .complete && isAccepted ? "Accepted" :
+                                        action == .delete && isDeleted ? "Deleted" :
+                                        action.label
+                                    )
+                                    .font(.system(size: 14, weight: .semibold))
                                     
                                     Spacer()
                                 }
-                                .foregroundColor(action.isDestructive ? .red : .accentColor)
+                                .foregroundColor(
+                                    action == .complete && isAccepted ? .green :
+                                    action == .delete && isDeleted ? .red.opacity(0.6) :
+                                    action.isDestructive ? .red : .accentColor
+                                )
                                 .padding(.vertical, 14)
                                 .background(
                                     Rectangle()
-                                        .fill(Color.primary.opacity(isPressed ? 0.05 : 0))
+                                        .fill(
+                                            action == .complete && isAccepted ? Color.green.opacity(0.1) :
+                                            action == .delete && isDeleted ? Color.red.opacity(0.1) :
+                                            pressedAction == action ? Color.accentColor.opacity(0.15) : Color.clear
+                                        )
                                 )
+                                .scaleEffect(buttonScale[action] ?? 1.0)
+                                .opacity((action == .complete && isAccepted) || (action == .delete && isDeleted) ? 0.7 : 1.0)
                             }
                             .buttonStyle(PlainButtonStyle())
+                            .disabled((action == .complete && isAccepted) || (action == .delete && isDeleted))
                             
                             if action != event.actions.last {
                                 Divider()
@@ -184,32 +239,38 @@ struct EventPreviewView: View {
                 ))
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(backgroundGradient)
+        .if(!inMessageBubble) { view in
+            view
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(UIColor.secondarySystemBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.adaptiveBorder.opacity(0.5), lineWidth: 1)
+                )
                 .shadow(
                     color: shadowColor,
-                    radius: 12,
+                    radius: 8,
                     x: 0,
                     y: 4
                 )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(colorScheme == .dark ? 0.1 : 0.3),
-                            Color.white.opacity(0)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
+        }
+        .if(inMessageBubble) { view in
+            view
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(UIColor.tertiarySystemBackground))
                 )
-        )
-        .scaleEffect(isPressed ? 0.98 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
+        }
+        .scaleEffect(pressedAction != nil ? 0.98 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: pressedAction)
+        .onAppear {
+            // Initialize button scales
+            for action in event.actions {
+                buttonScale[action] = 1.0
+            }
+        }
     }
     
     private var categoryGradient: LinearGradient {
@@ -220,30 +281,21 @@ struct EventPreviewView: View {
         )
     }
     
+    private var categoryColor: Color {
+        getCategoryColors(event.category ?? "").first ?? Color.accentColor
+    }
+    
     private var backgroundGradient: LinearGradient {
-        if colorScheme == .dark {
-            return LinearGradient(
-                colors: [
-                    Color(white: 0.15),
-                    Color(white: 0.12)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        } else {
-            return LinearGradient(
-                colors: [
-                    Color.white,
-                    Color(white: 0.97)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
+        LinearGradient.adaptiveGradient(
+            from: Color.adaptiveCardBackground,
+            to: Color.adaptiveSecondaryBackground,
+            darkFrom: Color(white: 0.15),
+            darkTo: Color(white: 0.12)
+        )
     }
     
     private var shadowColor: Color {
-        colorScheme == .dark ? Color.black.opacity(0.5) : Color.black.opacity(0.1)
+        Color.adaptiveShadow
     }
     
     private func getCategoryColors(_ category: String) -> [Color] {
@@ -294,7 +346,7 @@ enum EventAction: Hashable {
         switch self {
         case .edit: return "Edit"
         case .delete: return "Delete"
-        case .complete: return "Complete"
+        case .complete: return "Accept"
         case .markAllComplete: return "Mark All Complete"
         case .viewFull: return "View Full"
         case .share: return "Share"
@@ -345,10 +397,11 @@ struct BulkActionPreview: Equatable {
 
 struct BulkActionPreviewView: View {
     let preview: BulkActionPreview
+    let isCompleted: Bool
     let onAction: (BulkActionPreview.BulkAction) -> Void
+    var inMessageBubble: Bool = false
     @Environment(\.colorScheme) var colorScheme
-    @State private var isPressed = false
-    @State private var showingConfirmation = false
+    @State private var pressedAction: BulkActionPreview.BulkAction? = nil
     
     private let φ: Double = 1.618033988749895
     
@@ -372,6 +425,17 @@ struct BulkActionPreviewView: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+        }
+    }
+    
+    private var categoryColor: Color {
+        switch preview.warningLevel {
+        case .normal:
+            return Color.blue
+        case .caution:
+            return Color.orange
+        case .critical:
+            return Color.red
         }
     }
     
@@ -403,20 +467,10 @@ struct BulkActionPreviewView: View {
                             
                             Spacer()
                             
-                            // Affected count badge
-                            HStack(spacing: 4) {
-                                Image(systemName: "number.circle.fill")
-                                    .font(.system(size: 12, weight: .semibold))
-                                Text("\(preview.affectedCount)")
-                                    .font(.system(size: 14, weight: .bold))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .fill(warningGradient)
-                            )
+                            // Affected count text
+                            Text("\(preview.affectedCount) events")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.secondary)
                         }
                         
                         // Date range if provided
@@ -452,140 +506,142 @@ struct BulkActionPreviewView: View {
                 }
             }
             
-            // Action buttons
-            HStack(spacing: 12) {
-                ForEach(preview.actions, id: \.self) { action in
-                    Button(action: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
-                            handleAction(action)
+            // Action button
+            VStack(spacing: 0) {
+                Divider()
+                
+                Button(action: {
+                    if !isCompleted {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            pressedAction = .confirm
                         }
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: iconForAction(action))
-                                .font(.system(size: 14, weight: .semibold))
-                            
-                            Text(labelForAction(action))
-                                .font(.system(size: 14, weight: .semibold))
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            onAction(.confirm)
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                pressedAction = nil
+                            }
                         }
-                        .foregroundColor(colorForAction(action))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(backgroundForAction(action))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .strokeBorder(borderForAction(action), lineWidth: 1.5)
-                                )
-                        )
                     }
-                    .buttonStyle(PlainButtonStyle())
+                }) {
+                    HStack {
+                        Spacer()
+                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "checkmark.circle")
+                            .font(.system(size: 14, weight: .medium))
+                        Text(isCompleted ? "Done" : "Confirm")
+                            .font(.system(size: 14, weight: .semibold))
+                        Spacer()
+                    }
+                    .foregroundColor(isCompleted ? .green : .red)
+                    .padding(.vertical, 14)
+                    .background(
+                        Rectangle()
+                            .fill(
+                                isCompleted ? Color.green.opacity(0.1) :
+                                pressedAction == .confirm ? Color.primary.opacity(0.05) : Color.clear
+                            )
+                    )
                 }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(isCompleted)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(
-                Rectangle()
-                    .fill(Color(.secondarySystemBackground))
-            )
         }
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
+        .if(!inMessageBubble) { view in
+            view
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(UIColor.secondarySystemBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.adaptiveBorder.opacity(0.5), lineWidth: 1)
+                )
+                .shadow(
+                    color: shadowColor,
+                    radius: 8,
+                    x: 0,
+                    y: 4
+                )
+        }
+        .if(inMessageBubble) { view in
+            view
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(UIColor.tertiarySystemBackground))
+                )
+        }
+        .scaleEffect(pressedAction != nil ? 0.98 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: pressedAction)
+    }
+    
+    private var backgroundGradient: LinearGradient {
+        LinearGradient.adaptiveGradient(
+            from: Color.adaptiveCardBackground,
+            to: Color.adaptiveSecondaryBackground,
+            darkFrom: Color(white: 0.15),
+            darkTo: Color(white: 0.12)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(Color(.separator).opacity(0.3), lineWidth: 1)
-        )
-        .scaleEffect(isPressed ? 0.98 : 1.0)
-        .animation(.spring(response: 0.2, dampingFraction: 0.95), value: isPressed)
-        .confirmationDialog(
-            "Are you sure?",
-            isPresented: $showingConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Confirm", role: .destructive) {
-                onAction(.confirm)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This will \(preview.action) \(preview.affectedCount) events. This action cannot be undone.")
-        }
     }
     
-    private func handleAction(_ action: BulkActionPreview.BulkAction) {
-        if action == .confirm && preview.warningLevel == .critical {
-            showingConfirmation = true
-        } else {
-            onAction(action)
-        }
+    private var shadowColor: Color {
+        Color.adaptiveShadow
     }
     
-    private func iconForAction(_ action: BulkActionPreview.BulkAction) -> String {
-        switch action {
-        case .confirm:
-            return preview.warningLevel == .critical ? "trash.fill" : "checkmark.circle.fill"
-        case .cancel:
-            return "xmark.circle.fill"
-        case .undo:
-            return "arrow.uturn.backward.circle.fill"
-        }
-    }
-    
-    private func labelForAction(_ action: BulkActionPreview.BulkAction) -> String {
-        switch action {
-        case .confirm:
-            return preview.warningLevel == .critical ? "Delete" : "Confirm"
-        case .cancel:
-            return "Cancel"
-        case .undo:
-            return "Undo"
-        }
-    }
-    
-    private func colorForAction(_ action: BulkActionPreview.BulkAction) -> Color {
-        switch action {
-        case .confirm:
-            return preview.warningLevel == .critical ? .white : .white
-        case .cancel:
-            return .primary
-        case .undo:
-            return .orange
-        }
-    }
-    
-    private func backgroundForAction(_ action: BulkActionPreview.BulkAction) -> Color {
-        switch action {
-        case .confirm:
-            return preview.warningLevel == .critical ? .red : .accentColor
-        case .cancel:
-            return .clear
-        case .undo:
-            return .orange.opacity(0.15)
-        }
-    }
-    
-    private func borderForAction(_ action: BulkActionPreview.BulkAction) -> Color {
-        switch action {
-        case .confirm:
-            return .clear
-        case .cancel:
-            return Color(.separator)
-        case .undo:
-            return .orange.opacity(0.3)
-        }
-    }
 }
 
 // MARK: - Multiple Events Preview
 
 struct MultipleEventsPreviewView: View {
     let events: [EventListItem]
+    let isAccepted: Bool
     let onAction: (MultiEventAction) -> Void
+    var inMessageBubble: Bool = false
     @Environment(\.colorScheme) var colorScheme
     @State private var animatedEvents: Set<String> = []
     
     private let φ: Double = 1.618033988749895
+    
+    // Group events by date
+    private var groupedEvents: [(date: Date, events: [EventListItem])] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: events) { event -> Date in
+            if let date = event.date {
+                return calendar.startOfDay(for: date)
+            }
+            return calendar.startOfDay(for: Date())
+        }
+        
+        return grouped
+            .sorted { $0.key < $1.key }
+            .map { (date: $0.key, events: $0.value.sorted { ($0.time < $1.time) }) }
+    }
+    
+    private var categoryColor: Color {
+        // For multiple events, use accent color as default
+        Color.accentColor
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else {
+            // Check if it's within this week
+            if let weekInterval = calendar.dateInterval(of: .weekOfYear, for: Date()),
+               date >= weekInterval.start && date < weekInterval.end {
+                formatter.dateFormat = "EEEE" // Day name
+            } else {
+                formatter.dateFormat = "EEEE, MMM d" // Full format
+            }
+            return formatter.string(from: date)
+        }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -606,102 +662,64 @@ struct MultipleEventsPreviewView: View {
                     .foregroundColor(.primary)
                 
                 Spacer()
-                
-                // Progress indicator
-                ZStack {
-                    Circle()
-                        .stroke(Color.secondary.opacity(0.2), lineWidth: 3)
-                        .frame(width: 40, height: 40)
-                    
-                    Circle()
-                        .trim(from: 0, to: completionProgress)
-                        .stroke(
-                            LinearGradient(
-                                colors: [Color.green, Color.green.opacity(0.8)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            style: StrokeStyle(lineWidth: 3, lineCap: .round)
-                        )
-                        .frame(width: 40, height: 40)
-                        .rotationEffect(.degrees(-90))
-                        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: completionProgress)
-                    
-                    Text("\(completedCount)")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(.primary)
-                }
             }
             .padding(16)
             
             Divider()
             
-            // Events list
+            // Events list grouped by date
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
-                        HStack(spacing: 12) {
-                            // Checkbox with animation
-                            Button(action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    animatedEvents.insert(event.id)
-                                }
-                                onAction(.toggleComplete(event.id))
-                                
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                    animatedEvents.remove(event.id)
-                                }
-                            }) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(event.isCompleted ? Color.green : Color.secondary.opacity(0.3), lineWidth: 2)
-                                        .frame(width: 22, height: 22)
-                                    
-                                    if event.isCompleted {
-                                        Image(systemName: "checkmark")
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundColor(.green)
-                                            .scaleEffect(animatedEvents.contains(event.id) ? 1.2 : 1.0)
-                                    }
-                                }
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            
-                            // Time badge
-                            Text(event.time)
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(
-                                    Capsule()
-                                        .fill(
-                                            LinearGradient(
-                                                colors: getTimeColors(for: index),
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
-                                )
-                            
-                            // Event title
-                            Text(event.title)
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(event.isCompleted ? .secondary : .primary)
-                                .strikethrough(event.isCompleted, color: .secondary)
-                                .lineLimit(2)
+                    ForEach(Array(groupedEvents.enumerated()), id: \.offset) { groupIndex, group in
+                        // Date header
+                        HStack {
+                            Text(formatDate(group.date))
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .foregroundColor(.secondary)
                             
                             Spacer()
+                            
+                            Text("\(group.events.count) events")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.secondary.opacity(0.7))
                         }
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(
-                            event.isCompleted ? Color.green.opacity(0.05) : Color.clear
-                        )
+                        .padding(.vertical, 8)
+                        .background(Color.secondary.opacity(0.08))
                         
-                        if index < events.count - 1 {
+                        // Events for this date
+                        ForEach(Array(group.events.enumerated()), id: \.element.id) { index, event in
+                            HStack(spacing: 12) {
+                                // Time text
+                                Text(event.time)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 65, alignment: .leading)
+                                
+                                // Event title
+                                Text(event.title)
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(.primary)
+                                    .lineLimit(2)
+                                
+                                Spacer()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                event.isCompleted ? Color.green.opacity(0.05) : Color.clear
+                            )
+                            
+                            if index < group.events.count - 1 {
+                                Divider()
+                                    .padding(.leading, 16)
+                            }
+                        }
+                        
+                        // Add spacing between date groups
+                        if groupIndex < groupedEvents.count - 1 {
                             Divider()
-                                .padding(.leading, 50)
+                                .padding(.vertical, 4)
                         }
                     }
                 }
@@ -713,110 +731,71 @@ struct MultipleEventsPreviewView: View {
                 Divider()
                 
                 HStack(spacing: 0) {
-                    Button(action: { onAction(.markAllComplete) }) {
+                    Button(action: { 
+                        if !isAccepted {
+                            onAction(.markAllComplete)
+                        }
+                    }) {
                         HStack {
                             Spacer()
-                            Image(systemName: "checkmark.circle.fill")
+                            Image(systemName: isAccepted ? "checkmark.circle.fill" : "checkmark.circle.fill")
                                 .font(.system(size: 14, weight: .medium))
-                            Text("Mark All Complete")
+                            Text(isAccepted ? "Accepted" : "Accept All")
                                 .font(.system(size: 14, weight: .semibold))
                             Spacer()
                         }
-                        .foregroundColor(.green)
+                        .foregroundColor(isAccepted ? .green : .accentColor)
                         .padding(.vertical, 14)
+                        .background(
+                            Rectangle()
+                                .fill(isAccepted ? Color.green.opacity(0.1) : Color.clear)
+                        )
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .disabled(isAccepted)
                     
-                    Divider()
-                        .frame(height: 20)
-                    
-                    Button(action: { onAction(.editTimes) }) {
-                        HStack {
-                            Spacer()
-                            Image(systemName: "clock.arrow.circlepath")
-                                .font(.system(size: 14, weight: .medium))
-                            Text("Edit Times")
-                                .font(.system(size: 14, weight: .semibold))
-                            Spacer()
-                        }
-                        .foregroundColor(.accentColor)
-                        .padding(.vertical, 14)
-                    }
-                    .buttonStyle(PlainButtonStyle())
                 }
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(backgroundGradient)
+        .if(!inMessageBubble) { view in
+            view
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(UIColor.secondarySystemBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.adaptiveBorder.opacity(0.5), lineWidth: 1)
+                )
                 .shadow(
                     color: shadowColor,
-                    radius: 12,
+                    radius: 8,
                     x: 0,
                     y: 4
                 )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(colorScheme == .dark ? 0.1 : 0.3),
-                            Color.white.opacity(0)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
+        }
+        .if(inMessageBubble) { view in
+            view
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(UIColor.tertiarySystemBackground))
                 )
-        )
-    }
-    
-    private var completedCount: Int {
-        events.filter { $0.isCompleted }.count
-    }
-    
-    private var completionProgress: Double {
-        guard !events.isEmpty else { return 0 }
-        return Double(completedCount) / Double(events.count)
-    }
-    
-    private var backgroundGradient: LinearGradient {
-        if colorScheme == .dark {
-            return LinearGradient(
-                colors: [
-                    Color(white: 0.15),
-                    Color(white: 0.12)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        } else {
-            return LinearGradient(
-                colors: [
-                    Color.white,
-                    Color(white: 0.97)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
         }
     }
     
-    private var shadowColor: Color {
-        colorScheme == .dark ? Color.black.opacity(0.5) : Color.black.opacity(0.1)
+    private var backgroundGradient: LinearGradient {
+        LinearGradient.adaptiveGradient(
+            from: Color.adaptiveCardBackground,
+            to: Color.adaptiveSecondaryBackground,
+            darkFrom: Color(white: 0.15),
+            darkTo: Color(white: 0.12)
+        )
     }
     
-    private func getTimeColors(for index: Int) -> [Color] {
-        let colors = [
-            [Color(hex: "667eea"), Color(hex: "764ba2")],
-            [Color(hex: "f093fb"), Color(hex: "f5576c")],
-            [Color(hex: "4facfe"), Color(hex: "00f2fe")],
-            [Color(hex: "43e97b"), Color(hex: "38f9d7")],
-            [Color(hex: "fa709a"), Color(hex: "fee140")],
-        ]
-        return colors[index % colors.count]
+    private var shadowColor: Color {
+        Color.adaptiveShadow
     }
+    
 }
 
 struct EventListItem: Identifiable, Equatable {
@@ -824,6 +803,7 @@ struct EventListItem: Identifiable, Equatable {
     let time: String
     let title: String
     let isCompleted: Bool
+    let date: Date? // Added to support grouping by date
 }
 
 enum MultiEventAction {
@@ -851,6 +831,8 @@ struct EventPreviewView_Previews: PreviewProvider {
                     dayBreakdown: nil,
                     actions: [.edit, .delete, .complete]
                 ),
+                isAccepted: false,
+                isDeleted: false,
                 onAction: { _ in }
             )
             
@@ -873,17 +855,20 @@ struct EventPreviewView_Previews: PreviewProvider {
                     ],
                     actions: [.viewFull, .edit, .delete]
                 ),
+                isAccepted: true,
+                isDeleted: false,
                 onAction: { _ in }
             )
             
             // Multiple events preview
             MultipleEventsPreviewView(
                 events: [
-                    EventListItem(id: "1", time: "6:00 AM", title: "Wake up & Hydrate", isCompleted: false),
-                    EventListItem(id: "2", time: "6:15 AM", title: "Morning Exercise", isCompleted: false),
-                    EventListItem(id: "3", time: "6:45 AM", title: "Shower", isCompleted: false),
-                    EventListItem(id: "4", time: "7:15 AM", title: "Breakfast", isCompleted: false),
+                    EventListItem(id: "1", time: "6:00 AM", title: "Wake up & Hydrate", isCompleted: false, date: Date()),
+                    EventListItem(id: "2", time: "6:15 AM", title: "Morning Exercise", isCompleted: false, date: Date()),
+                    EventListItem(id: "3", time: "6:45 AM", title: "Shower", isCompleted: false, date: Date()),
+                    EventListItem(id: "4", time: "7:15 AM", title: "Breakfast", isCompleted: false, date: Date().addingTimeInterval(86400)),
                 ],
+                isAccepted: false,
                 onAction: { _ in }
             )
         }
@@ -891,3 +876,5 @@ struct EventPreviewView_Previews: PreviewProvider {
         .previewLayout(.sizeThatFits)
     }
 }
+
+// Conditional modifier extension is defined in ViewExtensions.swift

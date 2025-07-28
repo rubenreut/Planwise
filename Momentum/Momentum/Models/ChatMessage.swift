@@ -15,6 +15,8 @@ struct ChatMessage: Identifiable, Equatable {
     var multipleEventsPreview: [EventListItem]?
     var bulkActionPreview: BulkActionPreview?
     var attachedImage: UIImage?
+    var attachedFileName: String?
+    var attachedFileExtension: String?
     
     static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {
         lhs.id == rhs.id &&
@@ -73,6 +75,25 @@ struct FunctionCallResult: Equatable {
             return "Listed Events"
         case "suggest_schedule":
             return "Schedule Suggestion"
+        // Task functions
+        case "create_task":
+            return "Created Task"
+        case "update_task":
+            return "Updated Task"
+        case "complete_task":
+            return "Completed Task"
+        case "delete_task":
+            return "Deleted Task"
+        case "list_tasks":
+            return "Listed Tasks"
+        case "create_multiple_tasks":
+            return "Created Multiple Tasks"
+        case "update_multiple_tasks":
+            return "Updated Multiple Tasks"
+        case "complete_multiple_tasks":
+            return "Completed Multiple Tasks"
+        case "delete_multiple_tasks":
+            return "Deleted Multiple Tasks"
         default:
             return functionName
         }

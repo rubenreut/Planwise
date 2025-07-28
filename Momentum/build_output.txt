@@ -1,0 +1,12 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -scheme Momentum -sdk iphonesimulator -configuration Debug -destination id=E7D903F9-5BC6-47AC-B4B7-709859591588 build
+
+User defaults from command line:
+    IDEPackageSupportUseBuiltinSCM = YES
+
+Build settings from command line:
+    SDKROOT = iphonesimulator18.0
+
+2025-07-25 19:13:33.355 xcodebuild[93648:6316859] Writing error result bundle to /var/folders/lp/wq4vvyv54kzgd_3cjyfcf9rm0000gn/T/ResultBundle_2025-25-07_19-13-0033.xcresult
+xcodebuild: error: The directory /Users/rubenreut/Momentum/Momentum/Momentum does not contain an Xcode project, workspace or package.
+

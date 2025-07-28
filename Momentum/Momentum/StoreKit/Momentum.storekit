@@ -5,7 +5,7 @@
       {
         "locale" : "en_US",
         "policyText" : "",
-        "policyURL" : "https://momentum.app/privacy"
+        "policyURL" : "https://rubenreut.github.io/Planwise-legal/privacy-policy.html"
       }
     ]
   },
@@ -13,19 +13,25 @@
   "nonRenewableSubscriptions" : [
 
   ],
+  "nonRenewingSubscriptions" : [
+
+  ],
   "products" : [
 
   ],
   "settings" : {
-    "_applicationInternalID" : "0",
-    "_developerTeamID" : "0",
+    "_applicationInternalID" : "6736949575",
+    "_developerTeamID" : "X74R5298P4",
     "_failTransactionsEnabled" : false,
     "_lastSynchronizedDate" : 726259200,
-    "_locale" : "en_US",
-    "_storefront" : "USA",
+    "_locale" : "en_GB",
+    "_storefront" : "IRL",
     "_storeKitErrors" : [
       {
-        "current" : null,
+        "current" : {
+          "index" : 2,
+          "type" : "generic"
+        },
         "enabled" : false,
         "name" : "Load Products"
       },
@@ -73,7 +79,7 @@
   },
   "subscriptionGroups" : [
     {
-      "id" : "21495110",
+      "id" : "21726694",
       "localizations" : [
 
       ],
@@ -89,7 +95,6 @@
           "displayPrice" : "12.99",
           "familyShareable" : false,
           "groupNumber" : 1,
-          "id" : "com.rubenreut.planwise.premium.monthly",
           "internalID" : "6748369425",
           "introductoryOffer" : null,
           "localizations" : [
@@ -99,11 +104,14 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.rubenreut.planwise.premium.monthly",
+          "productID" : "com.rubenreut.planwise.pro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Monthly Premium",
-          "subscriptionGroupID" : "21495110",
-          "type" : "RecurringSubscription"
+          "subscriptionGroupID" : "21726694",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
         },
         {
           "adHocOffers" : [
@@ -115,7 +123,6 @@
           "displayPrice" : "79.99",
           "familyShareable" : false,
           "groupNumber" : 2,
-          "id" : "com.rubenreut.planwise.premium.annual",
           "internalID" : "6748369481",
           "introductoryOffer" : null,
           "localizations" : [
@@ -125,17 +132,20 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.rubenreut.planwise.premium.annual",
+          "productID" : "com.rubenreut.planwise.pro.annual",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Annual Premium",
-          "subscriptionGroupID" : "21495110",
-          "type" : "RecurringSubscription"
+          "subscriptionGroupID" : "21726694",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
         }
       ]
     }
   ],
   "version" : {
-    "major" : 3,
+    "major" : 4,
     "minor" : 0
   }
 }

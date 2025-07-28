@@ -136,7 +136,7 @@ extension XCTestCase {
     func waitForAsync(timeout: TimeInterval = 5.0, action: @escaping () async throws -> Void) {
         let expectation = XCTestExpectation(description: "Async operation")
         
-        Task {
+        Swift.Task {
             do {
                 try await action()
                 expectation.fulfill()

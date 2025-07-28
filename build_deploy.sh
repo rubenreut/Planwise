@@ -84,6 +84,7 @@ build_with_retry() {
             -project "$PROJECT_PATH" \
             -scheme "$SCHEME_NAME" \
             -destination "id=$DEVICE_ID" \
+            -configuration Release \
             -parallelizeTargets \
             -quiet 2>&1)
         
@@ -124,7 +125,7 @@ main() {
     
     # Find build directory dynamically
     print_status "📍 Finding build directory..."
-    BUILD_DIR=$(xcodebuild -project "$PROJECT_PATH" -scheme "$SCHEME_NAME" -showBuildSettings 2>/dev/null | grep -m 1 " BUILD_DIR = " | awk '{print $3}')
+    BUILD_DIR=$(xcodebuild -project "$PROJECT_PATH" -scheme "$SCHEME_NAME" -configuration Debug -showBuildSettings 2>/dev/null | grep -m 1 " BUILD_DIR = " | awk '{print $3}')
     
     if [ -z "$BUILD_DIR" ]; then
         print_error "Could not determine build directory"
@@ -136,7 +137,7 @@ main() {
     # Clean
     local clean_start=$(date +%s)
     print_status "🧹 Cleaning..."
-    xcodebuild clean -project "$PROJECT_PATH" -scheme "$SCHEME_NAME" -destination "id=$DEVICE_ID" -quiet 2>&1
+    xcodebuild clean -project "$PROJECT_PATH" -scheme "$SCHEME_NAME" -destination "id=$DEVICE_ID" -configuration Debug -quiet 2>&1
     if [ $? -eq 0 ]; then
         print_success "Clean completed ($(measure_time $clean_start))"
     else
@@ -158,7 +159,17 @@ main() {
     print_status "📱 Installing on device..."
     # Use the newer device ID for devicectl
     DEVICECTL_ID="27966A7F-00A2-4FE7-9D0E-A9BE1EE7DE1C"
-    install_output=$(xcrun devicectl device install app --device "$DEVICECTL_ID" "$BUILD_DIR/Debug-iphoneos/$APP_NAME.app" 2>&1)
+    # Check which directory exists
+    if [ -d "$BUILD_DIR/Debug-iphoneos/$APP_NAME.app" ]; then
+        APP_PATH="$BUILD_DIR/Debug-iphoneos/$APP_NAME.app"
+    elif [ -d "$BUILD_DIR/Release-iphoneos/$APP_NAME.app" ]; then
+        APP_PATH="$BUILD_DIR/Release-iphoneos/$APP_NAME.app"
+    else
+        print_error "App not found in either Debug or Release directory"
+        exit 1
+    fi
+    
+    install_output=$(xcrun devicectl device install app --device "$DEVICECTL_ID" "$APP_PATH" 2>&1)
     
     if [ $? -eq 0 ]; then
         print_success "Installation completed ($(measure_time $install_start))"
@@ -177,9 +188,12 @@ main() {
     # Launch the app with console output visible and capture logs
     xcrun devicectl device process launch --device "$DEVICECTL_ID" "$BUNDLE_ID" --console --terminate-existing 2>&1 | while IFS= read -r line; do
         echo "$line"
-        # Capture debug output
-        if [[ "$line" == *"🚀"* ]] || [[ "$line" == *"📱"* ]] || [[ "$line" == *"✅"* ]] || [[ "$line" == *"❌"* ]] || [[ "$line" == *"🗄️"* ]]; then
-            echo "[DEBUG] $line"
+        # Capture debug output - expanded to catch StoreKit debug messages
+        if [[ "$line" == *"🚀"* ]] || [[ "$line" == *"📱"* ]] || [[ "$line" == *"✅"* ]] || 
+           [[ "$line" == *"❌"* ]] || [[ "$line" == *"🗄️"* ]] || [[ "$line" == *"🔍"* ]] ||
+           [[ "$line" == *"DEBUG"* ]] || [[ "$line" == *"StoreKit"* ]] || [[ "$line" == *"Product"* ]] ||
+           [[ "$line" == *"Subscription"* ]] || [[ "$line" == *"purchase"* ]] || [[ "$line" == *"error"* ]]; then
+            echo "[CAPTURED] $line"
         fi
     done
     

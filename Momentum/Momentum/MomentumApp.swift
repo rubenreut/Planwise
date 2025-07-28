@@ -6,12 +6,15 @@
 //
 
 import SwiftUI
+import WidgetKit
 
 @main
 struct MomentumApp: App {
     @StateObject private var dependencyContainer = DependencyContainer.shared
     @AppStorage("crashReportingEnabled") private var crashReportingEnabled = true
     @AppStorage("analyticsEnabled") private var analyticsEnabled = true
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @State private var showOnboarding = false
     
     init() {
         // TODO: Configure Firebase when available
@@ -38,6 +41,12 @@ struct MomentumApp: App {
                 "app_version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
             ]
         )
+        
+        // Setup notification categories
+        NotificationManager.shared.setupNotificationCategories()
+        
+        // Setup API key in Keychain
+        KeychainService.shared.setupAPIKeyIfNeeded()
     }
     
     var body: some Scene {
@@ -46,7 +55,24 @@ struct MomentumApp: App {
                 .environment(\.managedObjectContext, dependencyContainer.persistenceProvider.container.viewContext)
                 .environmentObject(dependencyContainer.scheduleManager as! ScheduleManager)
                 .environmentObject(dependencyContainer.scrollPositionManager as! ScrollPositionManager)
+                .environmentObject(dependencyContainer.taskManager as! TaskManager)
+                .environmentObject(dependencyContainer.habitManager as! HabitManager)
+                .environmentObject(GoalManager.shared)
                 .injectDependencies(dependencyContainer)
+                .fullScreenCover(isPresented: $showOnboarding) {
+                    OnboardingViewPremium(showOnboarding: $showOnboarding)
+                        .environmentObject(dependencyContainer.scheduleManager as! ScheduleManager)
+                }
+                .onAppear {
+                    if !hasCompletedOnboarding {
+                        showOnboarding = true
+                    }
+                    // Force widget refresh
+                    WidgetCenter.shared.reloadAllTimelines()
+                }
+                .onOpenURL { url in
+                    handleDeepLink(url)
+                }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
                     // Log app termination
                     CrashReporter.shared.addBreadcrumb(
@@ -96,4 +122,42 @@ struct MomentumApp: App {
         UserDefaults.standard.set(newID, forKey: "anonymousUserID")
         return newID
     }
+    
+    /// Handle deep links from widgets
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme == "momentum" else { return }
+        
+        switch url.host {
+        case "add-task":
+            NotificationCenter.default.post(name: .showAddTask, object: nil)
+        case "add-event":
+            NotificationCenter.default.post(name: .showAddEvent, object: nil)
+        case "add-habit":
+            NotificationCenter.default.post(name: .showAddHabit, object: nil)
+        case "add-note":
+            NotificationCenter.default.post(name: .showAddNote, object: nil)
+        case "quick-add":
+            NotificationCenter.default.post(name: .showQuickAdd, object: nil)
+        case "quick-capture":
+            NotificationCenter.default.post(name: .showQuickCapture, object: nil)
+        case "habits":
+            NotificationCenter.default.post(name: .navigateToHabits, object: nil)
+        case "schedule":
+            NotificationCenter.default.post(name: .navigateToSchedule, object: nil)
+        default:
+            break
+        }
+    }
+}
+
+// MARK: - Notification Names
+extension Notification.Name {
+    static let showAddTask = Notification.Name("showAddTask")
+    static let showAddEvent = Notification.Name("showAddEvent")
+    static let showAddHabit = Notification.Name("showAddHabit")
+    static let showAddNote = Notification.Name("showAddNote")
+    static let showQuickAdd = Notification.Name("showQuickAdd")
+    static let showQuickCapture = Notification.Name("showQuickCapture")
+    static let navigateToHabits = Notification.Name("navigateToHabits")
+    static let navigateToSchedule = Notification.Name("navigateToSchedule")
 }

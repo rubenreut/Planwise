@@ -10,6 +10,9 @@
         <attribute name="name" attributeType="String" defaultValueString="New Category"/>
         <attribute name="sortOrder" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="events" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Event" inverseName="category" inverseEntity="Event"/>
+        <relationship name="habits" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Habit" inverseName="category" inverseEntity="Habit"/>
+        <relationship name="tasks" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Task" inverseName="category" inverseEntity="Task"/>
+        <relationship name="goals" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Goal" inverseName="category" inverseEntity="Goal"/>
     </entity>
     <entity name="Event" representedClassName="Event" syncable="YES" codeGenerationType="class">
         <attribute name="bufferTimeAfter" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
@@ -42,6 +45,25 @@
         <attribute name="url" optional="YES" attributeType="String"/>
         <attribute name="weatherRequired" optional="YES" attributeType="String"/>
         <relationship name="category" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Category" inverseName="events" inverseEntity="Category"/>
+        <relationship name="linkedTasks" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Task" inverseName="linkedEvent" inverseEntity="Task"/>
+    </entity>
+    <entity name="Task" representedClassName="Task" syncable="YES" codeGenerationType="class">
+        <attribute name="completedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="createdAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="dueDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="estimatedDuration" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isCompleted" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="modifiedAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="priority" attributeType="Integer 16" defaultValueString="1" usesScalarValueType="YES"/>
+        <attribute name="scheduledTime" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="tags" optional="YES" attributeType="String"/>
+        <attribute name="title" attributeType="String" defaultValueString="New Task"/>
+        <relationship name="category" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Category" inverseName="tasks" inverseEntity="Category"/>
+        <relationship name="linkedEvent" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Event" inverseName="linkedTasks" inverseEntity="Event"/>
+        <relationship name="parentTask" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Task" inverseName="subtasks" inverseEntity="Task"/>
+        <relationship name="subtasks" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Task" inverseName="parentTask" inverseEntity="Task"/>
     </entity>
     <entity name="UserPreferences" representedClassName="UserPreferences" syncable="YES" codeGenerationType="class">
         <attribute name="accentColor" attributeType="String" defaultValueString="blue"/>
@@ -59,5 +81,128 @@
         <attribute name="premiumExpiryDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="selectedTheme" attributeType="String" defaultValueString="default"/>
         <attribute name="timeFormat" attributeType="String" defaultValueString="12h"/>
+    </entity>
+    <entity name="Habit" representedClassName="Habit" syncable="YES" codeGenerationType="class">
+        <attribute name="colorHex" attributeType="String" defaultValueString="#FF6B6B"/>
+        <attribute name="createdAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="currentStreak" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="bestStreak" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="totalCompletions" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="frequency" attributeType="String" defaultValueString="daily"/>
+        <attribute name="frequencyDays" optional="YES" attributeType="String"/>
+        <attribute name="goalTarget" optional="YES" attributeType="Double" defaultValueString="1.0" usesScalarValueType="YES"/>
+        <attribute name="goalUnit" optional="YES" attributeType="String"/>
+        <attribute name="iconName" attributeType="String" defaultValueString="star.fill"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isActive" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="isPaused" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="lastCompletedDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="modifiedAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="name" attributeType="String" defaultValueString="New Habit"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="pausedUntil" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="reminderEnabled" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="reminderTime" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="sortOrder" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="stackOrder" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="streakSafetyNet" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="trackingType" attributeType="String" defaultValueString="binary"/>
+        <attribute name="weeklyTarget" optional="YES" attributeType="Integer 16" defaultValueString="7" usesScalarValueType="YES"/>
+        <relationship name="category" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Category" inverseName="habits" inverseEntity="Category"/>
+        <relationship name="entries" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="HabitEntry" inverseName="habit" inverseEntity="HabitEntry"/>
+        <relationship name="stackedWith" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Habit" inverseName="stackParent" inverseEntity="Habit"/>
+        <relationship name="stackParent" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Habit" inverseName="stackedWith" inverseEntity="Habit"/>
+        <relationship name="correlations" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="HabitCorrelation" inverseName="sourceHabit" inverseEntity="HabitCorrelation"/>
+        <relationship name="streaks" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="HabitStreak" inverseName="habit" inverseEntity="HabitStreak"/>
+        <relationship name="reminders" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="HabitReminder" inverseName="habit" inverseEntity="HabitReminder"/>
+        <relationship name="targetCorrelations" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="HabitCorrelation" inverseName="targetHabit" inverseEntity="HabitCorrelation"/>
+        <relationship name="linkedGoals" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Goal" inverseName="linkedHabits" inverseEntity="Goal"/>
+    </entity>
+    <entity name="HabitEntry" representedClassName="HabitEntry" syncable="YES" codeGenerationType="class">
+        <attribute name="completedAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="date" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="duration" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="intensity" optional="YES" attributeType="Integer 16" defaultValueString="3" usesScalarValueType="YES"/>
+        <attribute name="location" optional="YES" attributeType="String"/>
+        <attribute name="mood" optional="YES" attributeType="Integer 16" defaultValueString="3" usesScalarValueType="YES"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="quality" optional="YES" attributeType="Integer 16" defaultValueString="3" usesScalarValueType="YES"/>
+        <attribute name="skipped" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="skipReason" optional="YES" attributeType="String"/>
+        <attribute name="value" optional="YES" attributeType="Double" defaultValueString="1.0" usesScalarValueType="YES"/>
+        <relationship name="habit" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Habit" inverseName="entries" inverseEntity="Habit"/>
+    </entity>
+    <entity name="HabitStreak" representedClassName="HabitStreak" syncable="YES" codeGenerationType="class">
+        <attribute name="endDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="length" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="startDate" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <relationship name="habit" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Habit" inverseName="streaks" inverseEntity="Habit"/>
+    </entity>
+    <entity name="HabitReminder" representedClassName="HabitReminder" syncable="YES" codeGenerationType="class">
+        <attribute name="adaptiveScheduling" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="daysOfWeek" optional="YES" attributeType="String"/>
+        <attribute name="enabled" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="lastNotificationDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="message" optional="YES" attributeType="String"/>
+        <attribute name="notificationIdentifier" optional="YES" attributeType="String"/>
+        <attribute name="time" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <relationship name="habit" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Habit" inverseName="reminders" inverseEntity="Habit"/>
+    </entity>
+    <entity name="HabitCorrelation" representedClassName="HabitCorrelation" syncable="YES" codeGenerationType="class">
+        <attribute name="calculatedAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="confidence" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="correlationScore" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="insight" optional="YES" attributeType="String"/>
+        <attribute name="sampleSize" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="targetMetric" attributeType="String" defaultValueString="mood"/>
+        <relationship name="sourceHabit" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Habit" inverseName="correlations" inverseEntity="Habit"/>
+        <relationship name="targetHabit" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Habit" inverseName="targetCorrelations" inverseEntity="Habit"/>
+    </entity>
+    <entity name="Goal" representedClassName="Goal" syncable="YES" codeGenerationType="class">
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="title" attributeType="String" defaultValueString="New Goal"/>
+        <attribute name="desc" optional="YES" attributeType="String"/>
+        <attribute name="type" attributeType="String" defaultValueString="milestone"/>
+        <attribute name="targetValue" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="currentValue" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="targetDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="startDate" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="completedDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="isCompleted" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="priority" attributeType="Integer 16" defaultValueString="1" usesScalarValueType="YES"/>
+        <attribute name="colorHex" attributeType="String" defaultValueString="#007AFF"/>
+        <attribute name="iconName" attributeType="String" defaultValueString="target"/>
+        <attribute name="unit" optional="YES" attributeType="String"/>
+        <attribute name="frequency" optional="YES" attributeType="String" defaultValueString="none"/>
+        <attribute name="reminderEnabled" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="isActive" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="createdAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="modifiedAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <relationship name="category" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Category" inverseName="goals" inverseEntity="Category"/>
+        <relationship name="milestones" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="GoalMilestone" inverseName="goal" inverseEntity="GoalMilestone"/>
+        <relationship name="updates" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="GoalUpdate" inverseName="goal" inverseEntity="GoalUpdate"/>
+        <relationship name="linkedHabits" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Habit" inverseName="linkedGoals" inverseEntity="Habit"/>
+    </entity>
+    <entity name="GoalMilestone" representedClassName="GoalMilestone" syncable="YES" codeGenerationType="class">
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="title" attributeType="String" defaultValueString="Milestone"/>
+        <attribute name="targetValue" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="isCompleted" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="completedDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="sortOrder" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="goal" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Goal" inverseName="milestones" inverseEntity="Goal"/>
+    </entity>
+    <entity name="GoalUpdate" representedClassName="GoalUpdate" syncable="YES" codeGenerationType="class">
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="date" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="value" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="type" attributeType="String" defaultValueString="progress"/>
+        <relationship name="goal" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Goal" inverseName="updates" inverseEntity="Goal"/>
     </entity>
 </model>

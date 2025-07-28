@@ -14,7 +14,6 @@ struct PersistentScrollView<Content: View>: UIViewRepresentable {
     }
     
     func makeUIView(context: Context) -> UIScrollView {
-        print("🔵 PersistentScrollView.makeUIView - Creating with offset: \(offset)")
         let scrollView = UIScrollView()
         scrollView.delegate = context.coordinator
         scrollView.showsVerticalScrollIndicator = false
@@ -59,7 +58,6 @@ struct PersistentScrollView<Content: View>: UIViewRepresentable {
                 
                 if scrollView.contentSize.height > 0 {
                     let safeOffset = min(max(0, self.offset), scrollView.contentSize.height - scrollView.bounds.height)
-                    print("🟢 Setting initial offset to: \(safeOffset) (contentSize: \(scrollView.contentSize.height))")
                     context.coordinator.isSettingInitialOffset = true
                     UIView.performWithoutAnimation {
                         scrollView.setContentOffset(CGPoint(x: 0, y: safeOffset), animated: false)
@@ -78,7 +76,6 @@ struct PersistentScrollView<Content: View>: UIViewRepresentable {
             
             // Only update if difference is significant (more than 10 points)
             if abs(currentOffset - targetOffset) > 10 {
-                print("🟠 Updating offset from \(currentOffset) to \(targetOffset)")
                 scrollView.setContentOffset(CGPoint(x: 0, y: targetOffset), animated: false)
             }
         }
@@ -110,7 +107,6 @@ struct PersistentScrollView<Content: View>: UIViewRepresentable {
             if abs(parent.offset - newOffset) > 0.1 {
                 // Don't log every scroll update, only significant jumps
                 if abs(parent.offset - newOffset) > 100 {
-                    print("🔴 Large scroll jump detected: \(parent.offset) -> \(newOffset)")
                 }
                 parent.offset = newOffset
             }

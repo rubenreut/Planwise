@@ -3,6 +3,8 @@ import CoreData
 import SwiftUI
 import Combine
 
+// Using global AsyncTask typealias to avoid naming conflict with Core Data Task entity
+
 @MainActor
 class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
     static let shared = ScheduleManager()
@@ -30,16 +32,6 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
     /// Singleton for production use
     private override init() {
         self.persistence = PersistenceController.shared
-        super.init()
-        setupFetchedResultsControllers()
-        fetchEvents()
-        fetchCategories()
-        
-    }
-    
-    /// Initializer for dependency injection (testing)
-    init(persistence: any PersistenceProviding) {
-        self.persistence = persistence
         super.init()
         setupFetchedResultsControllers()
         fetchEvents()
@@ -92,7 +84,6 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
             do {
                 try fetchedResultsController?.performFetch()
                 events = fetchedResultsController?.fetchedObjects ?? []
-                print("📅 Fetched \(events.count) events")
                 clearEventCache()
                 
                 // Log performance metric
@@ -103,7 +94,6 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
                 )
             } catch {
                 lastError = "Failed to fetch events: \(error.localizedDescription)"
-                print("❌ \(lastError ?? "")")
                 
                 // Log error to crash reporter
                 CrashReporter.shared.logError(
@@ -124,13 +114,11 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
             do {
                 try categoriesFetchedResultsController?.performFetch()
                 categories = categoriesFetchedResultsController?.fetchedObjects ?? []
-                print("📁 Fetched \(categories.count) categories")
                 
                 // Log category count
                 CrashReporter.shared.setCustomValue(categories.count, forKey: "category_count")
             } catch {
                 lastError = "Failed to fetch categories: \(error.localizedDescription)"
-                print("❌ \(lastError ?? "")")
                 
                 // Log error to crash reporter
                 CrashReporter.shared.logError(
@@ -180,56 +168,45 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
         recurrenceID: UUID? = nil,
         recurrenceEndDate: Date? = nil
     ) -> Result<Event, Error> {
-        print("📝 Creating event: '\(title)'")
-        print("   Start: \(startTime)")
-        print("   End: \(endTime)")
-        print("   Category: \(category?.name ?? "none")")
-        print("   Notes: \(notes ?? "none")")
-        print("   Location: \(location ?? "none")")
-        print("   All Day: \(isAllDay)")
+        
+        // Check subscription limits
+        let todayEvents = events(for: Date()).count
+        if !SubscriptionManager.shared.canCreateEvent(currentCount: todayEvents) {
+            return .failure(ScheduleError.subscriptionLimitReached)
+        }
         
         let context = persistence.container.viewContext
         
         // Validation
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            print("❌ Validation failed: empty title")
             return .failure(ScheduleError.invalidTitle)
         }
         
         guard endTime > startTime else {
-            print("❌ Validation failed: invalid time range")
             return .failure(ScheduleError.invalidTimeRange)
         }
         
         // Check for conflicts
         let conflicts = checkForConflicts(startTime: startTime, endTime: endTime, excludingEvent: nil)
         if !conflicts.isEmpty {
-            print("⚠️ Warning: Event conflicts with \(conflicts.count) existing event(s)")
             // Note: We'll still create the event but warn about conflicts
         }
         
-        print("✅ Validation passed")
         
         let event = Event(context: context)
-        print("📦 Created Event entity")
         
         // Set required fields one by one with error checking
         do {
             event.id = UUID()
-            print("   Set ID: \(event.id!)")
             
             event.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-            print("   Set title: \(event.title!)")
             
             event.startTime = startTime
-            print("   Set startTime: \(event.startTime!)")
             
             event.endTime = endTime
-            print("   Set endTime: \(event.endTime!)")
             
             if let category = category {
                 event.category = category
-                print("   Set category: \(category.name ?? "unknown")")
             }
             
             // Handle notes with ALL_DAY marker
@@ -238,37 +215,36 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
             } else {
                 event.notes = notes
             }
-            print("   Set notes: \(event.notes ?? "none")")
             
             event.location = location
-            print("   Set location: \(event.location ?? "none")")
             
             event.dataSource = "manual"
-            print("   Set dataSource: manual")
             
             event.createdAt = Date()
-            print("   Set createdAt: \(event.createdAt!)")
             
             event.modifiedAt = Date()
-            print("   Set modifiedAt: \(event.modifiedAt!)")
             
             // Set other required Core Data fields with defaults
             event.isCompleted = false
             event.colorHex = category?.colorHex ?? "#007AFF"
-            print("   Set colorHex: \(event.colorHex!)")
             
             // Set recurrence fields if provided
             if let recurrenceRule = recurrenceRule {
                 event.recurrenceRule = recurrenceRule
                 event.recurrenceID = recurrenceID
                 event.recurrenceEndDate = recurrenceEndDate
-                print("   Set recurrence: \(recurrenceRule)")
             }
             
-            print("💾 Attempting to save context...")
             try context.save()
-            print("✅ Event created successfully: \(title)")
             clearEventCache()
+            
+            // Schedule notification for the event
+            AsyncTask {
+                await NotificationManager.shared.scheduleNotification(for: event)
+            }
+            
+            // Reload widgets
+            reloadWidgets()
             
             // Log event creation
             CrashReporter.shared.logUserAction(
@@ -286,10 +262,6 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
             return .success(event)
         } catch let error as NSError {
             lastError = "Failed to create event: \(error.localizedDescription)"
-            print("❌ Save failed: \(error)")
-            print("   Error code: \(error.code)")
-            print("   Error domain: \(error.domain)")
-            print("   Error userInfo: \(error.userInfo)")
             
             // Log error
             CrashReporter.shared.logError(
@@ -304,7 +276,6 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
             
             // Rollback
             context.rollback()
-            print("🔄 Context rolled back")
             
             return .failure(error)
         }
@@ -312,23 +283,29 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
     
     func updateEvent(
         _ event: Event,
-        title: String? = nil,
-        startTime: Date? = nil,
-        endTime: Date? = nil,
-        category: Category? = nil,
-        notes: String? = nil,
-        location: String? = nil,
-        isCompleted: Bool? = nil
+        title: String?,
+        startTime: Date?,
+        endTime: Date?,
+        category: Category?,
+        notes: String?,
+        location: String?,
+        isCompleted: Bool?,
+        colorHex: String?,
+        iconName: String?,
+        priority: String?,
+        tags: String?,
+        url: String?,
+        energyLevel: String?,
+        weatherRequired: String?,
+        bufferTimeBefore: Int32?,
+        bufferTimeAfter: Int32?,
+        recurrenceRule: String?,
+        recurrenceEndDate: Date?,
+        linkedTasks: NSSet?
     ) -> Result<Void, Error> {
         let context = persistence.container.viewContext
         
         // Debug: Log the update request
-        print("🔄 DEBUG: updateEvent called")
-        print("   Event: \(event.title ?? "Untitled")")
-        print("   Current start: \(event.startTime ?? Date())")
-        print("   Current end: \(event.endTime ?? Date())")
-        print("   New start: \(startTime?.description ?? "nil")")
-        print("   New end: \(endTime?.description ?? "nil")")
         
         if let title = title {
             guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -339,12 +316,10 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
         
         if let startTime = startTime {
             event.startTime = startTime
-            print("   ✅ Updated startTime to: \(startTime)")
         }
         
         if let endTime = endTime {
             event.endTime = endTime
-            print("   ✅ Updated endTime to: \(endTime)")
         }
         
         // Validate time range if both times were updated
@@ -376,29 +351,80 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
             }
         }
         
+        if let colorHex = colorHex {
+            event.colorHex = colorHex
+        }
+        
+        if let iconName = iconName {
+            event.iconName = iconName
+        }
+        
+        if let priority = priority {
+            event.priority = priority
+        }
+        
+        if let tags = tags {
+            event.tags = tags
+        }
+        
+        if let url = url {
+            event.url = url
+        }
+        
+        if let energyLevel = energyLevel {
+            event.energyLevel = energyLevel
+        }
+        
+        if let weatherRequired = weatherRequired {
+            event.weatherRequired = weatherRequired
+        }
+        
+        if let bufferTimeBefore = bufferTimeBefore {
+            event.bufferTimeBefore = bufferTimeBefore
+        }
+        
+        if let bufferTimeAfter = bufferTimeAfter {
+            event.bufferTimeAfter = bufferTimeAfter
+        }
+        
+        if let recurrenceRule = recurrenceRule {
+            event.recurrenceRule = recurrenceRule
+        }
+        
+        if let recurrenceEndDate = recurrenceEndDate {
+            event.recurrenceEndDate = recurrenceEndDate
+        }
+        
+        if let linkedTasks = linkedTasks {
+            event.linkedTasks = linkedTasks
+        }
+        
         event.modifiedAt = Date()
         
         do {
             try context.save()
-            print("✅ Event updated: \(event.title ?? "")")
-            print("   Final start: \(event.startTime ?? Date())")
-            print("   Final end: \(event.endTime ?? Date())")
             clearEventCache()
+            
+            // Reschedule notification if time changed
+            if startTime != nil || endTime != nil {
+                AsyncTask {
+                    await NotificationManager.shared.scheduleNotification(for: event)
+                }
+            }
+            
+            // Reload widgets
+            reloadWidgets()
             
             // Debug: Check if event changed days
             if let oldStart = event.startTime, let newStart = startTime {
                 let calendar = Calendar.current
                 if !calendar.isDate(oldStart, inSameDayAs: newStart) {
-                    print("   ⚠️ WARNING: Event moved to a different day!")
-                    print("   Old day: \(calendar.startOfDay(for: oldStart))")
-                    print("   New day: \(calendar.startOfDay(for: newStart))")
                 }
             }
             
             return .success(())
         } catch {
             lastError = "Failed to update event: \(error.localizedDescription)"
-            print("❌ \(lastError ?? "")")
             return .failure(error)
         }
     }
@@ -407,11 +433,6 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
         let context = persistence.container.viewContext
         
         // Debug: Check event state before deletion
-        print("🔍 Deleting event: \(event.title ?? "Untitled")")
-        print("   Event ID: \(event.id?.uuidString ?? "no-id")")
-        print("   Is Fault: \(event.isFault)")
-        print("   Has Changes: \(event.hasChanges)")
-        print("   Is Deleted: \(event.isDeleted)")
         
         // Get the event in the correct context if needed
         let eventToDelete: Event
@@ -419,20 +440,16 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
             // Event has no context, fetch it fresh
             guard let eventId = event.id,
                   let fetchedEvent = fetchEventById(eventId) else {
-                print("❌ Could not find event in context!")
                 return .failure(ScheduleError.eventNotFound)
             }
             eventToDelete = fetchedEvent
-            print("🔄 Fetched fresh event from context")
         } else if event.managedObjectContext != context {
             // Event is in a different context, fetch it
             guard let eventId = event.id,
                   let fetchedEvent = fetchEventById(eventId) else {
-                print("❌ Event is in different context and could not be fetched!")
                 return .failure(ScheduleError.invalidContext)
             }
             eventToDelete = fetchedEvent
-            print("🔄 Fetched event from correct context")
         } else {
             eventToDelete = event
         }
@@ -443,21 +460,29 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
             let eventTitle = event.title ?? "Untitled"
             let eventId = event.id?.uuidString ?? "no-id"
             
+            // Cancel notifications for this event
+            if let id = event.id {
+                AsyncTask {
+                    await NotificationManager.shared.cancelNotifications(for: id)
+                }
+            }
+            
             // Save with CloudKit sync
             try context.save()
-            print("✅ Event deleted locally: \(eventTitle)")
-            print("   Deleted event ID: \(eventId)")
             
             // Force refresh to ensure UI updates
             clearEventCache()
             fetchEvents()
             
+            // Reload widgets
+            reloadWidgets()
+            
             // Force CloudKit sync
             persistence.forceSyncWithCloudKit()
             
             // Wait a bit for CloudKit to process
-            Task {
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            AsyncTask {
+                try? await _Concurrency.Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                 await MainActor.run {
                     self.objectWillChange.send()
                 }
@@ -473,8 +498,6 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
             return .success(())
         } catch {
             lastError = "Failed to delete event: \(error.localizedDescription)"
-            print("❌ \(lastError ?? "")")
-            print("   Error details: \(error)")
             
             // Log error
             CrashReporter.shared.logError(
@@ -500,7 +523,6 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
             let results = try context.fetch(request)
             return results.first
         } catch {
-            print("❌ Failed to fetch event by ID: \(error)")
             return nil
         }
     }
@@ -590,7 +612,7 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
     // Preload events for multiple days
     func preloadEvents(for dates: [Date]) {
         // Process in background to avoid blocking UI
-        Task.detached { [weak self] in
+        _Concurrency.Task.detached { [weak self] in
             guard let self = self else { return }
             
             await MainActor.run {
@@ -603,16 +625,26 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
     }
     
     // MARK: - Category Management
+    func getCategories() -> [Category] {
+        return categories
+    }
+    
     func createCategory(name: String, icon: String, colorHex: String) -> Result<Category, Error> {
         let context = persistence.container.viewContext
         
-        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
             return .failure(ScheduleError.invalidCategoryName)
+        }
+        
+        // Check for existing category with same name (case-insensitive)
+        if categories.contains(where: { $0.name?.lowercased() == trimmedName.lowercased() }) {
+            return .failure(ScheduleError.duplicateCategoryName)
         }
         
         let category = Category(context: context)
         category.id = UUID()
-        category.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        category.name = trimmedName
         category.iconName = icon
         category.colorHex = colorHex
         category.isActive = true
@@ -623,11 +655,9 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
         
         do {
             try context.save()
-            print("✅ Category created: \(name)")
             return .success(category)
         } catch {
             lastError = "Failed to create category: \(error.localizedDescription)"
-            print("❌ \(lastError ?? "")")
             return .failure(error)
         }
     }
@@ -635,12 +665,17 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
     // MARK: - Default Categories
     private func createDefaultCategories() {
         let defaultCategories = [
-            ("Work", "briefcase.fill", "#007AFF"),
-            ("Personal", "person.fill", "#34C759"),
-            ("Health", "heart.fill", "#FF3B30"),
-            ("Learning", "book.fill", "#FF9500"),
-            ("Meeting", "person.3.fill", "#5856D6"),
-            ("Other", "ellipsis.circle.fill", "#8E8E93")
+            // 10 default categories with unique colors and icons
+            ("Work", "briefcase.fill", "#007AFF"),         // Blue
+            ("Personal", "person.fill", "#34C759"),         // Green  
+            ("Health", "heart.fill", "#FF3B30"),            // Red
+            ("Learning", "book.fill", "#FF9500"),           // Orange
+            ("Meeting", "person.3.fill", "#5856D6"),        // Purple
+            ("Fitness", "figure.run", "#00C7BE"),           // Teal
+            ("Finance", "dollarsign.circle.fill", "#50E3C2"), // Mint
+            ("Family", "house.circle.fill", "#FF6B9D"),     // Pink
+            ("Social", "bubble.left.and.bubble.right.fill", "#4A90E2"), // Light Blue
+            ("Other", "square.grid.2x2.fill", "#8E8E93")   // Gray
         ]
         
         for (name, icon, color) in defaultCategories {
@@ -653,22 +688,19 @@ class ScheduleManager: NSObject, ObservableObject, ScheduleManaging {
 // NSFetchedResultsControllerDelegate conformance
 extension ScheduleManager: NSFetchedResultsControllerDelegate {
     nonisolated func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        Task { @MainActor in
+        AsyncTask { @MainActor in
             if controller == fetchedResultsController {
                 let oldCount = events.count
                 events = fetchedResultsController?.fetchedObjects ?? []
-                print("🔄 NSFetchedResultsController: Events updated (\(oldCount) -> \(events.count))")
                 clearEventCache()
                 
                 // Debug: Show all events after update
                 let formatter = DateFormatter()
                 formatter.dateFormat = "yyyy-MM-dd HH:mm"
                 for event in events {
-                    print("   - \(event.title ?? "Untitled") at \(formatter.string(from: event.startTime ?? Date()))")
                 }
             } else if controller == categoriesFetchedResultsController {
                 categories = categoriesFetchedResultsController?.fetchedObjects ?? []
-                print("🔄 NSFetchedResultsController: Categories updated (\(categories.count))")
             }
         }
     }
@@ -681,6 +713,10 @@ enum ScheduleError: LocalizedError {
     case invalidCategoryName
     case eventNotFound
     case invalidContext
+    case duplicateCategoryName
+    case saveFailed
+    case deleteFailed
+    case subscriptionLimitReached
     
     var errorDescription: String? {
         switch self {
@@ -694,6 +730,14 @@ enum ScheduleError: LocalizedError {
             return "Event not found"
         case .invalidContext:
             return "Event is not in the expected context"
+        case .duplicateCategoryName:
+            return "A category with this name already exists"
+        case .saveFailed:
+            return "Failed to save changes"
+        case .deleteFailed:
+            return "Failed to delete item"
+        case .subscriptionLimitReached:
+            return "You've reached the free plan limit. Upgrade to Premium for unlimited events."
         }
     }
 }
