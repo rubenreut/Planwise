@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import Combine
 
 // MARK: - Unified AI Chat View
 
@@ -10,8 +11,16 @@ struct AIChatView: View {
     @Environment(\.dependencyContainer) private var container
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.keyboardVisibility) private var keyboardVisibility
     @State private var scrollProxy: ScrollViewProxy?
     @State private var showingSettings = false
+    @State private var isKeyboardVisible = false
+    @State private var extractedColors: (primary: Color, secondary: Color)? = nil
+    @State private var isUserScrolling = false
+    @State private var lastMessageCount = 0
+    @State private var isEditingHeaderImage = false
+    @State private var headerImageOffset: CGFloat = 0
+    @State private var lastHeaderImageOffset: CGFloat = 0
     
     init() {
         _viewModel = StateObject(wrappedValue: ChatViewModel())
@@ -122,51 +131,253 @@ struct AIChatView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
+        .onAppear {
+            // Load saved header image offset
+            headerImageOffset = CGFloat(UserDefaults.standard.double(forKey: "headerImageVerticalOffset"))
+            lastHeaderImageOffset = headerImageOffset
+            
+            // Load extracted colors from header image
+            self.extractedColors = UserDefaults.standard.getExtractedColors()
+            
+            // If no colors saved but we have an image, extract them
+            if extractedColors == nil, let headerData = SettingsView.loadHeaderImage() {
+                let colors = ColorExtractor.extractColors(from: headerData.image)
+                UserDefaults.standard.setExtractedColors(colors)
+                self.extractedColors = (colors.primary, colors.secondary)
+            }
+            
+            // Check if we should start editing
+            if UserDefaults.standard.bool(forKey: "shouldStartHeaderEdit") {
+                UserDefaults.standard.set(false, forKey: "shouldStartHeaderEdit")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    withAnimation {
+                        isEditingHeaderImage = true
+                    }
+                }
+            }
+        }
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMMM d"
+        return formatter.string(from: date)
     }
     
     // MARK: - iOS/iPadOS Layout
     
     @ViewBuilder
     private var iOSLayout: some View {
-        VStack(spacing: 0) {
-            // Centered content container
-            HStack {
-                if !isCompact {
-                    Spacer(minLength: 0)
-                }
-                
-                VStack(spacing: 0) {
-                    chatContent
-                }
-                .frame(maxWidth: maxChatWidth)
-                .background(DesignSystem.Colors.background)
-                
-                if !isCompact {
-                    Spacer(minLength: 0)
-                }
-            }
-        }
-        .background(DesignSystem.Colors.background)
-        .scrollDismissesKeyboard(.interactively)
-        .navigationTitle(navigationTitle)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                HStack(spacing: DesignSystem.Spacing.md) {
-                    if !subscriptionManager.isPremium {
-                        SubscriptionStatusBadge()
+        ZStack {
+            // Super light gray background
+            Color(UIColor.systemGroupedBackground)
+                .ignoresSafeArea()
+                .transition(.identity)
+            
+            VStack(spacing: 0) {
+                // Stack with blue header extending behind content
+                ZStack(alignment: .top) {
+                    // Background - either custom image or gradient
+                    if let headerData = SettingsView.loadHeaderImage() {
+                        // Image with gesture
+                        GeometryReader { imageGeo in
+                            Image(uiImage: headerData.image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: imageGeo.size.width)
+                                .offset(y: headerImageOffset)
+                                .overlay(
+                                    // Dark overlay
+                                    Color.black.opacity(isEditingHeaderImage ? 0.1 : 0.3)
+                                )
+                                .gesture(
+                                    isEditingHeaderImage ?
+                                    DragGesture()
+                                        .onChanged { value in
+                                            headerImageOffset = lastHeaderImageOffset + value.translation.height
+                                        }
+                                        .onEnded { _ in
+                                            lastHeaderImageOffset = headerImageOffset
+                                            UserDefaults.standard.set(headerImageOffset, forKey: "headerImageVerticalOffset")
+                                        }
+                                    : nil
+                                )
+                        }
+                        .frame(height: 280)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            if !isEditingHeaderImage {
+                                withAnimation {
+                                    isEditingHeaderImage = true
+                                }
+                            }
+                        }
+                    } else {
+                        // Default blue gradient background - extended beyond visible area
+                        ExtendedGradientBackground(
+                            colors: [
+                                Color(red: 0.08, green: 0.15, blue: 0.35),
+                                Color(red: 0.12, green: 0.25, blue: 0.55)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing,
+                            extendFactor: 3.0
+                        )
+                        .frame(height: 280)
                     }
                     
-                    Button(action: {
-                        showingSettings = true
-                    }) {
-                        Image(systemName: deviceType == .iPad ? "gearshape" : "gear")
-                            .font(.system(size: DesignSystem.IconSize.sm))
-                            .foregroundColor(.primary)
+                    VStack(spacing: 0) {
+                        // Use PremiumHeaderView like Day/Habits views for consistency
+                        PremiumHeaderView(
+                            dateTitle: formatDate(Date()),
+                            selectedDate: Date(),
+                            onPreviousDay: {},
+                            onNextDay: {},
+                            onToday: {},
+                            onSettings: {},
+                            onAddEvent: {},
+                            onDateSelected: nil
+                        )
+                        .opacity(isEditingHeaderImage ? 0 : 1)
+                        
+                        // White content container with rounded corners
+                        ZStack {
+                            // Gradient background that extends beyond safe area
+                            if let colors = extractedColors {
+                                ExtendedGradientBackground(
+                                    colors: [
+                                        colors.primary.opacity(0.8),
+                                        colors.primary.opacity(0.6),
+                                        colors.secondary.opacity(0.4),
+                                        colors.primary.opacity(0.2),
+                                        colors.secondary.opacity(0.1),
+                                        Color.white.opacity(0.02),
+                                        Color.clear
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom,
+                                    extendFactor: 3.0
+                                )
+                                .blur(radius: 2)
+                            }
+                            
+                            VStack(spacing: 0) {
+                                // Centered content container
+                                HStack {
+                                    if !isCompact {
+                                        Spacer(minLength: 0)
+                                    }
+                                    
+                                    VStack(spacing: 0) {
+                                        chatContent
+                                            .safeAreaInset(edge: .bottom) {
+                                                chatInputView
+                                                    .background(Color(UIColor.systemBackground))
+                                            }
+                                    }
+                                    .frame(maxWidth: maxChatWidth)
+                                    
+                                    if !isCompact {
+                                        Spacer(minLength: 0)
+                                    }
+                                }
+                            }
+                            .opacity(isEditingHeaderImage ? 0 : 1)
+                        }
+                        .frame(maxHeight: .infinity)
+                        .background(Color(UIColor.systemBackground))
+                        .clipShape(
+                            .rect(
+                                topLeadingRadius: 40,
+                                topTrailingRadius: 40
+                            )
+                        )
+                        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: -2)
                     }
                 }
             }
         }
+        .navigationBarHidden(true)
+        .overlay(alignment: .topTrailing) {
+            // Settings button overlay - always on top
+            Button(action: {
+                print("🔧 Settings button tapped from overlay")
+                HapticFeedback.light.trigger()
+                showingSettings = true
+            }) {
+                Image(systemName: "gear")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(.white.opacity(0.9))
+                    .frame(width: 44, height: 44)
+                    .background(
+                        Circle()
+                            .fill(Color.black.opacity(0.2))
+                    )
+                    .contentShape(Circle())
+            }
+            .padding(.top, 5)
+            .padding(.trailing, 16)
+            .opacity(isEditingHeaderImage ? 0 : 1) // Hide during edit mode
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            print("🔵 Keyboard will show - hiding tab bar")
+            print("🔵 Setting keyboardVisibility.isVisible = true")
+            withAnimation(.easeOut(duration: 0.25)) {
+                isKeyboardVisible = true
+                keyboardVisibility.isVisible = true
+            }
+            print("🔵 After setting: keyboardVisibility.isVisible = \(keyboardVisibility.isVisible)")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            print("🔵 Keyboard will hide - showing tab bar")
+            withAnimation(.easeIn(duration: 0.25)) {
+                isKeyboardVisible = false
+                keyboardVisibility.isVisible = false
+            }
+        }
+        .overlay(
+            // Edit mode overlay
+            Group {
+                if isEditingHeaderImage {
+                    ZStack {
+                        // Semi-transparent background only below header
+                        VStack(spacing: 0) {
+                            Color.clear
+                                .frame(height: 168.5) // Start grayout earlier
+                            
+                            // Gray overlay on main content with rounded corners
+                            Color.black.opacity(0.4)
+                                .clipShape(.rect(topLeadingRadius: 40, topTrailingRadius: 40))
+                                .ignoresSafeArea(edges: .bottom)
+                        }
+                        .onTapGesture {
+                            // Prevent taps from going through
+                        }
+                        
+                        // Done button in center of screen
+                        Button(action: {
+                            withAnimation {
+                                isEditingHeaderImage = false
+                                lastHeaderImageOffset = headerImageOffset
+                                UserDefaults.standard.set(headerImageOffset, forKey: "headerImageVerticalOffset")
+                            }
+                        }) {
+                            Text("Done")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 50)
+                                .padding(.vertical, 16)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.blue)
+                                )
+                                .shadow(radius: 10)
+                        }
+                    }
+                }
+            }
+        )
     }
     
     // MARK: - macOS Layout
@@ -266,24 +477,41 @@ struct AIChatView: View {
                             ))
                     }
                     
-                    // Bottom padding
+                    // Bottom padding - adjusted for keyboard and input
                     Color.clear
-                        .frame(height: DesignSystem.Spacing.lg)
+                        .frame(height: 20) // Minimal padding since input is outside scroll
                         .id("bottom-anchor")
                 }
                 .padding(.horizontal, horizontalPadding)
             }
             .onAppear {
                 scrollProxy = proxy
+                lastMessageCount = viewModel.messages.count
             }
-            .onChange(of: viewModel.messages.last?.id) { _, _ in
-                withAnimation(DesignSystem.Animation.spring) {
-                    proxy.scrollTo("bottom-anchor", anchor: .bottom)
+            .onChange(of: viewModel.messages.count) { oldCount, newCount in
+                // Only auto-scroll if user sent a message (count increased) and not manually scrolling
+                if newCount > oldCount && !isUserScrolling {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            proxy.scrollTo("bottom-anchor", anchor: .bottom)
+                        }
+                    }
+                }
+                lastMessageCount = newCount
+            }
+            .onChange(of: isKeyboardVisible) { _, isVisible in
+                if isVisible {
+                    // Scroll to bottom when keyboard appears
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            proxy.scrollTo("bottom-anchor", anchor: .bottom)
+                        }
+                    }
                 }
             }
             .onChange(of: viewModel.isTypingIndicatorVisible) { _, isVisible in
-                if isVisible {
-                    withAnimation(DesignSystem.Animation.spring) {
+                if isVisible && !isUserScrolling {
+                    withAnimation(.easeInOut(duration: 0.3)) {
                         proxy.scrollTo("typing-indicator", anchor: .bottom)
                     }
                 }
@@ -292,6 +520,18 @@ struct AIChatView: View {
                 // Dismiss keyboard when tapping on the chat area
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
+            .simultaneousGesture(
+                DragGesture()
+                    .onChanged { _ in
+                        isUserScrolling = true
+                    }
+                    .onEnded { _ in
+                        // Reset user scrolling flag after a delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            isUserScrolling = false
+                        }
+                    }
+            )
         }
         .overlay {
             // Loading overlay
@@ -335,9 +575,6 @@ struct AIChatView: View {
             .padding(.horizontal, deviceType == .mac ? DesignSystem.Spacing.lg : horizontalPadding)
             .transition(.move(edge: .top).combined(with: .opacity))
         }
-        
-        // Input area
-        chatInputView
     }
     
     // MARK: - Message View
@@ -408,8 +645,7 @@ struct AIChatView: View {
             Divider()
             MacChatInput(text: $viewModel.inputText, viewModel: viewModel)
         } else {
-            ChatInputView(text: $viewModel.inputText, viewModel: viewModel)
-                .background(DesignSystem.Colors.background)
+            ChatInputView(text: $viewModel.inputText, viewModel: viewModel, isKeyboardVisible: $isKeyboardVisible)
         }
     }
     
@@ -682,6 +918,9 @@ struct MacChatInput: View {
         text = ""
         viewModel.inputText = messageText
         viewModel.sendMessage()
+        
+        // Keep focus on text field after sending
+        isTextFieldFocused = true
     }
 }
 

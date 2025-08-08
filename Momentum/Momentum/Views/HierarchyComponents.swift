@@ -58,7 +58,6 @@ struct EnhancedFilterPill: View {
         }
         .buttonStyle(.plain)
         .scaleEffect(isSelected ? 1.02 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
     }
     
     private var pillBackground: some View {
@@ -180,7 +179,7 @@ struct EnhancedSectionHeader: View {
         .padding(.vertical, DesignSystem.Spacing.sm)
         .background(
             Rectangle()
-                .fill(DesignSystem.Colors.secondaryBackground.opacity(0.5))
+                .fill(.ultraThinMaterial)
                 .ignoresSafeArea(edges: .horizontal)
         )
     }
@@ -240,46 +239,42 @@ struct EnhancedTaskCard: View {
     
     @EnvironmentObject private var taskManager: TaskManager
     @State private var isCompleted: Bool = false
-    @State private var isPressed = false
+    @AppStorage("accentColor") private var accentColorHex: String = "#007AFF"
     
     var body: some View {
-        Button(action: onTap) {
-            VStack(spacing: 0) {
-                // Main content
-                HStack(spacing: DesignSystem.Spacing.md) {
-                    // Completion button
-                    Button {
-                        HapticFeedback.success.trigger()
-                        toggleCompletion()
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .strokeBorder(
-                                    isCompleted ? Color.green : Color.secondary.opacity(0.3),
-                                    lineWidth: isCompleted ? 3 : 2
-                                )
-                                .frame(width: 28, height: 28)
-                                .background(
-                                    Circle()
-                                        .fill(isCompleted ? Color.green.opacity(0.1) : Color.clear)
-                                )
-                            
-                            if isCompleted {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundColor(.green)
-                                    .transition(.scale.combined(with: .opacity))
-                            }
-                        }
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+        HStack(spacing: DesignSystem.Spacing.md) {
+            // Completion button - simple design
+            Button {
+                HapticFeedback.success.trigger()
+                toggleCompletion()
+            } label: {
+                ZStack {
+                    // Simple circle border
+                    Circle()
+                        .stroke(isCompleted ? Color(hex: accentColorHex) : Color.gray.opacity(0.3), lineWidth: 2)
+                        .frame(width: 24, height: 24)
                     
-                    // Task content
-                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                        // Title row
-                        HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+                    // Fill when completed
+                    if isCompleted {
+                        Circle()
+                            .fill(Color(hex: accentColorHex))
+                            .frame(width: 24, height: 24)
+                        
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+                .animation(.none, value: isCompleted)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            
+            // Task content
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    // Title row
+                    HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
                             Text(task.title ?? "Untitled Task")
                                 .font(DesignSystem.Typography.body)
                                 .fontWeight(task.priority == TaskPriority.high.rawValue ? .semibold : .regular)
@@ -290,13 +285,11 @@ struct EnhancedTaskCard: View {
                             
                             Spacer(minLength: 0)
                             
-                            // Priority indicator
-                            if task.priority == TaskPriority.high.rawValue {
-                                PriorityIndicator(
-                                    priority: .high,
-                                    size: .medium
-                                )
-                            }
+                            // Priority dot indicator
+                            Circle()
+                                .fill(priorityColor(for: task.priority))
+                                .frame(width: 8, height: 8)
+                                .padding(.trailing, 4)
                         }
                         
                         // Metadata row
@@ -315,7 +308,11 @@ struct EnhancedTaskCard: View {
                                 .padding(.vertical, 4)
                                 .background(
                                     Capsule()
-                                        .fill((isOverdue(task.dueDate) && !isCompleted ? Color.red : Color.secondary).opacity(0.1))
+                                        .fill(Color(UIColor.systemGray6))
+                                        .overlay(
+                                            Capsule()
+                                                .stroke(Color(UIColor.systemGray5), lineWidth: 0.5)
+                                        )
                                 )
                             }
                             
@@ -333,7 +330,11 @@ struct EnhancedTaskCard: View {
                                 .padding(.vertical, 4)
                                 .background(
                                     Capsule()
-                                        .fill(Color(hex: category.colorHex ?? "#007AFF").opacity(0.1))
+                                        .fill(Color(UIColor.systemGray6))
+                                        .overlay(
+                                            Capsule()
+                                                .stroke(Color(UIColor.systemGray5), lineWidth: 0.5)
+                                        )
                                 )
                             }
                             
@@ -349,87 +350,91 @@ struct EnhancedTaskCard: View {
                                 .foregroundColor(.secondary)
                             }
                             
-                            Spacer()
-                        }
-                    }
-                    
-                    // Chevron
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(DesignSystem.Colors.tertiary)
-                }
-                .padding(DesignSystem.Spacing.md)
-                
-                // Notes preview (if available)
-                if let notes = task.notes, !notes.isEmpty, !isCompleted {
-                    HStack {
-                        Text(notes)
-                            .font(DesignSystem.Typography.footnote)
-                            .foregroundColor(.secondary)
-                            .lineLimit(2)
-                            .padding(.horizontal, DesignSystem.Spacing.md + 44 + DesignSystem.Spacing.md)
-                            .padding(.bottom, DesignSystem.Spacing.md)
-                        Spacer()
-                    }
+                    Spacer()
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onTap()
+            }
+            
+            // Chevron
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(DesignSystem.Colors.tertiary)
         }
-        .buttonStyle(.plain)
+        .padding(DesignSystem.Spacing.md)
         .background(
-            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
-                .fill(DesignSystem.Colors.secondaryBackground)
-                .shadow(
-                    color: DesignSystem.Elevation.low.color,
-                    radius: DesignSystem.Elevation.low.radius,
-                    x: 0,
-                    y: DesignSystem.Elevation.low.y
-                )
+            // Same style as navbar - frosted glass blur effect
+            ZStack {
+                // Base blur layer
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                    .fill(.thinMaterial)
+                
+                // Additional tint for better opacity
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                    .fill(Color(UIColor.systemBackground).opacity(0.3))
+            }
         )
         .overlay(
+            // Subtle border for definition - same as navbar
             RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
-                .stroke(
-                    task.priority == TaskPriority.high.rawValue ? 
-                    TaskPriority.high.color.opacity(0.3) : 
-                    Color.clear,
-                    lineWidth: 1
+                .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
+        )
+        .overlay(
+            // Top edge highlight
+            VStack {
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.6),
+                        Color.white.opacity(0.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
+                .frame(height: 1)
+                .blur(radius: 0.5)
+                .padding(.horizontal, DesignSystem.CornerRadius.md)
+                
+                Spacer()
+            }
         )
-        .scaleEffect(isPressed ? 0.98 : 1.0)
-        .onLongPressGesture(
-            minimumDuration: 0,
-            maximumDistance: .infinity,
-            pressing: { pressing in
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    isPressed = pressing
-                }
-            },
-            perform: {}
-        )
+        // Single shadow like navbar
+        .shadow(color: Color.black.opacity(0.15), radius: 15, x: 0, y: 8)
         .onAppear {
             isCompleted = task.isCompleted
         }
         .onChange(of: task.isCompleted) { _, newValue in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                isCompleted = newValue
-            }
+            isCompleted = newValue
         }
     }
     
     private func toggleCompletion() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            if isCompleted {
-                isCompleted = false
-                _ = taskManager.uncompleteTask(task)
-            } else {
-                isCompleted = true
-                _ = taskManager.completeTask(task)
-            }
+        if isCompleted {
+            isCompleted = false
+            _ = taskManager.uncompleteTask(task)
+        } else {
+            isCompleted = true
+            _ = taskManager.completeTask(task)
         }
     }
     
     private func isOverdue(_ date: Date?) -> Bool {
         guard let date = date else { return false }
         return date < Date() && !Calendar.current.isDateInToday(date)
+    }
+    
+    private func priorityColor(for priorityValue: Int16) -> Color {
+        let priority = TaskPriority(rawValue: priorityValue) ?? .medium
+        switch priority {
+        case .high:
+            return Color(hex: "#FF5757")
+        case .medium:
+            return Color(hex: "#FFB657")
+        case .low:
+            return Color(hex: "#65D565")
+        }
     }
     
     private func formatDueDate(_ date: Date) -> String {
@@ -480,8 +485,8 @@ struct VisualSeparator: View {
         
         var color: Color {
             switch self {
-            case .light: return DesignSystem.Colors.separator
-            case .medium, .heavy: return DesignSystem.Colors.tertiaryBackground
+            case .light: return Color.gray.opacity(0.2)
+            case .medium, .heavy: return Color.white.opacity(0.0)
             }
         }
     }

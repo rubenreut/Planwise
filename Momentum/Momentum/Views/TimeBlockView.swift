@@ -235,17 +235,40 @@ struct TimeBlockView: View {
             .padding(.horizontal, DesignSystem.Spacing.xs)
             .padding(.vertical, DesignSystem.Spacing.xxs + 2)
             .background(
-                Capsule()
-                    .fill(categoryColor)
+                ZStack {
+                    // Glassmorphic background
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                    
+                    // Color overlay
+                    Capsule()
+                        .fill(categoryColor.opacity(0.8))
+                    
+                    // Inner glow
+                    Capsule()
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.white.opacity(0.5),
+                                    Color.white.opacity(0.1)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                        .blur(radius: 0.5)
+                }
             )
+            .shadow(color: categoryColor.opacity(0.4), radius: 4, x: 0, y: 2)
             .overlay(
                 // Subtle directional indicator
                 Capsule()
                     .strokeBorder(
                         LinearGradient(
                             colors: [
-                                .white.opacity(DesignSystem.Opacity.strong),
-                                .white.opacity(DesignSystem.Opacity.light)
+                                .white.opacity(0.6),
+                                .white.opacity(0.2)
                             ],
                             startPoint: isStart ? .top : .bottom,
                             endPoint: isStart ? .bottom : .top
@@ -271,26 +294,58 @@ struct TimeBlockView: View {
     }
     
     private var accentBar: some View {
-        Rectangle()
-            .fill(
-                LinearGradient(
-                    colors: [
-                        categoryColor,
-                        categoryColor.opacity(1 - DesignSystem.Opacity.light)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
+        ZStack {
+            // Glow effect behind bar
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            categoryColor.opacity(0.6),
+                            categoryColor.opacity(0.3)
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
                 )
-            )
-            .frame(width: DesignSystem.Spacing.xxs - 1) // 3pt for visual weight at any scale
-            .opacity(dragState.isPressed ? 1 - DesignSystem.Opacity.medium : 1.0)
+                .frame(width: 8)
+                .blur(radius: 3)
+            
+            // Main bar with gradient
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            categoryColor,
+                            categoryColor.opacity(0.85)
+                        ]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: 5)
+            
+            // Inner highlight for 3D effect
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color.white.opacity(0.3),
+                            Color.white.opacity(0.05)
+                        ]),
+                        startPoint: .top,
+                        endPoint: .center
+                    )
+                )
+                .frame(width: 5)
+        }
+        .opacity(dragState.isPressed ? 0.95 : 1.0)
     }
     
     private var titleSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs / 2) {
             Text(event.title ?? "Untitled")
                 .font(.system(size: 15, weight: titleWeight, design: .default))
-                .foregroundColor(Color.adaptivePrimaryText)
+                .foregroundColor(colorScheme == .dark ? .white : Color(UIColor.label))
                 .tracking(-0.4)
         }
         .lineLimit(3)
@@ -310,7 +365,7 @@ struct TimeBlockView: View {
                         end: dragState.isDragging ? adjustTimeForDrag(endTime) : endTime
                     ))
                         .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundColor(Color.adaptiveSecondaryText)
+                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.9) : Color(UIColor.secondaryLabel))
                         .tracking(0.2)
                         .opacity(dragState.showTimePills ? 0 : 1) // Hide only time range when showing pills
                         .background(
@@ -327,14 +382,14 @@ struct TimeBlockView: View {
                     HStack(spacing: DesignSystem.Spacing.xxs) {
                         Text("•")
                             .font(.system(size: 10, weight: .regular))
-                            .foregroundColor(Color.adaptiveSecondaryText.opacity(DesignSystem.Opacity.disabled))
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : Color(UIColor.tertiaryLabel))
                         
                         Text(formatDuration(
                             start: dragState.isDragging ? adjustTimeForDrag(startTime) : startTime,
                             end: dragState.isDragging ? adjustTimeForDrag(endTime) : endTime
                         ))
                             .font(.system(size: 11, weight: .regular, design: .monospaced))
-                            .foregroundColor(Color.adaptiveSecondaryText.opacity(1 - DesignSystem.Opacity.strong))
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.85) : Color(UIColor.secondaryLabel))
                             .tracking(0.1)
                     }
                 }
@@ -345,11 +400,11 @@ struct TimeBlockView: View {
                     HStack(spacing: DesignSystem.Spacing.xxs) {
                         Image(systemName: "location.fill")
                             .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(Color.adaptiveSecondaryText.opacity(1 - DesignSystem.Opacity.strong))
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.85) : Color(UIColor.secondaryLabel))
                         
                         Text(location)
                             .font(.system(size: 11, weight: .regular, design: .default))
-                            .foregroundColor(Color.adaptiveSecondaryText)
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.9) : Color(UIColor.secondaryLabel))
                             .tracking(-0.2)
                             .lineLimit(1)
                     }
@@ -361,17 +416,23 @@ struct TimeBlockView: View {
     // MARK: - Visual Effects
     
     private var backgroundLayer: some View {
-        // Simple solid background
+        // Background matches the sidebar accent color
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(categoryColor.opacity(colorScheme == .dark ? 0.15 : 0.1))
+            .fill(
+                colorScheme == .dark ?
+                // Dark mode: lighter version of category color
+                categoryColor.mix(with: Color(white: 0.2), ratio: 0.7) :
+                // Light mode: extremely light to match sidebar (98% white + 2% color)
+                categoryColor.mix(with: .white, ratio: 0.98)
+            )
     }
     
     private var overlayEffects: some View {
-        // Simple border and shadow
+        // Just shadow, no border (border is handled by accent bar on left)
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .stroke(categoryColor.opacity(0.2), lineWidth: 1)
+            .fill(Color.clear)
             .shadow(
-                color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.1),
+                color: Color.black.opacity(0.1),
                 radius: dragState.isPressed ? 6 : 3,
                 x: 0,
                 y: dragState.isPressed ? 3 : 1

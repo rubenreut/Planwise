@@ -17,6 +17,9 @@ struct PersistentScrollView<Content: View>: UIViewRepresentable {
         let scrollView = UIScrollView()
         scrollView.delegate = context.coordinator
         scrollView.showsVerticalScrollIndicator = false
+        scrollView.bounces = false // Disable bounce to prevent overscroll
+        scrollView.alwaysBounceVertical = false
+        scrollView.alwaysBounceHorizontal = false
         
         let hostingController = UIHostingController(rootView: content)
         hostingController.view.translatesAutoresizingMaskIntoConstraints = false

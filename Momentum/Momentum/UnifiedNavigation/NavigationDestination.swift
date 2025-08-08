@@ -37,6 +37,18 @@ enum NavigationDestination: Int, CaseIterable, Identifiable {
         case .day: return "calendar.day.timeline.left"
         case .week: return "calendar"
         case .tasks: return "checklist"
+        case .habits: return "star"
+        case .goals: return "target"
+        case .assistant: return "message"
+        case .settings: return "gearshape"
+        }
+    }
+    
+    var filledIcon: String {
+        switch self {
+        case .day: return "calendar.day.timeline.left"
+        case .week: return "calendar"
+        case .tasks: return "checklist"
         case .habits: return "star.fill"
         case .goals: return "target"
         case .assistant: return "message.fill"

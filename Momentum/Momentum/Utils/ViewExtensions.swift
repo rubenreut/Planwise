@@ -7,6 +7,68 @@
 
 import SwiftUI
 
+// MARK: - Accent Color Extension
+
+extension Color {
+    /// Convert accent color string to SwiftUI Color
+    static func fromAccentString(_ colorString: String) -> Color {
+        switch colorString {
+        case "blue": return .blue
+        case "purple": return .purple
+        case "pink": return .pink
+        case "red": return .red
+        case "orange": return .orange
+        case "green": return .green
+        case "indigo": return .indigo
+        case "custom":
+            // Load custom color from hex
+            let hexString = UserDefaults.standard.string(forKey: "customAccentColorHex") ?? ""
+            if !hexString.isEmpty {
+                return Color(hex: hexString)
+            }
+            return .blue
+        default: return .blue // Default fallback
+        }
+    }
+    
+    /// Mix two colors together with a given ratio
+    func mix(with color: Color, ratio: Double) -> Color {
+        let clampedRatio = max(0, min(1, ratio))
+        
+        // Convert to UIColor to get components
+        let uiColor1 = UIColor(self)
+        let uiColor2 = UIColor(color)
+        
+        var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+        var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+        
+        uiColor1.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+        uiColor2.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+        
+        // Mix the colors
+        let r = r1 * (1 - clampedRatio) + r2 * clampedRatio
+        let g = g1 * (1 - clampedRatio) + g2 * clampedRatio
+        let b = b1 * (1 - clampedRatio) + b2 * clampedRatio
+        let a = a1 * (1 - clampedRatio) + a2 * clampedRatio
+        
+        return Color(.sRGB, red: r, green: g, blue: b, opacity: a)
+    }
+}
+
+// MARK: - Clear Background Helper
+
+struct ClearBackground: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        DispatchQueue.main.async {
+            view.superview?.superview?.backgroundColor = .clear
+        }
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
 // MARK: - Navigation Title Extension
 
 extension View {
@@ -138,5 +200,16 @@ extension View {
             return .zero
         }
         return window.safeAreaInsets
+    }
+}
+
+
+// MARK: - Tap to Dismiss Keyboard
+
+extension View {
+    func dismissKeyboardOnTap() -> some View {
+        self.onTapGesture {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
     }
 }

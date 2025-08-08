@@ -4,11 +4,14 @@ import MessageUI
 import CoreData
 import UserNotifications
 import LocalAuthentication
+import PhotosUI
 
 struct SettingsView: View {
     @EnvironmentObject var scheduleManager: ScheduleManager
     @StateObject private var notificationManager = NotificationManager.shared
+    @Environment(\.dismiss) private var dismiss
     @State private var showingCategoryManagement = false
+    @State private var showingCalendarIntegration = false
     @AppStorage("aiContextInfo") private var aiContextInfo = ""
     @State private var showingAIContext = false
     @State private var isRestoringPurchases = false
@@ -31,7 +34,18 @@ struct SettingsView: View {
     // Appearance Settings
     @AppStorage("appIcon") private var selectedAppIcon = "AppIcon"
     @AppStorage("accentColor") private var selectedAccentColor = "blue"
+    @AppStorage("customAccentColorHex") private var customAccentColorHex = ""
+    @State private var showingColorPicker = false
+    @State private var tempCustomColor = Color.blue
     @AppStorage("useSystemFont") private var useSystemFont = true
+    @AppStorage("headerImageName") private var headerImageName = ""
+    @AppStorage("headerImageRectX") private var headerImageRectX: Double = 0.0
+    @AppStorage("headerImageRectY") private var headerImageRectY: Double = 0.0
+    @AppStorage("headerImageRectWidth") private var headerImageRectWidth: Double = 0.0
+    @AppStorage("headerImageRectHeight") private var headerImageRectHeight: Double = 0.0
+    @State private var showingImagePicker = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var showingFontSelector = false
     
     // Calendar Settings
     @AppStorage("firstDayOfWeek") private var firstDayOfWeek = 1 // Sunday = 1
@@ -282,6 +296,9 @@ struct SettingsView: View {
             CategoryManagementView()
                 .environmentObject(scheduleManager)
         }
+        .sheet(isPresented: $showingCalendarIntegration) {
+            CalendarIntegrationView()
+        }
         .sheet(isPresented: $showingAIContext) {
             AIContextSheet(aiContextInfo: $aiContextInfo)
         }
@@ -327,6 +344,31 @@ struct SettingsView: View {
             if !savedMinutes.isEmpty {
                 defaultReminderMinutes = savedMinutes[0]
             }
+        }
+        .photosPicker(isPresented: $showingImagePicker, selection: $selectedPhotoItem, matching: .images)
+        .onChange(of: selectedPhotoItem) { _ in
+            if let item = selectedPhotoItem {
+                loadImageDirectly(from: item)
+            }
+        }
+        .sheet(isPresented: $showingColorPicker) {
+            ColorPickerSheet(
+                selectedColor: $tempCustomColor,
+                onSave: { color in
+                    // Convert Color to hex string
+                    if let components = UIColor(color).cgColor.components, components.count >= 3 {
+                        let r = Int(components[0] * 255)
+                        let g = Int(components[1] * 255)
+                        let b = Int(components[2] * 255)
+                        customAccentColorHex = String(format: "#%02X%02X%02X", r, g, b)
+                        selectedAccentColor = "custom"
+                    }
+                    showingColorPicker = false
+                }
+            )
+        }
+        .sheet(isPresented: $showingFontSelector) {
+            FontSelectorView()
         }
     }
     
@@ -461,24 +503,112 @@ struct SettingsView: View {
                 title: "Accent Color",
                 showChevron: false,
                 expandedContent: {
-                    HStack(spacing: DesignSystem.Spacing.sm) {
-                        ForEach(["blue", "purple", "pink", "red", "orange", "green", "indigo"], id: \.self) { color in
+                    VStack(spacing: DesignSystem.Spacing.sm) {
+                        HStack(spacing: DesignSystem.Spacing.sm) {
+                            // Predefined colors
+                            ForEach(["blue", "purple", "pink", "red", "orange", "green", "indigo"], id: \.self) { color in
+                                Circle()
+                                    .fill(Color(color))
+                                    .frame(width: 30, height: 30)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.primary.opacity(0.2), lineWidth: 1)
+                                    )
+                                    .overlay(
+                                        Image(systemName: "checkmark")
+                                            .font(.caption)
+                                            .foregroundColor(.white)
+                                            .opacity(selectedAccentColor == color ? 1 : 0)
+                                    )
+                                    .onTapGesture {
+                                        selectedAccentColor = color
+                                        customAccentColorHex = ""
+                                    }
+                            }
+                            
+                            // Custom color picker
                             Circle()
-                                .fill(Color(color))
+                                .fill(selectedAccentColor == "custom" && !customAccentColorHex.isEmpty ? 
+                                     Color(hex: customAccentColorHex) : Color.gray)
                                 .frame(width: 30, height: 30)
                                 .overlay(
                                     Circle()
                                         .stroke(Color.primary.opacity(0.2), lineWidth: 1)
                                 )
                                 .overlay(
-                                    Image(systemName: "checkmark")
+                                    Image(systemName: selectedAccentColor == "custom" ? "checkmark" : "plus")
                                         .font(.caption)
                                         .foregroundColor(.white)
-                                        .opacity(selectedAccentColor == color ? 1 : 0)
                                 )
                                 .onTapGesture {
-                                    selectedAccentColor = color
+                                    showingColorPicker = true
                                 }
+                        }
+                        
+                        if selectedAccentColor == "custom" && !customAccentColorHex.isEmpty {
+                            Text("Custom Color")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.vertical, DesignSystem.Spacing.xs)
+                }
+            )
+            
+            Divider()
+                .padding(.leading, 44)
+            
+            SettingsRow(
+                icon: "textformat",
+                title: "Font Style",
+                value: UserDefaults.standard.string(forKey: "selectedFontFamily") ?? "System",
+                action: {
+                    showingFontSelector = true
+                }
+            )
+            
+            Divider()
+                .padding(.leading, 44)
+            
+            SettingsRow(
+                icon: "photo.fill",
+                title: "Header Background",
+                value: headerImageName.isEmpty ? "Default" : "Custom Image",
+                showChevron: false,
+                expandedContent: {
+                    VStack(spacing: DesignSystem.Spacing.sm) {
+                        HStack(spacing: DesignSystem.Spacing.md) {
+                            Button("Choose Image") {
+                                showingImagePicker = true
+                            }
+                            .buttonStyle(BorderedButtonStyle())
+                            
+                            if !headerImageName.isEmpty {
+                                Button("Reset to Default") {
+                                    deleteOldHeaderImage()
+                                    headerImageName = ""
+                                    headerImageRectX = 0.0
+                                    headerImageRectY = 0.0
+                                    headerImageRectWidth = 0.0
+                                    headerImageRectHeight = 0.0
+                                    // Clear extracted colors
+                                    UserDefaults.standard.clearExtractedColors()
+                                    UserDefaults.standard.removeObject(forKey: "headerImageVerticalOffset")
+                                }
+                                .buttonStyle(BorderedButtonStyle())
+                                .tint(.red)
+                            }
+                        }
+                        
+                        if !headerImageName.isEmpty {
+                            Button("Adjust Position") {
+                                // Set a flag to indicate we want to edit
+                                UserDefaults.standard.set(true, forKey: "shouldStartHeaderEdit")
+                                // Dismiss settings and go to day view
+                                dismiss()
+                            }
+                            .buttonStyle(BorderedButtonStyle())
+                            .tint(.blue)
                         }
                     }
                     .padding(.vertical, DesignSystem.Spacing.xs)
@@ -507,6 +637,19 @@ struct SettingsView: View {
                 value: "\(scheduleManager.categories.count)",
                 action: {
                     showingCategoryManagement = true
+                }
+            )
+            
+            Divider()
+                .padding(.leading, 44)
+            
+            SettingsRow(
+                icon: "calendar.badge.plus",
+                title: "Calendar Integration",
+                value: CalendarIntegrationManager.shared.selectedCalendarIds.isEmpty ? "Not Connected" : "\(CalendarIntegrationManager.shared.selectedCalendarIds.count) Connected",
+                valueColor: CalendarIntegrationManager.shared.selectedCalendarIds.isEmpty ? .secondary : .green,
+                action: {
+                    showingCalendarIntegration = true
                 }
             )
         }
@@ -1103,6 +1246,137 @@ struct SettingsView: View {
         // Show success alert
         showingDataDeletedAlert = true
     }
+    
+    // MARK: - Header Image Handling
+    
+    private func loadImageDirectly(from item: PhotosPickerItem) {
+        item.loadTransferable(type: Data.self) { result in
+            switch result {
+            case .success(let data):
+                if let data = data, let image = UIImage(data: data) {
+                    // Fix image orientation
+                    let fixedImage = image.fixedOrientation()
+                    DispatchQueue.main.async {
+                        // Save the image directly without cropping
+                        self.saveHeaderImage(fixedImage)
+                        self.selectedPhotoItem = nil
+                        // Set default position (centered)
+                        self.headerImageRectX = 0
+                        self.headerImageRectY = 0
+                        self.headerImageRectWidth = Double(fixedImage.size.width)
+                        self.headerImageRectHeight = Double(fixedImage.size.height)
+                        
+                        // Extract and save dominant colors
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            let colors = ImageColorExtractor.extractDominantColors(from: fixedImage, maxColors: 3)
+                            // Convert colors to hex strings for storage
+                            let colorHexStrings = colors.compactMap { color -> String? in
+                                if let components = UIColor(color).cgColor.components, components.count >= 3 {
+                                    let r = Int(components[0] * 255)
+                                    let g = Int(components[1] * 255)
+                                    let b = Int(components[2] * 255)
+                                    return String(format: "#%02X%02X%02X", r, g, b)
+                                }
+                                return nil
+                            }
+                            UserDefaults.standard.set(colorHexStrings, forKey: "headerImageExtractedColors")
+                        }
+                        
+                        // Automatically open the editor
+                        UserDefaults.standard.set(true, forKey: "shouldStartHeaderEdit")
+                        // Dismiss settings to go to day view
+                        self.dismiss()
+                    }
+                }
+            case .failure(let error):
+                print("Error loading image: \(error)")
+                DispatchQueue.main.async {
+                    self.selectedPhotoItem = nil
+                }
+            }
+        }
+    }
+    
+    
+    private func saveHeaderImage(_ image: UIImage) {
+        // Save to documents directory
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let fileName = "headerImage_\(UUID().uuidString).jpg"
+        let fileURL = documentsPath.appendingPathComponent(fileName)
+        
+        // Compress and save the image
+        if let jpegData = image.jpegData(compressionQuality: 0.9) {
+            do {
+                try jpegData.write(to: fileURL)
+                
+                // Delete old image if exists
+                if !headerImageName.isEmpty {
+                    deleteOldHeaderImage()
+                }
+                headerImageName = fileName
+                
+                // Extract colors from the image
+                let extractedColors = ColorExtractor.extractColors(from: image)
+                UserDefaults.standard.setExtractedColors(extractedColors)
+                
+                // Set flag to start header edit mode and navigate to DayView
+                UserDefaults.standard.set(true, forKey: "shouldStartHeaderEdit")
+                
+                // Navigate to DayView
+                DispatchQueue.main.async {
+                    // Find navigation state in view hierarchy
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let window = windowScene.windows.first(where: { $0.isKeyWindow }),
+                       let rootView = window.rootViewController {
+                        // Dismiss settings first
+                        self.dismiss()
+                        
+                        // Navigate to DayView after a slight delay to ensure dismiss completes
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            NotificationCenter.default.post(
+                                name: Notification.Name("NavigateToDayView"),
+                                object: nil
+                            )
+                        }
+                    }
+                }
+            } catch {
+                print("Error saving header image: \(error)")
+            }
+        }
+    }
+    
+    private func deleteOldHeaderImage() {
+        guard !headerImageName.isEmpty else { return }
+        
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let fileURL = documentsPath.appendingPathComponent(headerImageName)
+        
+        try? FileManager.default.removeItem(at: fileURL)
+        
+        // Clear extracted colors when removing image
+        UserDefaults.standard.clearExtractedColors()
+    }
+    
+    static func loadHeaderImage() -> (image: UIImage, visibleRect: CGRect)? {
+        let headerImageName = UserDefaults.standard.string(forKey: "headerImageName") ?? ""
+        guard !headerImageName.isEmpty else { return nil }
+        
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let fileURL = documentsPath.appendingPathComponent(headerImageName)
+        
+        if let data = try? Data(contentsOf: fileURL),
+           let image = UIImage(data: data) {
+            let rect = CGRect(
+                x: UserDefaults.standard.double(forKey: "headerImageRectX"),
+                y: UserDefaults.standard.double(forKey: "headerImageRectY"),
+                width: UserDefaults.standard.double(forKey: "headerImageRectWidth"),
+                height: UserDefaults.standard.double(forKey: "headerImageRectHeight")
+            )
+            return (image, rect)
+        }
+        return nil
+    }
 }
 
 // MARK: - Settings Section Component
@@ -1384,6 +1658,91 @@ struct ProfileEditorSheet: View {
             tempName = userName
             tempAvatar = userAvatar
         }
+    }
+}
+
+// MARK: - Color Picker Sheet
+
+struct ColorPickerSheet: View {
+    @Binding var selectedColor: Color
+    let onSave: (Color) -> Void
+    @Environment(\.dismiss) var dismiss
+    @State private var tempColor: Color = .blue
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Text("Choose Your Accent Color")
+                    .font(.headline)
+                    .padding(.top)
+                
+                ColorPicker("Select Color", selection: $tempColor)
+                    .labelsHidden()
+                    .frame(width: 200, height: 200)
+                    .scaleEffect(2.0)
+                
+                // Preview
+                HStack(spacing: 20) {
+                    VStack(spacing: 8) {
+                        Circle()
+                            .fill(tempColor)
+                            .frame(width: 60, height: 60)
+                        Text("New Color")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    VStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(tempColor)
+                        Text("Preview")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding()
+                
+                Spacer()
+            }
+            .navigationTitle("Custom Color")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        onSave(tempColor)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .onAppear {
+            tempColor = selectedColor
+        }
+    }
+}
+
+// MARK: - UIImage Extension
+
+extension UIImage {
+    func fixedOrientation() -> UIImage {
+        if imageOrientation == .up {
+            return self
+        }
+        
+        UIGraphicsBeginImageContextWithOptions(size, false, scale)
+        draw(in: CGRect(origin: .zero, size: size))
+        let normalizedImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        return normalizedImage ?? self
     }
 }
 

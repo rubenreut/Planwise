@@ -19,83 +19,140 @@ struct HabitsView: View {
     @State private var habitToDelete: Habit?
     @State private var showingDeleteAlert = false
     @Environment(\.colorScheme) var colorScheme
+    @State private var headerImageOffset: CGFloat = 0
+    @State private var extractedColors: (primary: Color, secondary: Color)? = nil
     
     var body: some View {
         NavigationStack {
             ZStack {
-                // Background
-                Color.softBackground
+                // Super light gray background - EXACTLY like DayView
+                Color(UIColor.systemGroupedBackground)
                     .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: DesignSystem.Spacing.lg - 4) {
-                        // Header with date picker
-                        HStack {
-                            Text("Habits")
-                                .font(DeviceType.isIPad ? .largeTitle : .title)
-                                .fontWeight(.bold)
+                    .transition(.identity)
+
+                VStack(spacing: 0) {
+                    GeometryReader { geometry in
+                        ZStack(alignment: .top) {
+                            // Background - either custom image or gradient
+                            if let headerData = SettingsView.loadHeaderImage() {
+                                ZStack {
+                                    // Simple image display
+                                    GeometryReader { imageGeo in
+                                        Image(uiImage: headerData.image)
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(width: imageGeo.size.width)
+                                            .offset(y: CGFloat(UserDefaults.standard.double(forKey: "headerImageVerticalOffset")))
+                                    }
+                                    .frame(height: 280) // Increased to cover rounded corners
+                                    .clipped()
+                                    
+                                    // Dark overlay
+                                    Color.black.opacity(0.3)
+                                        .allowsHitTesting(false)
+                                        .frame(height: 280)
+                                }
+                                .frame(height: 280) // Match the increased height
+                                .ignoresSafeArea()
+                            } else {
+                                // Default blue gradient background - extended beyond visible area
+                                ExtendedGradientBackground(
+                                    colors: [
+                                        Color(red: 0.08, green: 0.15, blue: 0.35),
+                                        Color(red: 0.12, green: 0.25, blue: 0.55)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing,
+                                    extendFactor: 3.0
+                                )
+                            }
                             
-                            Spacer()
-                            
-                            DatePicker("", selection: $selectedDate, displayedComponents: .date)
-                                .datePickerStyle(.compact)
-                                .labelsHidden()
-                                .glassmorphic(cornerRadius: DesignSystem.CornerRadius.sm + 4, shadowRadius: DesignSystem.Shadow.sm.radius * 0.75)
+                            VStack(spacing: 0) {
+                                // Header container - always same expanded size
+                                PremiumHeaderView(
+                                    dateTitle: formatDate(selectedDate),
+                                    selectedDate: selectedDate,
+                                    onPreviousDay: {
+                                        selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
+                                    },
+                                    onNextDay: {
+                                        selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
+                                    },
+                                    onToday: {
+                                        selectedDate = Date()
+                                    },
+                                    onSettings: {
+                                        // Settings handled elsewhere
+                                    },
+                                    onAddEvent: {
+                                        showingAddHabit = true
+                                    },
+                                    onDateSelected: { date in
+                                        selectedDate = date
+                                    }
+                                )
+                                .opacity(1) // Always visible
+                                
+                                // White content container with rounded corners
+                                ZStack {
+                                    // Gradient background that extends beyond safe area
+                                    if let colors = extractedColors {
+                                        ExtendedGradientBackground(
+                                            colors: [
+                                                colors.primary.opacity(0.8),
+                                                colors.primary.opacity(0.6),
+                                                colors.secondary.opacity(0.4),
+                                                colors.primary.opacity(0.2),
+                                                colors.secondary.opacity(0.1),
+                                                Color.white.opacity(0.02),
+                                                Color.clear
+                                            ],
+                                            startPoint: .top,
+                                            endPoint: .bottom,
+                                            extendFactor: 3.0
+                                        )
+                                        .blur(radius: 2)
+                                    }
+                                    
+                                    ScrollView {
+                                        VStack(spacing: 0) {
+                                            // Progress summary at top
+                                            
+                                            // Habit list
+                                            habitList
+                                                .padding(.horizontal, 20)
+                                                .padding(.top, 20)
+                                            
+                                            Spacer(minLength: 100)
+                                        }
+                                    }
+                                }
+                                .frame(maxHeight: .infinity)
+                                .background(Color(UIColor.systemBackground))
+                                .clipShape(.rect(topLeadingRadius: 40, topTrailingRadius: 40))
+                                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: -2)
+                                .ignoresSafeArea(edges: .bottom)
+                                .zIndex(1)
+                            }
                         }
-                        .adaptiveHorizontalPadding()
-                        .padding(.top)
-                        
-                        // Unified layout for iPhone and iPad
-                        VStack(spacing: DesignSystem.Spacing.lg - 4) {
-                            // Progress Overview
-                            TodayProgressCard()
-                                .padding(.horizontal)
-                            
-                            // Quick Stats
-                            QuickStatsRow()
-                            
-                            // Habit List
-                            habitList
-                                .padding(.horizontal)
-                        }
-                        
-                        Spacer(minLength: DesignSystem.Spacing.xxxl + DesignSystem.Spacing.xl + 4)
                     }
                 }
-                .refreshable {
-                    await refresh()
-                }
                 
-                // Floating action button
+                // Floating Action Button
                 VStack {
                     Spacer()
                     HStack {
                         Spacer()
-                        
-                        FloatingActionButton(
-                            icon: "plus",
-                            accessibilityLabel: "Add new habit"
-                        ) {
+                        FloatingActionButton(icon: "plus", accessibilityLabel: "Add new habit") {
                             showingAddHabit = true
                         }
-                        .padding(.trailing, DesignSystem.Spacing.lg - 4)
-                        .padding(.bottom, DesignSystem.Spacing.lg - 4)
+                        .accessibilityHint("Opens habit creation view")
+                        .padding(.trailing, 24)
+                        .padding(.bottom, 82)
                     }
                 }
             }
-            .navigationBarHidden(DeviceType.isIPad ? false : true) // Show nav bar on iPad for sidebar toggle
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    IconButton(
-                        icon: "chart.xyaxis.line",
-                        style: .tertiary,
-                        size: .small,
-                        accessibilityLabel: "View habit statistics"
-                    ) {
-                        showingStats = true
-                    }
-                }
-            }
+            .navigationBarHidden(true)
             .sheet(isPresented: $showingAddHabit) {
                 AddHabitView()
                     .presentationDetents([.large])
@@ -119,48 +176,71 @@ struct HabitsView: View {
             } message: { habit in
                 Text("Are you sure you want to delete '\(habit.name ?? "")'? This will also delete all associated entries and cannot be undone.")
             }
+            .onAppear {
+                // Load extracted colors from header image
+                self.extractedColors = UserDefaults.standard.getExtractedColors()
+                
+                // If no colors saved but we have an image, extract them
+                if extractedColors == nil, let headerData = SettingsView.loadHeaderImage() {
+                    let colors = ColorExtractor.extractColors(from: headerData.image)
+                    UserDefaults.standard.setExtractedColors(colors)
+                    self.extractedColors = (colors.primary, colors.secondary)
+                }
+            }
         }
         .id(refreshID)
     }
     
+    // MARK: - Computed Properties
+    
+    private var todayProgress: (completed: Int, total: Int, percentage: Double) {
+        habitManager.todayProgress()
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        if Calendar.current.isDateInToday(date) {
+            return "Today"
+        } else {
+            formatter.dateFormat = "MMM d"
+            return formatter.string(from: date)
+        }
+    }
+    
     private var habitList: some View {
-        Group {
+        VStack(spacing: 12) {
             if habitManager.habitsForDate(selectedDate).isEmpty {
-                EmptyStateView(config: habitManager.habits.isEmpty ? .noHabits {
-                    showingAddHabit = true
-                } : .noHabitsForDate(date: selectedDate) {
-                    showingAddHabit = true
-                })
-                .padding(.vertical, DesignSystem.Spacing.xxxl - 4)
-                .frame(maxWidth: .infinity, minHeight: DesignSystem.Spacing.xxxl * 3 + DesignSystem.Spacing.xs)
+                // Empty state
+                VStack(spacing: 16) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray.opacity(0.3))
+                    Text("No habits for today")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    Text("Tap + to create your first habit")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 300)
+                .padding(.vertical, 40)
             } else {
-                LazyVStack(spacing: DesignSystem.Spacing.xs) {
-                    ForEach(habitManager.habitsForDate(selectedDate)) { habit in
-                        HabitRow(
-                            habit: habit,
-                            date: selectedDate,
-                            onTap: {
-                                selectedHabit = habit
-                            },
-                            onComplete: { value in
-                                completeHabit(habit, value: value)
-                            }
-                        )
-                        .contextMenu {
-                            Button {
-                                selectedHabit = habit
-                            } label: {
-                                Label("Edit Habit", systemImage: "pencil")
-                            }
-                            
-                            Divider()
-                            
-                            Button(role: .destructive) {
-                                habitToDelete = habit
-                                showingDeleteAlert = true
-                            } label: {
-                                Label("Delete Habit", systemImage: "trash")
-                            }
+                ForEach(habitManager.habitsForDate(selectedDate)) { habit in
+                    CleanHabitRow(habit: habit, date: selectedDate, onTap: {
+                        selectedHabit = habit
+                    })
+                    .contextMenu {
+                        Button {
+                            selectedHabit = habit
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        
+                        Button(role: .destructive) {
+                            habitToDelete = habit
+                            showingDeleteAlert = true
+                        } label: {
+                            Label("Delete", systemImage: "trash")
                         }
                     }
                 }
@@ -172,24 +252,6 @@ struct HabitsView: View {
     private func refresh() async {
         habitManager.updateStreaks()
         refreshID = UUID()
-    }
-    
-    private func completeHabit(_ habit: Habit, value: Double) {
-        let result = habitManager.logHabit(
-            habit,
-            value: value,
-            date: selectedDate,
-            notes: nil,
-            mood: nil,
-            duration: nil,
-            quality: nil
-        )
-        
-        if case .success = result {
-            // Generate haptic feedback
-            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-            impactFeedback.impactOccurred()
-        }
     }
     
     private func deleteHabit(_ habit: Habit) {
@@ -206,156 +268,16 @@ struct HabitsView: View {
     }
 }
 
-// MARK: - Today's Progress Card
 
-struct TodayProgressCard: View {
-    @EnvironmentObject private var habitManager: HabitManager
-    @Environment(\.colorScheme) var colorScheme
-    
-    private var progress: (completed: Int, total: Int, percentage: Double) {
-        habitManager.todayProgress()
-    }
-    
-    var body: some View {
-        GlassCard(cornerRadius: DesignSystem.CornerRadius.lg - 4, padding: DesignSystem.Adaptive.value(iPhone: DesignSystem.Spacing.lg - 4, iPad: DesignSystem.Spacing.lg, mac: DesignSystem.Spacing.lg)) {
-            HStack {
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                    Text("Today's Progress")
-                        .font(DeviceType.isIPad ? .title3 : .headline)
-                        .foregroundColor(.secondary)
-                    
-                    HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.xxs) {
-                        Text("\(progress.completed)")
-                            .font(.system(size: DesignSystem.Adaptive.value(iPhone: DesignSystem.Spacing.xl + 4, iPad: DesignSystem.IconSize.xxl + 4, mac: DesignSystem.IconSize.xxl + 4), weight: .bold, design: .rounded))
-                        Text("of \(progress.total)")
-                            .font(DeviceType.isIPad ? .title2 : .title3)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    if progress.total > 0 {
-                        Text("\(Int(progress.percentage * 100))% complete")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                // Glass progress ring
-                GlassProgressRing(
-                    progress: progress.percentage,
-                    color: progress.percentage == 1 ? .green : .blue,
-                    size: DesignSystem.Adaptive.value(iPhone: DesignSystem.Spacing.xxxl + 16, iPad: DesignSystem.Spacing.xxxl + DesignSystem.Spacing.xl + 4, mac: DesignSystem.Spacing.xxxl + DesignSystem.Spacing.xl + 4),
-                    lineWidth: DesignSystem.Adaptive.value(iPhone: DesignSystem.Spacing.xs, iPad: DesignSystem.Spacing.xs + 2, mac: DesignSystem.Spacing.xs + 2)
-                )
-            }
-        }
-    }
-}
+// MARK: - Clean Habit Row
 
-// MARK: - Quick Stats Row
-
-struct QuickStatsRow: View {
-    @EnvironmentObject private var habitManager: HabitManager
-    @Environment(\.colorScheme) var colorScheme
-    
-    private var totalStreak: Int32 {
-        habitManager.habits.map(\.currentStreak).reduce(0, +)
-    }
-    
-    private var bestHabit: Habit? {
-        habitManager.habits.max(by: { $0.currentStreak < $1.currentStreak })
-    }
-    
-    var body: some View {
-        HStack(spacing: DesignSystem.Spacing.xs) {
-            StatCard(
-                icon: "flame.fill",
-                color: .orange,
-                title: "Total Streak",
-                value: "\(totalStreak)",
-                subtitle: "days combined"
-            )
-            
-            if let best = bestHabit, best.currentStreak > 0 {
-                StatCard(
-                    icon: "trophy.fill",
-                    color: .yellow,
-                    title: "Best Streak",
-                    value: "\(best.currentStreak)",
-                    subtitle: best.name ?? ""
-                )
-            }
-            
-            StatCard(
-                icon: "chart.line.uptrend.xyaxis",
-                color: .green,
-                title: "This Week",
-                value: "\(weeklyCompletions)",
-                subtitle: "completions"
-            )
-        }
-        .padding(.horizontal)
-        .padding(.vertical, DesignSystem.Spacing.xs)
-    }
-    
-    private var weeklyCompletions: Int {
-        let calendar = Calendar.current
-        let weekAgo = calendar.date(byAdding: .day, value: -7, to: Date()) ?? Date()
-        
-        return habitManager.habits.flatMap { habit in
-            habitManager.entriesForHabit(habit, in: weekAgo...Date())
-        }.count
-    }
-}
-
-struct StatCard: View {
-    let icon: String
-    let color: Color
-    let title: String
-    let value: String
-    let subtitle: String
-    @Environment(\.colorScheme) var colorScheme
-    
-    var body: some View {
-        GlassCard(cornerRadius: DesignSystem.CornerRadius.md, padding: DesignSystem.Spacing.md) {
-            VStack(alignment: .leading, spacing: 8) {
-                ZStack {
-                    ColoredIconBackground(color: color, size: DesignSystem.Spacing.xl + DesignSystem.Spacing.xs, iconOpacity: DesignSystem.Opacity.light + 0.05)
-                    Image(systemName: icon)
-                        .foregroundColor(color)
-                        .font(.system(size: DesignSystem.IconSize.md))
-                }
-                
-                Text(value)
-                    .font(.system(size: DesignSystem.IconSize.lg + 4, weight: .bold, design: .rounded))
-                
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs / 2) {
-                    Text(title)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                    Text(subtitle)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            .frame(maxWidth: .infinity)
-        }
-    }
-}
-
-// MARK: - Habit Row
-
-struct HabitRow: View {
+struct CleanHabitRow: View {
     let habit: Habit
     let date: Date
     let onTap: () -> Void
-    let onComplete: (Double) -> Void
-    
-    @State private var isCompleted: Bool = false
-    @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject private var habitManager: HabitManager
+    @State private var isCompleted = false
+    @AppStorage("accentColor") private var selectedAccentColor = "blue"
     
     private var entry: HabitEntry? {
         habit.entries?.first { entry in
@@ -365,151 +287,229 @@ struct HabitRow: View {
         } as? HabitEntry
     }
     
-    private var habitColor: Color {
-        Color(hex: habit.colorHex ?? "#007AFF")
+    private var accentColor: Color {
+        Color.fromAccentString(selectedAccentColor)
     }
     
     var body: some View {
-        HStack(spacing: DesignSystem.Spacing.md) {
-            // Tappable area for details
-            Button {
-                onTap()
-            } label: {
+        Button(action: onTap) {
+            VStack(spacing: 0) {
+                // Main content
                 HStack(spacing: DesignSystem.Spacing.md) {
-                    // Simple icon
-                    Image(systemName: habit.iconName ?? "star.fill")
-                        .foregroundColor(habitColor)
-                        .font(.system(size: DesignSystem.IconSize.md, weight: .medium))
-                        .frame(width: DesignSystem.IconSize.lg + 4)
-                    
-                    // Habit info
-                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs) {
-                        Text(habit.name ?? "")
-                            .font(.body)
-                            .fontWeight(.medium)
-                            .foregroundColor(isCompleted ? .secondary : .primary)
-                        
-                        // Progress info for non-binary habits
-                        if habit.trackingTypeEnum != .binary {
-                            if let entry = entry {
-                                Text("\(formatEntryValue(entry)) / \(Int(habit.goalTarget)) \(habit.goalUnit ?? "")")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text("0 / \(Int(habit.goalTarget)) \(habit.goalUnit ?? "")")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary.opacity(DesignSystem.Opacity.disabled + 0.1))
+                    // Completion button - matching task style
+                    Button {
+                        HapticFeedback.success.trigger()
+                        toggleCompletion()
+                    } label: {
+                        ZStack {
+                            // Simple circle border
+                            Circle()
+                                .stroke(isCompleted ? accentColor : Color.gray.opacity(0.3), lineWidth: 2)
+                                .frame(width: 24, height: 24)
+                            
+                            // Fill when completed
+                            if isCompleted {
+                                Circle()
+                                    .fill(accentColor)
+                                    .frame(width: 24, height: 24)
+                                
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.white)
                             }
                         }
+                        .animation(.none, value: isCompleted)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                
+                // Habit content
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    // Title row
+                    HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+                        Text(habit.name ?? "Untitled Habit")
+                            .font(DesignSystem.Typography.body)
+                            .fontWeight(.regular)
+                            .strikethrough(isCompleted)
+                            .foregroundColor(isCompleted ? .secondary : .primary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        
+                        Spacer(minLength: 0)
                     }
                     
-                    Spacer()
-                    
-                    // Streak badge if active
-                    if habit.currentStreak > 0 {
-                        HStack(spacing: DesignSystem.Spacing.xxs - 1) {
-                            Text("\(habit.currentStreak)")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                            Image(systemName: "flame.fill")
-                                .font(.caption)
+                    // Metadata row - fixed height and no wrapping
+                    HStack(spacing: DesignSystem.Spacing.sm) {
+                        // Streak badge - compact version
+                        if habit.currentStreak > 0 {
+                            HStack(spacing: 2) {
+                                Image(systemName: "flame.fill")
+                                    .font(.system(size: 11))
+                                Text("\(habit.currentStreak)")
+                                    .font(DesignSystem.Typography.caption2)
+                                    .fontWeight(.medium)
+                            }
+                            .foregroundColor(.orange)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule()
+                                    .fill(Color(UIColor.systemGray6))
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Color(UIColor.systemGray5), lineWidth: 0.5)
+                                    )
+                            )
+                            .fixedSize() // Prevent expansion
                         }
-                        .foregroundColor(.orange)
+                        
+                        // Category if exists - compact version
+                        if let category = habit.category, let categoryName = category.name {
+                            HStack(spacing: 2) {
+                                Image(systemName: category.iconName ?? "folder.fill")
+                                    .font(.system(size: 11))
+                                Text(categoryName)
+                                    .font(DesignSystem.Typography.caption2)
+                                    .fontWeight(.medium)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .frame(maxWidth: 60) // Limit width
+                            }
+                            .foregroundColor(Color(hex: category.colorHex ?? "#007AFF"))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule()
+                                    .fill(Color(UIColor.systemGray6))
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Color(UIColor.systemGray5), lineWidth: 0.5)
+                                    )
+                            )
+                            .fixedSize() // Prevent expansion
+                        }
+                        
+                        Spacer(minLength: 0)
                     }
+                    .frame(height: 20) // Fixed height for metadata row
                 }
+                
+                // Chevron
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(DesignSystem.Colors.tertiary)
             }
-            .buttonStyle(PlainButtonStyle())
-            
-            // Separate completion button with larger tap area
-            Button {
-                handleCompletion()
-            } label: {
-                Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: DesignSystem.IconSize.lg))
-                    .foregroundColor(isCompleted ? habitColor : .gray.opacity(DesignSystem.Opacity.strong))
-                    .frame(width: DesignSystem.IconSize.xxl, height: DesignSystem.IconSize.xxl) // Larger tap target
-                    .contentShape(Rectangle()) // Make entire frame tappable
-            }
-            .buttonStyle(PlainButtonStyle())
+            .padding(DesignSystem.Spacing.md)
         }
-        .padding(.horizontal, DesignSystem.Spacing.lg - 4)
-        .padding(.vertical, DesignSystem.Spacing.md)
+        }
+        .buttonStyle(.plain)
         .background(
-            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
-                .fill(Color(UIColor.secondarySystemBackground))
+            // Same style as task cards - frosted glass blur effect
+            ZStack {
+                // Base blur layer
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                    .fill(.thinMaterial)
+                
+                // Additional tint for better opacity
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                    .fill(Color(UIColor.systemBackground).opacity(0.3))
+            }
         )
-        .contextMenu {
-            Button {
-                handleCompletion()
-            } label: {
-                Label(isCompleted ? "Mark Incomplete" : "Mark Complete", systemImage: isCompleted ? "xmark.circle" : "checkmark.circle")
-            }
-            
-            Button {
-                onTap()
-            } label: {
-                Label("View Details", systemImage: "info.circle")
-            }
-        }
+        .overlay(
+            // Subtle border for definition - same as task cards
+            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
+        )
+        .overlay(
+            // Top edge highlight for depth
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.1),
+                    Color.clear
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 1)
+            .clipShape(
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+            )
+            .padding(1),
+            alignment: .top
+        )
+        .shadow(color: Color.black.opacity(0.15), radius: 15, x: 0, y: 8)
         .onAppear {
-            isCompleted = entry != nil && !entry!.skipped
+            isCompleted = entry != nil && (habit.trackingTypeEnum == .binary || entry?.value ?? 0 >= habit.goalTarget)
         }
-        .onChange(of: isCompleted) { _, newValue in
-            // Update when changed
+        .onChange(of: entry?.value ?? 0) { _, newValue in
+            isCompleted = habit.trackingTypeEnum == .binary ? (entry != nil) : (newValue >= habit.goalTarget)
         }
     }
     
-    private func handleCompletion() {
-        // Haptic feedback
-        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-        impactFeedback.impactOccurred()
-        
-        if isCompleted {
-            // Remove entry
-            if let entry = entry {
-                _ = habitManager.deleteEntry(entry)
-                // Removed animation for faster response
-                isCompleted = false
+    private func toggleCompletion() {
+        if habit.trackingTypeEnum == .binary {
+            if isCompleted {
+                if let entry = entry {
+                    _ = habitManager.deleteEntry(entry)
+                }
+            } else {
+                _ = habitManager.logHabit(
+                    habit,
+                    value: 1.0,
+                    date: date,
+                    notes: nil,
+                    mood: nil,
+                    duration: nil,
+                    quality: nil
+                )
             }
+            isCompleted.toggle()
         } else {
-            // Complete with default value based on type
-            let value: Double
-            switch habit.trackingTypeEnum {
-            case .binary:
-                value = 1.0
-            case .quantity, .duration:
-                value = habit.goalTarget
-            case .quality:
-                value = 5.0 // Default to max quality
+            // For count/time habits, toggle between 0 and goal
+            if isCompleted {
+                if let entry = entry {
+                    _ = habitManager.deleteEntry(entry)
+                }
+                isCompleted = false
+            } else {
+                _ = habitManager.logHabit(
+                    habit,
+                    value: habit.goalTarget,
+                    date: date,
+                    notes: nil,
+                    mood: nil,
+                    duration: nil,
+                    quality: nil
+                )
+                isCompleted = true
             }
-            
-            onComplete(value)
-            // Removed animation for faster response
-            isCompleted = true
-        }
-    }
-    
-    private func formatEntryValue(_ entry: HabitEntry) -> String {
-        switch habit.trackingTypeEnum {
-        case .quantity:
-            return "\(Int(entry.value))"
-        case .duration:
-            return "\(Int(entry.value)) min"
-        case .quality:
-            let stars = Int(entry.value)
-            return String(repeating: "★", count: stars) + String(repeating: "☆", count: 5 - stars)
-        case .binary:
-            return "✓"
         }
     }
 }
 
+// MARK: - Progress Bar
 
-
-
-
-#Preview {
-    HabitsView()
-        .environmentObject(HabitManager.shared)
-        .environmentObject(SubscriptionManager.shared)
+struct ProgressBar: View {
+    let value: Double
+    let total: Double
+    let color: Color
+    
+    private var progress: Double {
+        min(1.0, max(0, value / total))
+    }
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(color.opacity(0.2))
+                
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(color)
+                    .frame(width: geometry.size.width * progress)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: progress)
+            }
+        }
+    }
 }

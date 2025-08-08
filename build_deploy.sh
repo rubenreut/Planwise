@@ -10,7 +10,7 @@ NC='\033[0m' # No Color
 # Configuration
 PROJECT_PATH="/Users/rubenreut/Momentum/Momentum/Momentum.xcodeproj"
 SCHEME_NAME="Momentum"
-DEVICE_ID="00008140-000105483E2A801C"
+DEVICE_ID="29B27D65-2CAD-4D8B-8A27-E8AC47AC2DFB"
 BUNDLE_ID="com.rubenreut.Momentum"
 APP_NAME="Momentum"
 
@@ -156,26 +156,28 @@ main() {
     
     # Install
     local install_start=$(date +%s)
-    print_status "📱 Installing on device..."
-    # Use the newer device ID for devicectl
-    DEVICECTL_ID="27966A7F-00A2-4FE7-9D0E-A9BE1EE7DE1C"
-    # Check which directory exists
-    if [ -d "$BUILD_DIR/Debug-iphoneos/$APP_NAME.app" ]; then
-        APP_PATH="$BUILD_DIR/Debug-iphoneos/$APP_NAME.app"
-    elif [ -d "$BUILD_DIR/Release-iphoneos/$APP_NAME.app" ]; then
-        APP_PATH="$BUILD_DIR/Release-iphoneos/$APP_NAME.app"
+    print_status "📱 Installing on simulator..."
+    
+    # Check which directory exists - simulator builds
+    if [ -d "$BUILD_DIR/Debug-iphonesimulator/$APP_NAME.app" ]; then
+        APP_PATH="$BUILD_DIR/Debug-iphonesimulator/$APP_NAME.app"
+    elif [ -d "$BUILD_DIR/Release-iphonesimulator/$APP_NAME.app" ]; then
+        APP_PATH="$BUILD_DIR/Release-iphonesimulator/$APP_NAME.app"
     else
         print_error "App not found in either Debug or Release directory"
+        print_status "Checked:"
+        print_status "  - $BUILD_DIR/Debug-iphonesimulator/$APP_NAME.app"
+        print_status "  - $BUILD_DIR/Release-iphonesimulator/$APP_NAME.app"
         exit 1
     fi
     
-    install_output=$(xcrun devicectl device install app --device "$DEVICECTL_ID" "$APP_PATH" 2>&1)
+    # Install on simulator
+    xcrun simctl install "$DEVICE_ID" "$APP_PATH"
     
     if [ $? -eq 0 ]; then
         print_success "Installation completed ($(measure_time $install_start))"
     else
         print_error "Installation failed"
-        echo "$install_output"
         exit 1
     fi
     
@@ -185,14 +187,17 @@ main() {
     print_status "📋 Console logs will appear below (Ctrl+C to stop):"
     print_status "=================================================="
     
-    # Launch the app with console output visible and capture logs
-    xcrun devicectl device process launch --device "$DEVICECTL_ID" "$BUNDLE_ID" --console --terminate-existing 2>&1 | while IFS= read -r line; do
+    # Launch the app on simulator and capture logs
+    xcrun simctl launch --console "$DEVICE_ID" "$BUNDLE_ID" 2>&1 | while IFS= read -r line; do
         echo "$line"
-        # Capture debug output - expanded to catch StoreKit debug messages
+        # Capture debug output - expanded to catch goal update debug messages
         if [[ "$line" == *"🚀"* ]] || [[ "$line" == *"📱"* ]] || [[ "$line" == *"✅"* ]] || 
            [[ "$line" == *"❌"* ]] || [[ "$line" == *"🗄️"* ]] || [[ "$line" == *"🔍"* ]] ||
+           [[ "$line" == *"🎯"* ]] || [[ "$line" == *"⚠️"* ]] ||
            [[ "$line" == *"DEBUG"* ]] || [[ "$line" == *"StoreKit"* ]] || [[ "$line" == *"Product"* ]] ||
-           [[ "$line" == *"Subscription"* ]] || [[ "$line" == *"purchase"* ]] || [[ "$line" == *"error"* ]]; then
+           [[ "$line" == *"Subscription"* ]] || [[ "$line" == *"purchase"* ]] || [[ "$line" == *"error"* ]] ||
+           [[ "$line" == *"UpdateGoal"* ]] || [[ "$line" == *"UpdateMultipleGoals"* ]] ||
+           [[ "$line" == *"category"* ]] || [[ "$line" == *"Category"* ]]; then
             echo "[CAPTURED] $line"
         fi
     done

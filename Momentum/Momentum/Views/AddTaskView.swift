@@ -2,7 +2,7 @@
 //  AddTaskView.swift
 //  Momentum
 //
-//  Premium task creation interface with Apple design standards
+//  Minimalist task creation interface
 //
 
 import SwiftUI
@@ -29,393 +29,342 @@ struct AddTaskView: View {
     @State private var isCreating = false
     @FocusState private var isTitleFocused: Bool
     @State private var showingCategoryPicker = false
-    @State private var selectedQuickDate: QuickDateOption? = nil
     @State private var showingPaywall = false
     
     // Haptic generators
     private let selectionFeedback = UISelectionFeedbackGenerator()
     private let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-    
-    enum QuickDateOption: String, CaseIterable {
-        case today = "Today"
-        case tomorrow = "Tomorrow"
-        case nextWeek = "Next Week"
-        
-        var date: Date {
-            let calendar = Calendar.current
-            switch self {
-            case .today:
-                return Date()
-            case .tomorrow:
-                return calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-            case .nextWeek:
-                return calendar.date(byAdding: .weekOfYear, value: 1, to: Date()) ?? Date()
-            }
-        }
-        
-        var icon: String {
-            switch self {
-            case .today: return "sun.max.fill"
-            case .tomorrow: return "sun.haze.fill"
-            case .nextWeek: return "calendar.badge.plus"
-            }
-        }
-        
-        var color: Color {
-            switch self {
-            case .today: return .orange
-            case .tomorrow: return .blue
-            case .nextWeek: return .purple
-            }
-        }
-    }
+    private let notificationFeedback = UINotificationFeedbackGenerator()
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                // Subtle gradient background
-                LinearGradient(
-                    colors: [
-                        Color(UIColor.systemBackground),
-                        Color(UIColor.systemBackground).opacity(0.95)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: DesignSystem.Spacing.lg) {
-                        // Title Section with modern design
-                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                            Text("What needs to be done?")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                                .textCase(.uppercase)
-                                .tracking(0.5)
-                            
-                            TextField("Task title", text: $title, axis: .vertical)
-                                .font(DeviceType.isIPad ? .title : .title2)
-                                .fontWeight(.medium)
-                                .focused($isTitleFocused)
-                                .submitLabel(.done)
-                                .lineLimit(1...3)
-                                .padding(.vertical, DesignSystem.Spacing.xxs)
-                        }
-                        .adaptiveHorizontalPadding()
-                        .padding(.top)
-                        .adaptiveMaxWidth()
-                        .frame(maxWidth: .infinity)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    // Title - Structured style
+                    VStack(alignment: .leading, spacing: 0) {
+                        TextField("Task", text: $title)
+                            .font(.system(size: 34, weight: .bold, design: .default))
+                            .focused($isTitleFocused)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 24)
+                            .padding(.bottom, 8)
                         
-                        // Priority Selection with visual cards
-                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                            Label("Priority", systemImage: "flag.fill")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                                .textCase(.uppercase)
-                                .tracking(0.5)
-                                .padding(.horizontal)
-                            
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: DesignSystem.Spacing.sm) {
-                                    ForEach(TaskPriority.allCases, id: \.self) { level in
-                                        PriorityCard(
-                                            priority: level,
-                                            isSelected: priority == level
-                                        ) {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                                priority = level
-                                            }
+                        Divider()
+                            .padding(.horizontal, 20)
+                    }
+                    
+                    // Priority - Structured style
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("PRIORITY")
+                            .font(.system(size: 13, weight: .semibold, design: .default))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 20)
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(TaskPriority.allCases, id: \.self) { prio in
+                                    Button {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            priority = prio
                                             selectionFeedback.selectionChanged()
                                         }
+                                    } label: {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "flag.fill")
+                                                .font(.system(size: 14))
+                                            Text(prio.displayName)
+                                                .font(.system(size: 15, weight: .medium))
+                                        }
+                                        .foregroundColor(priority == prio ? prio.color : .secondary)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(priority == prio ? prio.color.opacity(0.15) : Color(UIColor.secondarySystemFill))
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .strokeBorder(priority == prio ? prio.color.opacity(0.3) : Color.clear, lineWidth: 1.5)
+                                        )
                                     }
+                                    .buttonStyle(.plain)
                                 }
-                                .padding(.horizontal)
                             }
+                            .padding(.horizontal, 20)
                         }
-                        .adaptiveMaxWidth()
-                        .frame(maxWidth: .infinity)
+                    }
+                    
+                    // Due Date - Structured style
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("DUE DATE")
+                            .font(.system(size: 13, weight: .semibold, design: .default))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 20)
                         
-                        // Quick Date Options
-                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                            Label("Due Date", systemImage: "calendar")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                                .textCase(.uppercase)
-                                .tracking(0.5)
-                                .padding(.horizontal)
-                            
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: DesignSystem.Spacing.sm) {
-                                    // No date option
-                                    QuickDateCard(
-                                        title: "No Date",
-                                        icon: "infinity",
-                                        color: .gray,
-                                        isSelected: !hasDueDate
-                                    ) {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                            hasDueDate = false
-                                            selectedQuickDate = nil
-                                        }
-                                        impactFeedback.impactOccurred()
-                                    }
-                                    
-                                    // Quick date options
-                                    ForEach(QuickDateOption.allCases, id: \.self) { option in
-                                        QuickDateCard(
-                                            title: option.rawValue,
-                                            icon: option.icon,
-                                            color: option.color,
-                                            isSelected: hasDueDate && selectedQuickDate == option
-                                        ) {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                                hasDueDate = true
-                                                selectedQuickDate = option
-                                                dueDate = option.date
-                                                hasTime = false
-                                            }
-                                            impactFeedback.impactOccurred()
-                                        }
-                                    }
-                                    
-                                    // Custom date option
-                                    QuickDateCard(
-                                        title: "Custom",
-                                        icon: "calendar.badge.plus",
-                                        color: .indigo,
-                                        isSelected: hasDueDate && selectedQuickDate == nil
-                                    ) {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                            hasDueDate = true
-                                            selectedQuickDate = nil
-                                        }
-                                        impactFeedback.impactOccurred()
-                                    }
+                        VStack(spacing: 0) {
+                            // Date toggle row
+                            HStack {
+                                Label {
+                                    Text(hasDueDate ? formatDate(dueDate) : "No due date")
+                                        .font(.system(size: 17))
+                                        .foregroundColor(hasDueDate ? .primary : .secondary)
+                                } icon: {
+                                    Image(systemName: "calendar")
+                                        .font(.system(size: 17))
+                                        .foregroundColor(hasDueDate ? .blue : .secondary)
                                 }
-                                .padding(.horizontal)
+                                
+                                Spacer()
+                                
+                                Toggle("", isOn: $hasDueDate.animation(.easeInOut(duration: 0.2)))
+                                    .labelsHidden()
+                                    .tint(.blue)
                             }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                            .background(Color(UIColor.secondarySystemFill))
                             
-                            // Custom date picker (if selected)
-                            if hasDueDate && selectedQuickDate == nil {
-                                VStack(spacing: DesignSystem.Spacing.md) {
+                            if hasDueDate {
+                                Divider()
+                                    .background(Color(UIColor.separator).opacity(0.3))
+                                
+                                // Time toggle row
+                                HStack {
+                                    Label {
+                                        Text(hasTime ? formatTime(dueDate) : "No time set")
+                                            .font(.system(size: 17))
+                                            .foregroundColor(hasTime ? .primary : .secondary)
+                                    } icon: {
+                                        Image(systemName: "clock")
+                                            .font(.system(size: 17))
+                                            .foregroundColor(hasTime ? .orange : .secondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Toggle("", isOn: $hasTime.animation(.easeInOut(duration: 0.2)))
+                                        .labelsHidden()
+                                        .tint(.orange)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                                .background(Color(UIColor.secondarySystemFill))
+                                
+                                if hasDueDate {
                                     DatePicker(
-                                        "Date",
+                                        "",
                                         selection: $dueDate,
                                         displayedComponents: hasTime ? [.date, .hourAndMinute] : [.date]
                                     )
-                                    .datePickerStyle(.compact)
-                                    .padding(.horizontal)
-                                    
-                                    Toggle("Include time", isOn: $hasTime.animation())
-                                        .padding(.horizontal)
-                                        .onChange(of: hasTime) { _, _ in
-                                            selectionFeedback.selectionChanged()
-                                        }
-                                }
-                                .padding(.vertical, DesignSystem.Spacing.xs)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .cornerRadius(DesignSystem.CornerRadius.sm)
-                                .padding(.horizontal)
-                                .transition(.scale(scale: 0.95).combined(with: .opacity))
-                            }
-                        }
-                        
-                        // Category & Duration Row
-                        HStack(spacing: DesignSystem.Spacing.md) {
-                            // Category
-                            if !scheduleManager.categories.isEmpty {
-                                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                                    Label("Category", systemImage: "folder")
-                                        .font(.footnote)
-                                        .foregroundColor(.secondary)
-                                        .textCase(.uppercase)
-                                        .tracking(0.5)
-                                    
-                                    Button {
-                                        showingCategoryPicker = true
-                                        impactFeedback.impactOccurred()
-                                    } label: {
-                                        HStack {
-                                            if let category = selectedCategory {
-                                                Image(systemName: category.iconName ?? "folder")
-                                                Text(category.name ?? "")
-                                            } else {
-                                                Image(systemName: "folder")
-                                                Text("None")
-                                            }
-                                            Spacer()
-                                            Image(systemName: "chevron.up.chevron.down")
-                                                .font(.caption2)
-                                        }
-                                        .foregroundColor(selectedCategory != nil ? Color(hex: selectedCategory?.colorHex ?? "#007AFF") : .primary)
-                                        .padding()
-                                        .background(Color(UIColor.secondarySystemBackground))
-                                        .cornerRadius(DesignSystem.CornerRadius.sm)
-                                    }
-                                    .buttonStyle(.ghost)
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
-                            
-                            // Duration
-                            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                                Label("Duration", systemImage: "clock")
-                                    .font(.footnote)
-                                    .foregroundColor(.secondary)
-                                    .textCase(.uppercase)
-                                    .tracking(0.5)
-                                
-                                Menu {
-                                    ForEach([15, 30, 45, 60, 90, 120], id: \.self) { minutes in
-                                        Button {
-                                            estimatedDuration = minutes
-                                            selectionFeedback.selectionChanged()
-                                        } label: {
-                                            if minutes < 60 {
-                                                Text("\(minutes) minutes")
-                                            } else {
-                                                Text("\(minutes / 60) hour\(minutes > 60 ? "s" : "")")
-                                            }
-                                        }
-                                    }
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "clock.fill")
-                                        if estimatedDuration < 60 {
-                                            Text("\(estimatedDuration) min")
-                                        } else {
-                                            Text("\(estimatedDuration / 60)h")
-                                        }
-                                        Spacer()
-                                        Image(systemName: "chevron.up.chevron.down")
-                                            .font(.caption2)
-                                    }
-                                    .foregroundColor(.primary)
-                                    .padding()
-                                    .background(Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(12)
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .padding(.horizontal)
-                        
-                        // Notes Section with enhanced design
-                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                            Label("Notes", systemImage: "note.text")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                                .textCase(.uppercase)
-                                .tracking(0.5)
-                            
-                            ZStack(alignment: .topLeading) {
-                                if notes.isEmpty {
-                                    Text("Add notes or details...")
-                                        .foregroundColor(Color(UIColor.placeholderText))
-                                        .padding(.top, DesignSystem.Spacing.sm)
-                                        .padding(.horizontal, DesignSystem.Spacing.xs)
-                                }
-                                
-                                TextEditor(text: $notes)
-                                    .frame(minHeight: 100)
-                                    .scrollContentBackground(.hidden)
-                                    .padding(DesignSystem.Spacing.xs)
-                                    .background(Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(12)
-                            }
-                        }
-                        .padding(.horizontal)
-                        
-                        // Tags Section
-                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                            Label("Tags", systemImage: "tag")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                                .textCase(.uppercase)
-                                .tracking(0.5)
-                            
-                            TextField("Add tags (comma separated)", text: $tags)
-                                .textFieldStyle(.roundedBorder)
-                                .submitLabel(.done)
-                            
-                            // Suggested tags
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: DesignSystem.Spacing.xs) {
-                                    ForEach(["work", "personal", "urgent", "important"], id: \.self) { tag in
-                                        TagChip(tag: tag, isSelected: tags.contains(tag)) {
-                                            toggleTag(tag)
-                                        }
-                                    }
+                                    .datePickerStyle(.graphical)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color(UIColor.secondarySystemFill))
                                 }
                             }
                         }
-                        .padding(.horizontal)
-                        
-                        // Spacer for floating button
-                        Spacer(minLength: 100)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.horizontal, 20)
                     }
+                    
+                    // Category - Structured style
+                    if !scheduleManager.categories.isEmpty {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("CATEGORY")
+                                .font(.system(size: 13, weight: .semibold, design: .default))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 20)
+                            
+                            Button {
+                                showingCategoryPicker = true
+                            } label: {
+                                HStack {
+                                    if let category = selectedCategory {
+                                        Image(systemName: category.iconName ?? "folder")
+                                            .font(.system(size: 17))
+                                            .foregroundColor(Color(hex: category.colorHex ?? "#007AFF"))
+                                        Text(category.name ?? "")
+                                            .font(.system(size: 17))
+                                            .foregroundColor(.primary)
+                                    } else {
+                                        Image(systemName: "folder")
+                                            .font(.system(size: 17))
+                                            .foregroundColor(.secondary)
+                                        Text("No category")
+                                            .font(.system(size: 17))
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(Color(UIColor.tertiaryLabel))
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color(UIColor.secondarySystemFill))
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 20)
+                        }
+                    }
+                    
+                    // Duration - Structured style
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("DURATION")
+                            .font(.system(size: 13, weight: .semibold, design: .default))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 20)
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach([15, 30, 45, 60, 90, 120], id: \.self) { minutes in
+                                    Button {
+                                        estimatedDuration = minutes
+                                        selectionFeedback.selectionChanged()
+                                    } label: {
+                                        Text(formatDuration(minutes))
+                                            .font(.system(size: 15, weight: .medium))
+                                            .foregroundColor(estimatedDuration == minutes ? .white : .primary)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 10)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .fill(estimatedDuration == minutes ? Color.purple : Color(UIColor.secondarySystemFill))
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                
+                                // Custom duration
+                                Button {
+                                    // Show custom picker
+                                } label: {
+                                    Text("Custom")
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(Color(UIColor.secondarySystemFill))
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 20)
+                        }
+                    }
+                    
+                    // Notes - Structured style
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("NOTES")
+                            .font(.system(size: 13, weight: .semibold, design: .default))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 20)
+                        
+                        TextField("Add notes", text: $notes, axis: .vertical)
+                            .font(.system(size: 17))
+                            .lineLimit(3...8)
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color(UIColor.secondarySystemFill))
+                            )
+                            .padding(.horizontal, 20)
+                    }
+                    
+                    // Tags - Structured style
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("TAGS")
+                            .font(.system(size: 13, weight: .semibold, design: .default))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 20)
+                        
+                        TextField("Add tags", text: $tags)
+                            .font(.system(size: 17))
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color(UIColor.secondarySystemFill))
+                            )
+                            .padding(.horizontal, 20)
+                    }
+                    
+                    // Bottom padding
+                    Color.clear
+                        .frame(height: 100)
                 }
             }
-            .standardNavigationTitle("New Task")
+            .background(Color(UIColor.systemBackground))
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
-                        selectionFeedback.selectionChanged()
                         dismiss()
                     }
-                    .buttonStyle(.tertiary)
+                    .font(.system(size: 17))
+                }
+                
+                ToolbarItem(placement: .principal) {
+                    Text("New Task")
+                        .font(.system(size: 17, weight: .semibold))
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    LoadingButton(action: createTask, isLoading: isCreating, style: .primary, size: .small) {
-                        Text("Add")
+                    Button("Save") {
+                        createTask()
                     }
-                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .font(.system(size: 17, weight: .semibold))
+                    .disabled(title.isEmpty)
                 }
             }
-            .interactiveDismissDisabled(!title.isEmpty || !notes.isEmpty || !tags.isEmpty)
             .sheet(isPresented: $showingCategoryPicker) {
                 CategoryPickerView(selectedCategory: $selectedCategory)
             }
             .sheet(isPresented: $showingPaywall) {
                 PaywallViewPremium()
             }
-            .overlay(alignment: .bottom) {
-                // Floating create button
-                if !title.isEmpty {
-                    MomentumButton("Create Task", icon: "plus.circle.fill", style: .primary, isLoading: isCreating) {
-                        createTask()
-                    }
-                    .padding()
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.8).combined(with: .opacity),
-                        removal: .scale(scale: 0.8).combined(with: .opacity)
-                    ))
-                }
-            }
         }
         .onAppear {
-            selectionFeedback.prepare()
-            impactFeedback.prepare()
-            isTitleFocused = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                isTitleFocused = true
+            }
         }
     }
     
-    // MARK: - Methods
+    // MARK: - Helper Methods
     
-    private func toggleTag(_ tag: String) {
-        let currentTags = tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-        if currentTags.contains(tag) {
-            tags = currentTags.filter { $0 != tag }.joined(separator: ", ")
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    
+    private func formatDuration(_ minutes: Int) -> String {
+        if minutes < 60 {
+            return "\(minutes) min"
         } else {
-            if tags.isEmpty {
-                tags = tag
+            let hours = minutes / 60
+            let mins = minutes % 60
+            if mins == 0 {
+                return "\(hours)h"
             } else {
-                tags += ", \(tag)"
+                return "\(hours)h \(mins)m"
             }
         }
-        selectionFeedback.selectionChanged()
     }
     
     private func createTask() {
@@ -441,12 +390,12 @@ struct AddTaskView: View {
         
         switch result {
         case .success:
-            // Success feedback
-            let notificationFeedback = UINotificationFeedbackGenerator()
             notificationFeedback.notificationOccurred(.success)
             dismiss()
         case .failure(let error):
+            notificationFeedback.notificationOccurred(.error)
             isCreating = false
+            
             if case ScheduleError.subscriptionLimitReached = error {
                 showingPaywall = true
             }
@@ -454,101 +403,55 @@ struct AddTaskView: View {
     }
 }
 
-// MARK: - Supporting Views
+// MARK: - Option Row Component
 
-struct PriorityCard: View {
-    let priority: TaskPriority
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: DesignSystem.Spacing.xs) {
-                Image(systemName: "flag.fill")
-                    .font(.title2)
-                    .foregroundColor(isSelected ? .white : priority.color)
-                
-                Text(priority.displayName)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(isSelected ? .white : .primary)
-            }
-            .frame(width: 80, height: 80)
-            .background(
-                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
-                    .fill(isSelected ? priority.color : Color(UIColor.secondarySystemBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
-                            .strokeBorder(isSelected ? Color.clear : priority.color.opacity(DesignSystem.Opacity.strong), lineWidth: 1)
-                    )
-            )
-            .scaleEffect(isSelected ? 1.05 : 1.0)
-        }
-        .buttonStyle(.ghost)
-    }
-}
-
-struct QuickDateCard: View {
-    let title: String
+struct OptionRow<Content: View>: View {
     let icon: String
-    let color: Color
-    let isSelected: Bool
-    let action: () -> Void
+    let iconColor: Color
+    let title: String
+    let value: String
+    let accessory: () -> Content
+    
+    init(
+        icon: String,
+        iconColor: Color,
+        title: String,
+        value: String,
+        @ViewBuilder accessory: @escaping () -> Content
+    ) {
+        self.icon = icon
+        self.iconColor = iconColor
+        self.title = title
+        self.value = value
+        self.accessory = accessory
+    }
     
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: DesignSystem.Spacing.xs) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundColor(isSelected ? .white : color)
-                
-                Text(title)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(isSelected ? .white : .primary)
-            }
-            .frame(width: 90, height: 70)
-            .background(
-                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
-                    .fill(isSelected ? color : Color(UIColor.secondarySystemBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
-                            .strokeBorder(isSelected ? Color.clear : color.opacity(DesignSystem.Opacity.strong), lineWidth: 1)
-                    )
-            )
-            .scaleEffect(isSelected ? 1.05 : 1.0)
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundColor(iconColor)
+                .frame(width: 24)
+            
+            Text(title)
+                .font(.body)
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            Text(value)
+                .font(.body)
+                .foregroundColor(.secondary)
+            
+            accessory()
         }
-        .buttonStyle(.ghost)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
     }
 }
 
-struct TagChip: View {
-    let tag: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Text("#\(tag)")
-                .font(.footnote)
-                .fontWeight(.medium)
-                .foregroundColor(isSelected ? .white : .blue)
-                .padding(.horizontal, DesignSystem.Spacing.sm)
-                .padding(.vertical, DesignSystem.Spacing.xxs + 2)
-                .background(
-                    Capsule()
-                        .fill(isSelected ? Color.blue : Color.blue.opacity(DesignSystem.Opacity.light))
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(Color.blue.opacity(DesignSystem.Opacity.strong), lineWidth: 1)
-                        )
-                )
-        }
-        .buttonStyle(.ghost)
-    }
-}
-
-// MARK: - Category Picker View
+// MARK: - Category Picker
 
 struct CategoryPickerView: View {
     @Binding var selectedCategory: Category?
@@ -558,7 +461,6 @@ struct CategoryPickerView: View {
     var body: some View {
         NavigationView {
             List {
-                // None option
                 Button {
                     selectedCategory = nil
                     dismiss()
@@ -566,19 +468,16 @@ struct CategoryPickerView: View {
                     HStack {
                         Image(systemName: "xmark.circle")
                             .foregroundColor(.secondary)
-                            .frame(width: DesignSystem.IconSize.lg)
+                            .frame(width: 24)
                         Text("None")
-                            .foregroundColor(.primary)
                         Spacer()
                         if selectedCategory == nil {
                             Image(systemName: "checkmark")
                                 .foregroundColor(.accentColor)
-                                .font(.system(size: 14, weight: .semibold))
                         }
                     }
                 }
                 
-                // Categories
                 ForEach(scheduleManager.categories) { category in
                     Button {
                         selectedCategory = category
@@ -587,29 +486,202 @@ struct CategoryPickerView: View {
                         HStack {
                             Image(systemName: category.iconName ?? "folder")
                                 .foregroundColor(Color(hex: category.colorHex ?? "#007AFF"))
-                                .frame(width: DesignSystem.IconSize.lg)
+                                .frame(width: 24)
                             Text(category.name ?? "")
-                                .foregroundColor(.primary)
                             Spacer()
                             if selectedCategory?.id == category.id {
                                 Image(systemName: "checkmark")
                                     .foregroundColor(.accentColor)
-                                    .font(.system(size: 14, weight: .semibold))
                             }
                         }
                     }
                 }
             }
-            .navigationTitle("Select Category")
+            .navigationTitle("Category")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
-                    .buttonStyle(.primary(size: .small))
                 }
             }
+        }
+    }
+}
+
+// MARK: - Horizontal Pill Selector
+
+struct HorizontalPillSelector<T: Hashable>: View {
+    let items: [T]
+    @Binding var selection: T
+    let label: (T) -> String
+    let color: (T) -> Color
+    
+    private let selectionFeedback = UISelectionFeedbackGenerator()
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(items, id: \.self) { item in
+                Button {
+                    selection = item
+                    selectionFeedback.selectionChanged()
+                } label: {
+                    Text(label(item))
+                        .font(.subheadline)
+                        .fontWeight(selection == item ? .semibold : .medium)
+                        .foregroundColor(selection == item ? .white : .primary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(selection == item ? color(item) : Color(UIColor.secondarySystemFill))
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(selection == item ? Color.clear : Color(UIColor.separator).opacity(0.3), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Duration Pill Selector
+
+struct DurationPillSelector: View {
+    @Binding var selection: Int
+    @State private var showingCustomPicker = false
+    @State private var customMinutes: Int = 60
+    
+    private let presetDurations = [15, 30, 45, 60]
+    private let selectionFeedback = UISelectionFeedbackGenerator()
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            // Preset options
+            ForEach(presetDurations, id: \.self) { minutes in
+                Button {
+                    selection = minutes
+                    selectionFeedback.selectionChanged()
+                } label: {
+                    Text("\(minutes)m")
+                        .font(.subheadline)
+                        .fontWeight(selection == minutes && !isCustomDuration ? .semibold : .medium)
+                        .foregroundColor(selection == minutes && !isCustomDuration ? .white : .primary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(selection == minutes && !isCustomDuration ? Color.purple : Color(UIColor.secondarySystemFill))
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(selection == minutes && !isCustomDuration ? Color.clear : Color(UIColor.separator).opacity(0.3), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            
+            // Custom option
+            Button {
+                showingCustomPicker = true
+                selectionFeedback.selectionChanged()
+            } label: {
+                Text(isCustomDuration ? "\(selection)m" : "Custom")
+                    .font(.subheadline)
+                    .fontWeight(isCustomDuration ? .semibold : .medium)
+                    .foregroundColor(isCustomDuration ? .white : .primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(isCustomDuration ? Color.purple : Color(UIColor.secondarySystemFill))
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(isCustomDuration ? Color.clear : Color(UIColor.separator).opacity(0.3), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $showingCustomPicker) {
+                CustomDurationPicker(selection: $selection, isPresented: $showingCustomPicker)
+            }
+            
+            Spacer()
+        }
+    }
+    
+    private var isCustomDuration: Bool {
+        !presetDurations.contains(selection)
+    }
+}
+
+// MARK: - Custom Duration Picker
+
+struct CustomDurationPicker: View {
+    @Binding var selection: Int
+    @Binding var isPresented: Bool
+    @State private var tempSelection: Int = 60
+    
+    private let commonDurations = [5, 10, 15, 20, 25, 30, 45, 60, 90, 120, 180, 240]
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
+                    
+                    Spacer()
+                    
+                    Text("Duration")
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    Button("Done") {
+                        selection = tempSelection
+                        isPresented = false
+                    }
+                    .fontWeight(.semibold)
+                }
+                .padding()
+                
+                Divider()
+                
+                // Duration picker
+                Picker("Duration", selection: $tempSelection) {
+                    ForEach(commonDurations, id: \.self) { minutes in
+                        Text(formatDurationText(minutes)).tag(minutes)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .padding()
+            }
+        }
+        .presentationDetents([.height(280)])
+        .presentationDragIndicator(.visible)
+        .onAppear {
+            tempSelection = selection
+        }
+    }
+    
+    private func formatDurationText(_ minutes: Int) -> String {
+        if minutes < 60 {
+            return "\(minutes) minutes"
+        } else if minutes == 60 {
+            return "1 hour"
+        } else if minutes % 60 == 0 {
+            return "\(minutes / 60) hours"
+        } else {
+            let hours = minutes / 60
+            let mins = minutes % 60
+            return "\(hours)h \(mins)m"
         }
     }
 }

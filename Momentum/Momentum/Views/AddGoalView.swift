@@ -12,6 +12,7 @@ struct AddGoalView: View {
     @EnvironmentObject private var goalManager: GoalManager
     @EnvironmentObject private var scheduleManager: ScheduleManager
     @EnvironmentObject private var habitManager: HabitManager
+    @StateObject private var areaManager = GoalAreaManager.shared
     
     // Form State
     @State private var title = ""
@@ -28,8 +29,8 @@ struct AddGoalView: View {
     @State private var selectedHabits: Set<Habit> = []
     
     // UI State
-    @State private var showingIconPicker = false
     @State private var showingHabitPicker = false
+    @State private var showingAreaManager = false
     @State private var isCreating = false
     @FocusState private var isTitleFocused: Bool
     @State private var showingPaywall = false
@@ -48,74 +49,111 @@ struct AddGoalView: View {
     ]
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
-                VStack(spacing: DesignSystem.Spacing.xl) {
-                    // Header with Icon
-                    VStack(spacing: DesignSystem.Spacing.md + 4) {
-                        Button {
-                            showingIconPicker = true
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(hex: selectedColor).opacity(0.2))
-                                    .frame(width: 80, height: 80)
-                                
-                                Image(systemName: selectedIcon)
-                                    .font(.system(size: DesignSystem.IconSize.xl + 4))
-                                    .foregroundColor(Color(hex: selectedColor))
-                                
-                                // Edit indicator
-                                ZStack {
-                                    Circle()
-                                        .fill(Color(UIColor.systemBackground))
-                                        .frame(width: DesignSystem.IconSize.xl - 4, height: DesignSystem.IconSize.xl - 4)
-                                    
-                                    Image(systemName: "pencil.circle.fill")
-                                        .font(.system(size: DesignSystem.IconSize.lg))
-                                        .foregroundColor(.secondary)
-                                }
-                                .offset(x: 30, y: 30)
-                            }
-                        }
+                VStack(alignment: .leading, spacing: 28) {
+                    // Title - Structured style
+                    VStack(alignment: .leading, spacing: 0) {
+                        TextField("Goal", text: $title)
+                            .font(.system(size: 34, weight: .bold, design: .default))
+                            .focused($isTitleFocused)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 24)
+                            .padding(.bottom, 8)
                         
-                        // Title Input
-                        VStack(spacing: DesignSystem.Spacing.xs) {
-                            TextField("Goal Title", text: $title)
-                                .font(.title2)
-                                .fontWeight(.medium)
-                                .multilineTextAlignment(.center)
-                                .focused($isTitleFocused)
-                            
-                            Rectangle()
-                                .fill(Color(hex: selectedColor))
-                                .frame(height: 2)
-                                .frame(width: isTitleFocused || !title.isEmpty ? 250 : 150)
-                                .animation(.spring(response: 0.3), value: isTitleFocused)
-                        }
+                        Divider()
+                            .padding(.horizontal, 20)
                     }
-                    .padding(.top, DesignSystem.Spacing.md + 4)
                     
-                    // Goal Type Selection
-                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                        Label("Goal Type", systemImage: "square.grid.2x2")
-                            .font(.headline)
+                    // Icon & Color - Structured style  
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("APPEARANCE")
+                            .font(.system(size: 13, weight: .semibold, design: .default))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 20)
                         
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DesignSystem.Spacing.sm) {
-                            ForEach(GoalType.allCases, id: \.self) { type in
-                                GoalTypeCard(
-                                    type: type,
-                                    isSelected: selectedType == type,
-                                    color: Color(hex: selectedColor)
-                                ) {
-                                    selectedType = type
+                        // Icon grid
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(icons, id: \.self) { icon in
+                                    Button {
+                                        selectedIcon = icon
+                                    } label: {
+                                        Image(systemName: icon)
+                                            .font(.system(size: 20))
+                                            .foregroundColor(selectedIcon == icon ? .white : Color(hex: selectedColor))
+                                            .frame(width: 44, height: 44)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .fill(selectedIcon == icon ? Color(hex: selectedColor) : Color(UIColor.secondarySystemFill))
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
+                            .padding(.horizontal, 20)
+                        }
+                        
+                        // Color picker
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(colors, id: \.self) { color in
+                                    Button {
+                                        selectedColor = color
+                                    } label: {
+                                        Circle()
+                                            .fill(Color(hex: color))
+                                            .frame(width: 36, height: 36)
+                                            .overlay(
+                                                selectedColor == color ?
+                                                Circle()
+                                                    .stroke(Color(hex: color), lineWidth: 2)
+                                                    .padding(-6)
+                                                : nil
+                                            )
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 20)
                         }
                     }
-                    .padding(.horizontal)
                     
-                    // Type-specific Fields
+                    // Goal Type - Structured style
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("GOAL TYPE")
+                            .font(.system(size: 13, weight: .semibold, design: .default))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 20)
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(GoalType.allCases, id: \.self) { type in
+                                    Button {
+                                        selectedType = type
+                                    } label: {
+                                        VStack(spacing: 8) {
+                                            Image(systemName: type.icon)
+                                                .font(.system(size: 20))
+                                            Text(type == .milestone ? "Milestone" : 
+                                                 type == .numeric ? "Numeric" :
+                                                 type == .habit ? "Habit" : "Project")
+                                                .font(.system(size: 13, weight: .medium))
+                                        }
+                                        .foregroundColor(selectedType == type ? .white : .primary)
+                                        .frame(width: 90, height: 70)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(selectedType == type ? Color.blue : Color(UIColor.secondarySystemFill))
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                        }
+                    }
+                        
+                    // Type-specific Fields - Structured style
                     Group {
                         switch selectedType {
                         case .numeric:
@@ -126,154 +164,129 @@ struct AddGoalView: View {
                             milestoneGoalFields
                         }
                     }
-                    .padding(.horizontal)
                     
-                    // Common Fields
-                    VStack(spacing: DesignSystem.Spacing.lg) {
-                        // Description
-                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                            Label("Description", systemImage: "text.alignleft")
-                                .font(.headline)
-                            
-                            TextEditor(text: $description)
-                                .frame(minHeight: 80)
-                                .padding(DesignSystem.Spacing.xs)
-                                .scrollContentBackground(.hidden)
-                                .background(
-                                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
-                                        .fill(Color(UIColor.tertiarySystemFill))
-                                )
-                        }
+                    // Priority - Structured style
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("PRIORITY")
+                            .font(.system(size: 13, weight: .semibold, design: .default))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 20)
                         
-                        // Target Date
-                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                            Toggle(isOn: $hasTargetDate) {
-                                Label("Set Target Date", systemImage: "calendar")
-                                    .font(.headline)
-                            }
-                            
-                            if hasTargetDate {
-                                DatePicker("Target Date", selection: $targetDate, displayedComponents: .date)
-                                    .datePickerStyle(.graphical)
-                            }
-                        }
-                        
-                        // Priority
-                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                            Label("Priority", systemImage: "flag")
-                                .font(.headline)
-                            
-                            Picker("Priority", selection: $priority) {
-                                ForEach(GoalPriority.allCases, id: \.self) { priority in
-                                    HStack {
-                                        Circle()
-                                            .fill(Color(hex: priority.color))
-                                            .frame(width: 8, height: 8)
-                                        Text(priority.displayName)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(GoalPriority.allCases, id: \.self) { prio in
+                                    Button {
+                                        priority = prio
+                                    } label: {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "flag.fill")
+                                                .font(.system(size: 14))
+                                            Text(prio.displayName)
+                                                .font(.system(size: 15, weight: .medium))
+                                        }
+                                        .foregroundColor(priority == prio ? Color(hex: prio.color) : .secondary)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(priority == prio ? Color(hex: prio.color).opacity(0.15) : Color(UIColor.secondarySystemFill))
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .strokeBorder(priority == prio ? Color(hex: prio.color).opacity(0.3) : Color.clear, lineWidth: 1.5)
+                                        )
                                     }
-                                    .tag(priority)
+                                    .buttonStyle(.plain)
                                 }
                             }
-                            .pickerStyle(.segmented)
-                        }
-                        
-                        // Color Selection
-                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                            Label("Color", systemImage: "paintpalette")
-                                .font(.headline)
-                            
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: DesignSystem.Spacing.sm) {
-                                    ForEach(colors, id: \.self) { color in
-                                        Button {
-                                            selectedColor = color
-                                        } label: {
-                                            Circle()
-                                                .fill(Color(hex: color))
-                                                .frame(width: 40, height: 40)
-                                                .overlay(
-                                                    selectedColor == color ?
-                                                    Circle()
-                                                        .stroke(Color.primary, lineWidth: 3)
-                                                        .padding(-DesignSystem.Spacing.xxs)
-                                                    : nil
-                                                )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Category
-                        if !scheduleManager.categories.isEmpty {
-                            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                                Label("Category", systemImage: "folder")
-                                    .font(.headline)
-                                
-                                Menu {
-                                    Button("None") {
-                                        selectedCategory = nil
-                                    }
-                                    ForEach(scheduleManager.categories) { category in
-                                        Button {
-                                            selectedCategory = category
-                                        } label: {
-                                            Label(category.name ?? "", systemImage: category.iconName ?? "folder")
-                                        }
-                                    }
-                                } label: {
-                                    HStack {
-                                        if let category = selectedCategory {
-                                            Image(systemName: category.iconName ?? "folder")
-                                            Text(category.name ?? "")
-                                        } else {
-                                            Text("Select Category")
-                                        }
-                                        Spacer()
-                                        Image(systemName: "chevron.up.chevron.down")
-                                            .font(.caption)
-                                    }
-                                    .padding()
-                                    .background(
-                                        RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
-                                            .fill(Color(UIColor.tertiarySystemFill))
-                                    )
-                                }
-                                .foregroundColor(.primary)
-                            }
+                            .padding(.horizontal, 20)
                         }
                     }
-                    .padding(.horizontal)
                     
-                    Spacer(minLength: 100)
+                    // Target Date - Structured style
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("TARGET DATE")
+                            .font(.system(size: 13, weight: .semibold, design: .default))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 20)
+                        
+                        HStack {
+                            Label {
+                                Text("Target Date")
+                                    .font(.system(size: 17))
+                            } icon: {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 17))
+                                    .foregroundColor(.orange)
+                            }
+                            
+                            Spacer()
+                            
+                            Toggle("", isOn: $hasTargetDate)
+                                .labelsHidden()
+                                .tint(.orange)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(UIColor.secondarySystemFill))
+                        )
+                        .padding(.horizontal, 20)
+                        
+                        if hasTargetDate {
+                            DatePicker("", selection: $targetDate, displayedComponents: .date)
+                                .datePickerStyle(.graphical)
+                                .padding(.horizontal, 20)
+                        }
+                    }
+                    
+                    // Description - Structured style
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("DESCRIPTION")
+                            .font(.system(size: 13, weight: .semibold, design: .default))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 20)
+                        
+                        TextField("Add description", text: $description, axis: .vertical)
+                            .font(.system(size: 17))
+                            .lineLimit(3...8)
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color(UIColor.secondarySystemFill))
+                            )
+                            .padding(.horizontal, 20)
+                    }
+                    
+                    // Bottom padding
+                    Color.clear
+                        .frame(height: 100)
                 }
             }
-            .background(Color.adaptiveBackground)
-            .standardNavigationTitle("New Goal")
+            .background(Color(UIColor.systemBackground))
+            .dismissKeyboardOnTap()
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .font(.system(size: 17))
+                }
+                
+                ToolbarItem(placement: .principal) {
+                    Text("New Goal")
+                        .font(.system(size: 17, weight: .semibold))
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
+                    Button("Save") {
                         createGoal()
-                    } label: {
-                        if isCreating {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        } else {
-                            Text("Create")
-                                .fontWeight(.semibold)
-                        }
                     }
+                    .font(.system(size: 17, weight: .semibold))
                     .disabled(title.isEmpty || isCreating)
                 }
-            }
-            .sheet(isPresented: $showingIconPicker) {
-                IconPickerSheet(selectedIcon: $selectedIcon, icons: icons)
             }
             .sheet(isPresented: $showingHabitPicker) {
                 HabitPickerSheet(selectedHabits: $selectedHabits)
@@ -281,96 +294,123 @@ struct AddGoalView: View {
             .sheet(isPresented: $showingPaywall) {
                 PaywallViewPremium()
             }
+            .sheet(isPresented: $showingAreaManager) {
+                GoalAreasView()
+            }
             .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     isTitleFocused = true
                 }
             }
-        }
-    }
+        }  // NavigationStack
+    }  // body
     
     // MARK: - Type-specific Fields
     
+    @ViewBuilder
     private var numericGoalFields: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label("Target", systemImage: "number")
-                .font(.headline)
+            Text("TARGET")
+                .font(.system(size: 13, weight: .semibold, design: .default))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 20)
             
-            HStack(spacing: DesignSystem.Spacing.md) {
-                TextField("100", value: $targetValue, format: .number)
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .keyboardType(.decimalPad)
-                    .frame(width: 100)
-                    .multilineTextAlignment(.center)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(UIColor.tertiarySystemFill))
-                    )
+            HStack {
+                Image(systemName: "number")
+                    .font(.system(size: 17))
+                    .foregroundColor(.purple)
                 
-                TextField("unit (e.g., miles, books)", text: $unit)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(UIColor.tertiarySystemFill))
-                    )
+                TextField("100", value: $targetValue, format: .number)
+                    .font(.system(size: 17))
+                    .frame(width: 80)
+                    .keyboardType(.decimalPad)
+                
+                TextField("units", text: $unit)
+                    .font(.system(size: 17))
+                    .frame(width: 100)
+                
+                Spacer()
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(UIColor.secondarySystemFill))
+            )
+            .padding(.horizontal, 20)
         }
     }
     
+    @ViewBuilder
     private var habitGoalFields: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label("Link Habits", systemImage: "link")
-                .font(.headline)
+            Text("LINKED HABITS")
+                .font(.system(size: 13, weight: .semibold, design: .default))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 20)
             
             Button {
                 showingHabitPicker = true
             } label: {
                 HStack {
-                    Image(systemName: "plus.circle")
-                    Text("Select Habits")
+                    Image(systemName: "link")
+                        .font(.system(size: 17))
+                        .foregroundColor(.indigo)
+                    
+                    Text("Link Habits")
+                        .font(.system(size: 17))
+                        .foregroundColor(.primary)
+                    
                     Spacer()
+                    
                     if !selectedHabits.isEmpty {
                         Text("\(selectedHabits.count) selected")
+                            .font(.system(size: 17))
                             .foregroundColor(.secondary)
                     }
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
                 .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(UIColor.tertiarySystemFill))
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(UIColor.secondarySystemFill))
                 )
             }
-            .foregroundColor(.primary)
-            
-            if !selectedHabits.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: DesignSystem.Spacing.xs) {
-                        ForEach(Array(selectedHabits)) { habit in
-                            HStack(spacing: DesignSystem.Spacing.xxs) {
-                                Image(systemName: habit.iconName ?? "star")
-                                Text(habit.name ?? "")
-                            }
-                            .font(.caption)
-                            .padding(.horizontal, DesignSystem.Spacing.sm)
-                            .padding(.vertical, DesignSystem.Spacing.xxs + 2)
-                            .background(
-                                Capsule()
-                                    .fill(Color(hex: habit.colorHex ?? "#007AFF").opacity(DesignSystem.Opacity.medium))
-                            )
-                        }
-                    }
-                }
-            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 20)
         }
     }
     
+    @ViewBuilder
     private var milestoneGoalFields: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("This goal will track major milestones", systemImage: "info.circle")
-                .font(.caption)
+        VStack(alignment: .leading, spacing: 16) {
+            Text("MILESTONE INFO")
+                .font(.system(size: 13, weight: .semibold, design: .default))
                 .foregroundColor(.secondary)
+                .padding(.horizontal, 20)
+            
+            HStack {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 17))
+                    .foregroundColor(.blue)
+                
+                Text("This goal will track major milestones")
+                    .font(.system(size: 15))
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(UIColor.secondarySystemFill))
+            )
+            .padding(.horizontal, 20)
         }
     }
     
@@ -409,79 +449,7 @@ struct AddGoalView: View {
 
 // MARK: - Supporting Views
 
-struct GoalTypeCard: View {
-    let type: GoalType
-    let isSelected: Bool
-    let color: Color
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: DesignSystem.Spacing.xs) {
-                Image(systemName: type.icon)
-                    .font(.title2)
-                    .foregroundColor(isSelected ? .white : color)
-                
-                Text(type.displayName)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(isSelected ? .white : .primary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 80)
-            .background(
-                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
-                    .fill(isSelected ? color : Color(UIColor.tertiarySystemFill))
-            )
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
 
-struct IconPickerSheet: View {
-    @Binding var selectedIcon: String
-    let icons: [String]
-    @Environment(\.dismiss) private var dismiss
-    
-    let columns = [GridItem(.adaptive(minimum: 60))]
-    
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                LazyVGrid(columns: columns, spacing: DesignSystem.Spacing.md) {
-                    ForEach(icons, id: \.self) { icon in
-                        Button {
-                            selectedIcon = icon
-                            dismiss()
-                        } label: {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
-                                    .fill(selectedIcon == icon ? Color.blue.opacity(DesignSystem.Opacity.medium) : Color(UIColor.tertiarySystemFill))
-                                    .frame(width: 60, height: 60)
-                                
-                                Image(systemName: icon)
-                                    .font(.title2)
-                                    .foregroundColor(selectedIcon == icon ? .blue : .primary)
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                }
-                .padding()
-            }
-            .navigationTitle("Choose Icon")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
 
 struct HabitPickerSheet: View {
     @Binding var selectedHabits: Set<Habit>

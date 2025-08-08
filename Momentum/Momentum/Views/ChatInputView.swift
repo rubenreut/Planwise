@@ -5,6 +5,7 @@ import SwiftUI
 struct ChatInputView: View {
     @Binding var text: String
     @ObservedObject var viewModel: ChatViewModel
+    @Binding var isKeyboardVisible: Bool
     @StateObject private var subscriptionManager = SubscriptionManager.shared
     @FocusState private var isTextFieldFocused: Bool
     @State private var showAttachmentMenu = false
@@ -45,6 +46,11 @@ struct ChatInputView: View {
         text = ""
         viewModel.inputText = messageText
         viewModel.sendMessage()
+        
+        // Ensure keyboard stays visible after sending
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            isTextFieldFocused = true
+        }
     }
     
     private func documentIcon(for extension: String) -> String {
@@ -206,6 +212,13 @@ struct ChatInputView: View {
                             }
                             .accessibilityLabel("Message input")
                             .accessibilityHint(canSendMessage ? "Type your message to the assistant" : "Upgrade to premium to send messages")
+                            .simultaneousGesture(
+                                TapGesture()
+                                    .onEnded { _ in
+                                        isTextFieldFocused = true
+                                        isKeyboardVisible = true
+                                    }
+                            )
                         
                         // Send or microphone button
                         Button(action: {
@@ -420,10 +433,16 @@ struct ChatInputView: View {
                                 .stroke(borderColor, lineWidth: 1)
                         )
                 )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    // Make text field focused when tapping anywhere on the input container
+                    isTextFieldFocused = true
+                    isKeyboardVisible = true
+                }
             }
             .padding(.horizontal, baseUnit * 2)
             .padding(.vertical, baseUnit)
-            .background(Color.clear)
+            .padding(.bottom, isKeyboardVisible ? 0 : 85) // Add padding when tab bar visible
         }
         .sheet(isPresented: $showAttachmentMenu) {
             AttachmentMenuView(viewModel: viewModel)
@@ -434,6 +453,12 @@ struct ChatInputView: View {
             // Sync voice transcription to the text field
             if viewModel.isRecordingVoice {
                 text = newValue
+            }
+        }
+        .onChange(of: isTextFieldFocused) { _, newValue in
+            // Immediately update keyboard visibility when focus changes
+            DispatchQueue.main.async {
+                isKeyboardVisible = newValue
             }
         }
     }
@@ -590,7 +615,7 @@ struct TimeText: View {
 #Preview {
     VStack {
         Spacer()
-        ChatInputView(text: .constant(""), viewModel: ChatViewModel())
+        ChatInputView(text: .constant(""), viewModel: ChatViewModel(), isKeyboardVisible: .constant(false))
     }
     .background(Color(.systemBackground))
 }

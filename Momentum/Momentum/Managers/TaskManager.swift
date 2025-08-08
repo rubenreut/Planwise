@@ -97,6 +97,8 @@ class TaskManager: NSObject, ObservableObject, @preconcurrency TaskManaging {
             NSSortDescriptor(keyPath: \Task.dueDate, ascending: true),
             NSSortDescriptor(keyPath: \Task.createdAt, ascending: true)
         ]
+        // Filter out subtasks - only fetch top-level tasks
+        request.predicate = NSPredicate(format: "parentTask == nil")
         
         fetchedResultsController = NSFetchedResultsController(
             fetchRequest: request,

@@ -668,8 +668,12 @@ struct EditGoalSheet: View {
     @State private var targetDate: Date = Date()
     @State private var selectedColor: String = "#007AFF"
     @State private var selectedIcon: String = "target"
+    @State private var selectedCategory: Category?
+    @State private var showingColorPicker = false
+    @State private var showingIconPicker = false
     
     @EnvironmentObject private var goalManager: GoalManager
+    @StateObject private var areaManager = GoalAreaManager.shared
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -716,26 +720,48 @@ struct EditGoalSheet: View {
                     }
                 }
                 
+                // Category/Area Selection
+                Section(header: Text("Category")) {
+                    Picker("Area", selection: $selectedCategory) {
+                        Text("None").tag(nil as Category?)
+                        ForEach(areaManager.categories.filter { $0.isActive }) { category in
+                            HStack {
+                                Image(systemName: category.iconName ?? "folder.fill")
+                                    .foregroundColor(Color(hex: category.colorHex ?? "#007AFF"))
+                                Text(category.name ?? "")
+                            }
+                            .tag(category as Category?)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+                
                 // Appearance
                 Section(header: Text("Appearance")) {
-                    HStack {
-                        Text("Color")
-                        Spacer()
-                        Circle()
-                            .fill(Color(hex: selectedColor))
-                            .frame(width: 30, height: 30)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                            )
+                    Button(action: { showingColorPicker = true }) {
+                        HStack {
+                            Text("Color")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Circle()
+                                .fill(Color(hex: selectedColor))
+                                .frame(width: 30, height: 30)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                )
+                        }
                     }
                     
-                    HStack {
-                        Text("Icon")
-                        Spacer()
-                        Image(systemName: selectedIcon)
-                            .font(.title2)
-                            .foregroundColor(Color(hex: selectedColor))
+                    Button(action: { showingIconPicker = true }) {
+                        HStack {
+                            Text("Icon")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Image(systemName: selectedIcon)
+                                .font(.title2)
+                                .foregroundColor(Color(hex: selectedColor))
+                        }
                     }
                 }
             }
@@ -768,6 +794,13 @@ struct EditGoalSheet: View {
                 targetDate = goal.targetDate ?? Date()
                 selectedColor = goal.colorHex ?? "#007AFF"
                 selectedIcon = goal.iconName ?? "target"
+                selectedCategory = goal.category
+            }
+            .sheet(isPresented: $showingColorPicker) {
+                GoalColorPickerSheet(selectedColor: $selectedColor)
+            }
+            .sheet(isPresented: $showingIconPicker) {
+                GoalIconPickerSheet(selectedIcon: $selectedIcon, selectedColor: selectedColor)
             }
         }
     }
@@ -782,8 +815,117 @@ struct EditGoalSheet: View {
         goal.targetDate = targetDate
         goal.colorHex = selectedColor
         goal.iconName = selectedIcon
+        goal.category = selectedCategory
         
         _ = goalManager.updateGoal(goal)
+    }
+}
+
+// MARK: - Goal Color Picker Sheet
+
+struct GoalColorPickerSheet: View {
+    @Binding var selectedColor: String
+    @Environment(\.dismiss) private var dismiss
+    
+    let colors = [
+        "#007AFF", "#34C759", "#FF3B30", "#FF9500",
+        "#AF52DE", "#5856D6", "#FF2D55", "#00C7BE",
+        "#32ADE6", "#FFD60A", "#8E8E93", "#F2B8D4"
+    ]
+    
+    let columns = [GridItem(.adaptive(minimum: 60))]
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: DesignSystem.Spacing.md) {
+                    ForEach(colors, id: \.self) { color in
+                        Button {
+                            selectedColor = color
+                            dismiss()
+                        } label: {
+                            Circle()
+                                .fill(Color(hex: color))
+                                .frame(width: 60, height: 60)
+                                .overlay(
+                                    selectedColor == color ?
+                                    Circle()
+                                        .stroke(Color.primary, lineWidth: 3)
+                                        .padding(-4)
+                                    : nil
+                                )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Choose Color")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Goal Icon Picker Sheet  
+
+struct GoalIconPickerSheet: View {
+    @Binding var selectedIcon: String
+    let selectedColor: String
+    @Environment(\.dismiss) private var dismiss
+    
+    let icons = [
+        "target", "flag.checkered", "chart.line.uptrend.xyaxis", "trophy",
+        "star", "bolt", "flame", "heart",
+        "book", "graduationcap", "dollarsign", "house",
+        "airplane", "car", "bicycle", "figure.run",
+        "briefcase.fill", "heart.fill", "figure.run", "dumbbell.fill",
+        "leaf.fill", "moon.fill", "sun.max.fill", "sparkles",
+        "paintbrush.fill", "music.note", "camera.fill", "gamecontroller.fill"
+    ]
+    
+    let columns = [GridItem(.adaptive(minimum: 60))]
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: DesignSystem.Spacing.md) {
+                    ForEach(icons, id: \.self) { icon in
+                        Button {
+                            selectedIcon = icon
+                            dismiss()
+                        } label: {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
+                                    .fill(selectedIcon == icon ? Color(hex: selectedColor).opacity(0.2) : Color(UIColor.tertiarySystemFill))
+                                    .frame(width: 60, height: 60)
+                                
+                                Image(systemName: icon)
+                                    .font(.title2)
+                                    .foregroundColor(selectedIcon == icon ? Color(hex: selectedColor) : .primary)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Choose Icon")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -10,8 +10,10 @@ import SwiftUI
 struct UnifiedNavigationView: View {
     @StateObject private var navigationState = NavigationState()
     @StateObject private var subscriptionManager = SubscriptionManager.shared
+    @StateObject private var keyboardVisibility = KeyboardVisibilityState()
     @Environment(\.dependencyContainer) private var dependencyContainer
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @AppStorage("accentColor") private var selectedAccentColor = "blue"
     
     var body: some View {
         Group {
@@ -26,34 +28,46 @@ struct UnifiedNavigationView: View {
         }
         .environmentObject(navigationState)
         .environmentObject(subscriptionManager)
-        .tint(.adaptiveBlue)
+        .environmentObject(keyboardVisibility)
+        .environment(\.keyboardVisibility, keyboardVisibility)
+        .tint(Color.fromAccentString(selectedAccentColor))
         .background(Color.adaptiveBackground.ignoresSafeArea())
         .trackViewAppearance("UnifiedNavigationView", additionalData: [
             "device": DeviceType.current == .iPhone ? "iPhone" : (DeviceType.current == .iPad ? "iPad" : "Mac"),
             "initial_destination": navigationState.selectedDestination.rawValue
         ])
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("NavigateToDayView"))) { _ in
+            navigationState.selectedDestination = .day
+        }
     }
     
     // MARK: - iPhone Navigation
     
     private var iPhoneNavigation: some View {
         ZStack {
-            // Main content with tab bar
-            TabView(selection: $navigationState.selectedDestination) {
-                ForEach(NavigationDestination.allCases.filter { $0.showsInTabBar }) { destination in
-                    NavigationStack {
-                        destination.view()
-                            .navigationBarTitleDisplayMode(.automatic)
-                            .navigationGestures(navigationState, enabled: true)
-                    }
-                    .tabItem {
-                        Label(destination.title, systemImage: destination.icon)
-                            .accessibilityLabel(destination.title)
-                            .accessibilityHint("Navigate to \(destination.title)")
-                    }
-                    .tag(destination)
+            // Super light gray background to prevent white flash
+            Color(UIColor.systemGroupedBackground)
+                .ignoresSafeArea()
+            
+            // Main content area - back to original navigation
+            NavigationStack {
+                ZStack {
+                    // Background for smooth transitions
+                    Color(UIColor.systemGroupedBackground)
+                        .ignoresSafeArea()
+                    
+                    navigationState.selectedDestination.view()
+                        .navigationBarTitleDisplayMode(.automatic)
+                        // Disabled swipe gestures to allow swipe-to-delete in lists
+                        .navigationGestures(navigationState, enabled: false)
+                        .transition(.identity)
                 }
             }
+            .customTabBar(
+                selectedTab: $navigationState.selectedDestination,
+                tabs: NavigationDestination.allCases.filter { $0.showsInTabBar },
+                style: .ultraThin
+            )
             .onChange(of: navigationState.selectedDestination) { _, _ in
                 NavigationFeedback.selection()
             }
@@ -93,7 +107,7 @@ struct UnifiedNavigationView: View {
                             } label: {
                                 Image(systemName: navigationState.columnVisibility == .all ? "sidebar.left" : "sidebar.right")
                                     .font(.system(size: 17))
-                                    .foregroundColor(.adaptiveBlue)
+                                    .foregroundColor(Color.fromAccentString(selectedAccentColor))
                                     .contentTransition(.symbolEffect(.replace))
                             }
                             .accessibilityLabel("Toggle Sidebar")

@@ -3,6 +3,7 @@ import SwiftUI
 struct DayTimelineView: View {
     let selectedDate: Date
     var showCurrentTime: Bool = true
+    var extractedColors: (primary: Color, secondary: Color)? = nil
     
     // Mathematical constants
     private let φ: CGFloat = 1.618033988749895 // Golden ratio
@@ -60,7 +61,7 @@ struct DayTimelineView: View {
             
         }
         .frame(maxWidth: .infinity)
-        .frame(height: CGFloat(hours.count) * hourHeight)
+        .frame(height: CGFloat(hours.count) * hourHeight + 100) // Add extra height to match scroll content
         .onAppear {
             // Removed fade-in animation
         }
@@ -73,8 +74,32 @@ struct DayTimelineView: View {
     
     // MARK: - Background Layer
     private var backgroundLayer: some View {
-        // Use clear background so parent view's background shows through
-        Color.clear
+        Group {
+            if let colors = extractedColors {
+                // Gradient that continues from bottom of image with blur effect
+                VStack(spacing: 0) {
+                    // Top part - intense color continuation from image bottom
+                    LinearGradient(
+                        stops: [
+                            .init(color: colors.primary.opacity(0.8), location: 0.0),
+                            .init(color: colors.primary.opacity(0.6), location: 0.1),
+                            .init(color: colors.secondary.opacity(0.4), location: 0.2),
+                            .init(color: colors.primary.opacity(0.2), location: 0.35),
+                            .init(color: colors.secondary.opacity(0.1), location: 0.5),
+                            .init(color: Color.white.opacity(0.02), location: 0.7),
+                            .init(color: Color.clear, location: 1.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .blur(radius: 2) // Add blur for smooth transition
+                }
+                .ignoresSafeArea()
+            } else {
+                // Use clear background so parent view's background shows through
+                Color.clear
+            }
+        }
     }
     
     // MARK: - Grid Layer

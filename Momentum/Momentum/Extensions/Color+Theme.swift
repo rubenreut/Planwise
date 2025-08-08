@@ -149,6 +149,22 @@ extension View {
     func subtleBackground() -> some View {
         self.background(Color.secondaryBackground.opacity(0.5))
     }
+    
+    /// Apply extended gradient background that extends beyond safe area
+    func extendedGradientBackground(colors: [Color], startPoint: UnitPoint = .topLeading, endPoint: UnitPoint = .bottomTrailing) -> some View {
+        self.background(
+            GeometryReader { geometry in
+                LinearGradient(
+                    colors: colors,
+                    startPoint: startPoint,
+                    endPoint: endPoint
+                )
+                .frame(width: geometry.size.width * 1.5, height: geometry.size.height * 1.5)
+                .offset(x: -geometry.size.width * 0.25, y: -geometry.size.height * 0.25)
+                .ignoresSafeArea(.all)
+            }
+        )
+    }
 }
 
 // MARK: - Gradient Utilities
@@ -178,4 +194,43 @@ extension LinearGradient {
     
     /// Create a brand gradient
     static let brand = simple(.Brand.primary, .Brand.accent)
+}
+
+// MARK: - Extended Gradient Background View
+
+/// A view that creates an extended gradient background that extends beyond the visible area
+struct ExtendedGradientBackground: View {
+    let colors: [Color]
+    let startPoint: UnitPoint
+    let endPoint: UnitPoint
+    let extendFactor: CGFloat
+    
+    init(colors: [Color], 
+         startPoint: UnitPoint = .topLeading, 
+         endPoint: UnitPoint = .bottomTrailing,
+         extendFactor: CGFloat = 1.5) {
+        self.colors = colors
+        self.startPoint = startPoint
+        self.endPoint = endPoint
+        self.extendFactor = extendFactor
+    }
+    
+    var body: some View {
+        GeometryReader { geometry in
+            LinearGradient(
+                colors: colors,
+                startPoint: startPoint,
+                endPoint: endPoint
+            )
+            .frame(
+                width: geometry.size.width * extendFactor,
+                height: geometry.size.height * extendFactor
+            )
+            .offset(
+                x: -geometry.size.width * (extendFactor - 1) / 2,
+                y: -geometry.size.height * (extendFactor - 1) / 2
+            )
+        }
+        .ignoresSafeArea(.all)
+    }
 }
