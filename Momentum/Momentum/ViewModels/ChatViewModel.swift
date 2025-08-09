@@ -1693,6 +1693,29 @@ class ChatViewModel: ObservableObject {
         }
         let model = hasImages ? "gpt-4o" : "gpt-4o-mini"
         
+        // Add system message about new functions if not already present
+        if !conversationHistory.contains(where: { msg in
+            if case .text(let text) = msg.content {
+                return msg.role == "system" && text.contains("IMPORTANT: Use only these 5 functions")
+            }
+            return false
+        }) {
+            conversationHistory.insert(ChatRequestMessage(
+                role: "system",
+                content: """
+                IMPORTANT: Use only these 5 functions for ALL operations:
+                - manage_events: For creating, updating, deleting, listing events
+                - manage_tasks: For creating, updating, deleting, listing tasks  
+                - manage_habits: For creating, updating, deleting, listing habits
+                - manage_goals: For creating, updating, deleting, listing goals
+                - manage_categories: For creating, updating, deleting, listing categories
+                
+                DO NOT use old function names like create_event, delete_event, etc. They no longer exist.
+                For milestones, use manage_goals with action: 'create_milestone', 'update_milestone', or 'delete_milestone'.
+                """
+            ), at: 0)
+        }
+        
         let stream = openAIService.streamChatRequest(
             messages: conversationHistory,
             userContext: userContext,
