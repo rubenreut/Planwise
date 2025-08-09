@@ -1152,7 +1152,10 @@ class ChatViewModel: ObservableObject {
         contextLines.append("")
         
         // Smart context: Analyze what the user is talking about
-        let recentUserMessage = messages.last(where: { $0.sender == .user })?.content ?? ""
+        let recentUserMessage = messages.last(where: { 
+            if case .user = $0.sender { return true }
+            return false
+        })?.content ?? ""
         let lowerMessage = recentUserMessage.lowercased()
         
         // Determine what context to include based on message content
