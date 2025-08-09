@@ -1252,17 +1252,31 @@ class ChatViewModel: ObservableObject {
             contextLines.append("")
         }
         
-        // 4. Add active goals
-        let activeGoals = goalManager.goals.filter { !$0.isCompleted }
-        if !activeGoals.isEmpty {
-            contextLines.append("🎯 ACTIVE GOALS (\(activeGoals.count)):")
-            for goal in activeGoals {
+        // 4. Add ALL goals with complete details including milestones
+        let allGoals = goalManager.goals
+        if !allGoals.isEmpty {
+            contextLines.append("🎯 ALL GOALS (\(allGoals.count) total):")
+            for goal in allGoals {
                 let progress = Int(goal.progress * 100)
                 let priority = goal.priority == 3 ? "🔴" : goal.priority == 2 ? "🟡" : goal.priority == 1 ? "🟢" : "⚪"
+                let status = goal.isCompleted ? "✅" : "📌"
                 let dueInfo = goal.targetDate.map { " (by \(DateFormatter.localizedString(from: $0, dateStyle: .short, timeStyle: .none)))" } ?? ""
                 let targetInfo = goal.targetValue > 0 ? " (target: \(Int(goal.targetValue))\(goal.unit ?? ""))" : ""
                 let goalId = goal.id?.uuidString ?? "unknown"
-                contextLines.append("• \(priority) \(goal.title ?? "") (ID: \(goalId)) - \(progress)% complete\(dueInfo)\(targetInfo)")
+                let category = goal.category?.name ?? "uncategorized"
+                
+                contextLines.append("• \(status) \(priority) \(goal.title ?? "") [ID: \(goalId)] [\(category)] - \(progress)% complete\(dueInfo)\(targetInfo)")
+                
+                // Add milestones for this goal
+                if let milestones = goal.milestones?.allObjects as? [GoalMilestone], !milestones.isEmpty {
+                    let sortedMilestones = milestones.sorted { ($0.sortOrder) < ($1.sortOrder) }
+                    contextLines.append("  Milestones:")
+                    for milestone in sortedMilestones {
+                        let milestoneStatus = milestone.isCompleted ? "✓" : "○"
+                        let milestoneId = milestone.id?.uuidString ?? "unknown"
+                        contextLines.append("    \(milestoneStatus) \(milestone.title ?? "") [MID: \(milestoneId)]")
+                    }
+                }
             }
             contextLines.append("")
         }
@@ -1279,6 +1293,20 @@ class ChatViewModel: ObservableObject {
         REMINDER: You have access to all the user's data above. NEVER ask for information that's already provided here.
         When the user asks about "my goals", "my tasks", etc., use the specific items listed above.
         
+        CRITICAL REQUIREMENT FOR GOAL/MILESTONE FUNCTIONS:
+        ⚠️ YOU MUST ALWAYS INCLUDE goalId PARAMETER! ⚠️
+        
+        When calling ANY function that involves goals (add_milestone, add_multiple_milestones, etc):
+        1. ALWAYS include the "goalId" parameter with the exact ID from above
+        2. NEVER call these functions without specifying which goal
+        3. When user mentions a goal, find its [ID: xxx] from the list above
+        
+        Example - User says: "add milestones to Become Financially Independent"
+        ✅ CORRECT: add_multiple_milestones(goalId: "abc-123-def", milestones: [...])
+        ❌ WRONG: add_multiple_milestones(milestones: [...])  // Missing goalId!
+        
+        The goalId parameter is MANDATORY - the function will fail without it!
+        
         IMPORTANT CATEGORY RULES:
         1. ALWAYS use one of the 10 existing categories listed above when creating events
         2. NEVER create new categories - map events to the most appropriate existing category
@@ -1293,6 +1321,21 @@ class ChatViewModel: ObservableObject {
            - Family: home, kids, relatives, spouse
            - Social: friends, parties, dinners, dates, coffee
            - Other: anything that doesn't fit above
+        
+        CRITICAL FUNCTION UPDATE - update_multiple_goals:
+        When updating multiple goals with DIFFERENT categories/updates for each goal, you MUST use the NEW format:
+        {
+          "goals": [
+            {"id": "goal-uuid-1", "category": "Health"},
+            {"id": "goal-uuid-2", "category": "Creative"},
+            {"id": "goal-uuid-3", "category": "Finance"},
+            // Each goal can have different updates
+          ]
+        }
+        
+        DO NOT use the old format with goalIds + single updates object when goals need different values!
+        Old format only works when ALL goals get the SAME updates.
+        
         === END CONTEXT ===
         
         """
@@ -1784,6 +1827,11 @@ class ChatViewModel: ObservableObject {
         }
         
         switch parsedFunction.name {
+        // THE ONE FUNCTION TO RULE THEM ALL
+        case "manage":
+            return await self.manage(with: parsedFunction.arguments)
+            
+        // Legacy functions (kept for backwards compatibility but the AI should use "manage" instead)
         case "create_event":
             return await createEvent(with: parsedFunction.arguments)
         case "update_event":
@@ -6924,10 +6972,48 @@ class ChatViewModel: ObservableObject {
            let goalId = UUID(uuidString: goalIdStr) {
             goal = goalManager.goals.first(where: { $0.id == goalId })
         } else if let goalName = arguments["goalName"] as? String {
-            // Find goal by name (case insensitive)
+            // Use same smart matching as addMultipleMilestones
+            // First try exact match (case insensitive)
             goal = goalManager.goals.first(where: { 
-                $0.title?.lowercased().contains(goalName.lowercased()) == true 
+                $0.title?.lowercased() == goalName.lowercased()
             })
+            
+            // If no exact match, try starts with
+            if goal == nil {
+                goal = goalManager.goals.first(where: { 
+                    $0.title?.lowercased().starts(with: goalName.lowercased()) == true
+                })
+            }
+            
+            // If still no match, try contains but prefer better matches
+            if goal == nil {
+                let matchingGoals = goalManager.goals.filter { 
+                    $0.title?.lowercased().contains(goalName.lowercased()) == true 
+                }
+                
+                if !matchingGoals.isEmpty {
+                    goal = matchingGoals.sorted { goal1, goal2 in
+                        let title1 = goal1.title?.lowercased() ?? ""
+                        let title2 = goal2.title?.lowercased() ?? ""
+                        let search = goalName.lowercased()
+                        
+                        // Prefer goals where the search term appears earlier
+                        let index1 = title1.range(of: search)?.lowerBound.utf16Offset(in: title1) ?? Int.max
+                        let index2 = title2.range(of: search)?.lowerBound.utf16Offset(in: title2) ?? Int.max
+                        
+                        if index1 != index2 {
+                            return index1 < index2
+                        }
+                        
+                        // If same position, prefer shorter titles (more specific match)
+                        return title1.count < title2.count
+                    }.first
+                }
+            }
+            
+            if let foundGoal = goal {
+                print("🎯 Found goal '\(foundGoal.title ?? "")' for search term '\(goalName)'")
+            }
         }
         
         // If no goal found, try to be smart about it
@@ -7010,17 +7096,72 @@ class ChatViewModel: ObservableObject {
     }
     
     private func addMultipleMilestones(with arguments: [String: Any]) async -> FunctionCallResult {
+        // Debug: Log what arguments the AI actually sent
+        print("🔍 addMultipleMilestones - Arguments received from AI:")
+        for (key, value) in arguments {
+            print("  - \(key): \(value)")
+        }
+        
         // Support both goalId and goalName
         var goal: Goal?
         
+        // First check for top-level goalId
         if let goalIdStr = arguments["goalId"] as? String,
            let goalId = UUID(uuidString: goalIdStr) {
             goal = goalManager.goals.first(where: { $0.id == goalId })
-        } else if let goalName = arguments["goalName"] as? String {
-            // Find goal by name (case insensitive)
+            print("✅ Found goal from top-level goalId: '\(goal?.title ?? "")'")
+        } 
+        // If no top-level goalId, check if it's inside the first milestone
+        else if let milestones = arguments["milestones"] as? [[String: Any]],
+                let firstMilestone = milestones.first,
+                let goalIdStr = firstMilestone["goalId"] as? String,
+                let goalId = UUID(uuidString: goalIdStr) {
+            goal = goalManager.goals.first(where: { $0.id == goalId })
+            print("✅ Found goal from milestone's goalId: '\(goal?.title ?? "")'")
+        }
+        else if let goalName = arguments["goalName"] as? String {
+            // First try exact match (case insensitive)
             goal = goalManager.goals.first(where: { 
-                $0.title?.lowercased().contains(goalName.lowercased()) == true 
+                $0.title?.lowercased() == goalName.lowercased()
             })
+            
+            // If no exact match, try starts with
+            if goal == nil {
+                goal = goalManager.goals.first(where: { 
+                    $0.title?.lowercased().starts(with: goalName.lowercased()) == true
+                })
+            }
+            
+            // If still no match, try contains but prefer longer matches
+            if goal == nil {
+                let matchingGoals = goalManager.goals.filter { 
+                    $0.title?.lowercased().contains(goalName.lowercased()) == true 
+                }
+                
+                // Sort by how well they match (prefer exact substring matches)
+                if !matchingGoals.isEmpty {
+                    goal = matchingGoals.sorted { goal1, goal2 in
+                        let title1 = goal1.title?.lowercased() ?? ""
+                        let title2 = goal2.title?.lowercased() ?? ""
+                        let search = goalName.lowercased()
+                        
+                        // Prefer goals where the search term appears earlier
+                        let index1 = title1.range(of: search)?.lowerBound.utf16Offset(in: title1) ?? Int.max
+                        let index2 = title2.range(of: search)?.lowerBound.utf16Offset(in: title2) ?? Int.max
+                        
+                        if index1 != index2 {
+                            return index1 < index2
+                        }
+                        
+                        // If same position, prefer shorter titles (more specific match)
+                        return title1.count < title2.count
+                    }.first
+                }
+            }
+            
+            if let foundGoal = goal {
+                print("🎯 Found goal '\(foundGoal.title ?? "")' for search term '\(goalName)'")
+            }
         }
         
         // If no goal found, try to be smart about it
@@ -7236,29 +7377,223 @@ class ChatViewModel: ObservableObject {
     }
     
     private func deleteMultipleMilestones(with arguments: [String: Any]) async -> FunctionCallResult {
+        // DEBUG: Print what the AI is actually sending
+        print("🔍 deleteMultipleMilestones called with arguments:")
+        for (key, value) in arguments {
+            print("   - \(key): \(value)")
+        }
+        
+        // Check if we have specific milestone IDs - if so, handle them differently
+        if let milestoneIds = arguments["milestoneIds"] as? [String], !milestoneIds.isEmpty {
+            print("🔍 Handling specific milestone IDs deletion")
+            
+            var deletedMilestones: [(String, String)] = [] // (milestone title, goal title)
+            var failedMilestones: [String] = []
+            
+            for milestoneIdStr in milestoneIds {
+                guard let milestoneId = UUID(uuidString: milestoneIdStr) else {
+                    failedMilestones.append("Invalid ID: \(milestoneIdStr)")
+                    continue
+                }
+                
+                // Find the milestone and its goal
+                var foundMilestone: GoalMilestone?
+                var parentGoal: Goal?
+                
+                print("🔍 Looking for milestone with ID: \(milestoneIdStr)")
+                
+                for g in goalManager.goals {
+                    let milestones = (g.milestones as? Set<GoalMilestone>) ?? []
+                    print("   Checking goal '\(g.title ?? "")' with \(milestones.count) milestones")
+                    
+                    if let milestone = milestones.first(where: { $0.id == milestoneId }) {
+                        foundMilestone = milestone
+                        parentGoal = g
+                        print("   ✅ Found milestone '\(milestone.title ?? "")' in goal '\(g.title ?? "")'")
+                        break
+                    }
+                }
+                
+                if let milestone = foundMilestone, let goal = parentGoal {
+                    // Check milestone data integrity
+                    guard let milestoneTitle = milestone.title, !milestoneTitle.isEmpty else {
+                        print("❌ ERROR: Milestone has no title! ID: \(milestoneIdStr), sortOrder: \(milestone.sortOrder)")
+                        failedMilestones.append("Milestone \(milestoneIdStr) has no title - data corruption")
+                        continue
+                    }
+                    
+                    guard let goalTitle = goal.title, !goalTitle.isEmpty else {
+                        print("❌ ERROR: Goal has no title! ID: \(goal.id?.uuidString ?? "nil")")
+                        failedMilestones.append("Goal for milestone '\(milestoneTitle)' has no title - data corruption")
+                        continue
+                    }
+                    
+                    print("🔍 Deleting milestone '\(milestoneTitle)' from goal '\(goalTitle)'")
+                    
+                    let result = goalManager.deleteMilestone(milestone, from: goal)
+                    switch result {
+                    case .success:
+                        deletedMilestones.append((milestoneTitle, goalTitle))
+                        print("✅ Successfully deleted milestone '\(milestoneTitle)' from goal '\(goalTitle)'")
+                    case .failure(let error):
+                        failedMilestones.append("\(milestoneTitle): \(error.localizedDescription)")
+                    }
+                } else {
+                    failedMilestones.append("Milestone not found: \(milestoneIdStr)")
+                }
+            }
+            
+            var message = ""
+            if !deletedMilestones.isEmpty {
+                message = "🗑️ **Deleted \(deletedMilestones.count) milestone\(deletedMilestones.count == 1 ? "" : "s"):**\n\n"
+                for (milestoneTitle, goalTitle) in deletedMilestones {
+                    message += "• \(milestoneTitle) from \(goalTitle)\n"
+                }
+            }
+            
+            if !failedMilestones.isEmpty {
+                message += "\n**❌ Failed to delete \(failedMilestones.count):**\n"
+                for failed in failedMilestones {
+                    message += "• \(failed)\n"
+                }
+            }
+            
+            // If everything failed, try to be smart about what the user wanted
+            if deletedMilestones.isEmpty && !failedMilestones.isEmpty {
+                print("⚠️ All milestone deletions failed. Trying smart detection...")
+                
+                // Check if user mentioned photography or any other goal name
+                let allArgValues = arguments.values.compactMap { $0 as? String }.joined(separator: " ").lowercased()
+                
+                for goal in goalManager.goals {
+                    let goalNameLower = goal.title?.lowercased() ?? ""
+                    if allArgValues.contains(goalNameLower) || goalNameLower.contains("photo") {
+                        print("🎯 Smart detection: User probably wants to delete milestones from '\(goal.title ?? "")'")
+                        
+                        // Delete ALL milestones from this goal
+                        if let milestones = goal.milestones as? Set<GoalMilestone>, !milestones.isEmpty {
+                            var smartDeleted = 0
+                            for milestone in milestones {
+                                // Verify milestone has a title
+                                guard let milestoneTitle = milestone.title, !milestoneTitle.isEmpty else {
+                                    print("❌ ERROR: Milestone has no title during smart delete! sortOrder: \(milestone.sortOrder)")
+                                    continue
+                                }
+                                
+                                let result = goalManager.deleteMilestone(milestone, from: goal)
+                                if case .success = result {
+                                    smartDeleted += 1
+                                    deletedMilestones.append((milestoneTitle, goal.title ?? "ERROR: NO GOAL TITLE"))
+                                }
+                            }
+                            
+                            if smartDeleted > 0 {
+                                message = "🗑️ **Smart deletion: Removed all \(smartDeleted) milestones from '\(goal.title ?? "")'**\n\n"
+                                for (milestoneTitle, _) in deletedMilestones {
+                                    message += "• \(milestoneTitle)\n"
+                                }
+                                
+                                return FunctionCallResult(
+                                    functionName: "delete_multiple_milestones",
+                                    success: true,
+                                    message: message,
+                                    details: ["deleted": "\(smartDeleted)", "method": "smart"]
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return FunctionCallResult(
+                functionName: "delete_multiple_milestones",
+                success: !deletedMilestones.isEmpty,
+                message: message.isEmpty ? "No milestones found to delete. They may have already been deleted." : message,
+                details: [
+                    "deleted": "\(deletedMilestones.count)",
+                    "failed": "\(failedMilestones.count)"
+                ]
+            )
+        }
+        
         // Support deleting all milestones from a goal or specific milestones
         var goal: Goal?
         
+        // SUPER SMART GOAL DETECTION - Check EVERY possible place the goal name might be
+        
+        // 1. Check goalId parameter
         if let goalIdStr = arguments["goalId"] as? String,
            let goalId = UUID(uuidString: goalIdStr) {
             goal = goalManager.goals.first(where: { $0.id == goalId })
-        } else if let goalName = arguments["goalName"] as? String {
+        }
+        
+        // 2. Check goalName parameter
+        if goal == nil, let goalName = arguments["goalName"] as? String {
             goal = goalManager.goals.first(where: { 
                 $0.title?.lowercased().contains(goalName.lowercased()) == true 
             })
         }
         
-        // If no goal specified, try to be smart about it
+        // 3. Check pattern parameter (might contain goal name)
+        if goal == nil, let pattern = arguments["pattern"] as? String {
+            goal = goalManager.goals.first(where: { 
+                $0.title?.lowercased().contains(pattern.lowercased()) == true 
+            })
+            if goal != nil {
+                print("🎯 Found goal '\(goal?.title ?? "")' from pattern '\(pattern)'")
+            }
+        }
+        
+        // 4. Check ANY string value in arguments that might be the goal name
+        if goal == nil {
+            for (key, value) in arguments {
+                if let stringValue = value as? String, !stringValue.isEmpty {
+                    // Skip known non-goal parameters
+                    if key == "deleteAll" || key == "all" || key == "action" || key == "type" {
+                        continue
+                    }
+                    
+                    // Try to find a goal with this name
+                    let foundGoal = goalManager.goals.first(where: { 
+                        $0.title?.lowercased().contains(stringValue.lowercased()) == true 
+                    })
+                    
+                    if foundGoal != nil {
+                        goal = foundGoal
+                        print("🎯 Found goal '\(goal?.title ?? "")' from parameter '\(key)' with value '\(stringValue)'")
+                        break
+                    }
+                }
+            }
+        }
+        
+        // 5. Smart selection based on context
         if goal == nil {
             let activeGoals = goalManager.activeGoals
-            if activeGoals.count == 1 {
+            
+            // If user mentioned "photography" anywhere and we have a photography goal, use it
+            let allArgValues = arguments.values.compactMap { $0 as? String }.joined(separator: " ").lowercased()
+            if allArgValues.contains("photo") {
+                goal = goalManager.goals.first(where: { 
+                    $0.title?.lowercased().contains("photo") == true 
+                })
+                if goal != nil {
+                    print("🎯 Found photography goal from context")
+                }
+            }
+            
+            // Single active goal
+            if goal == nil && activeGoals.count == 1 {
                 goal = activeGoals.first
-                print("🎯 Smart goal selection for deletion: Using only active goal '\(goal?.title ?? "")'")
-            } else if !activeGoals.isEmpty {
+                print("🎯 Using only active goal '\(goal?.title ?? "")'")
+            }
+            
+            // Single milestone goal
+            if goal == nil && !activeGoals.isEmpty {
                 let milestoneGoals = activeGoals.filter { $0.typeEnum == .milestone || $0.typeEnum == .project }
                 if milestoneGoals.count == 1 {
                     goal = milestoneGoals.first
-                    print("🎯 Smart goal selection for deletion: Using only milestone goal '\(goal?.title ?? "")'")
+                    print("🎯 Using only milestone goal '\(goal?.title ?? "")'")
                 }
             }
         }
@@ -7387,6 +7722,341 @@ class ChatViewModel: ObservableObject {
                 functionName: "complete_goal",
                 success: false,
                 message: "Failed to complete goal: \(error.localizedDescription)",
+                details: nil
+            )
+        }
+    }
+    
+    // MARK: - Smart Unified Function System
+    
+    private func manage(with arguments: [String: Any]) async -> FunctionCallResult {
+        // This is the ONE function to rule them all!
+        // It handles events, tasks, goals, habits, milestones, categories - EVERYTHING
+        
+        guard let itemType = arguments["type"] as? String else {
+            return FunctionCallResult(
+                functionName: "manage",
+                success: false,
+                message: "Please specify what type of item to manage (event, task, goal, habit, milestone, category)",
+                details: nil
+            )
+        }
+        
+        let action = arguments["action"] as? String ?? "create"
+        
+        // Smart routing based on item type
+        switch itemType.lowercased() {
+        case "event", "events":
+            return await manageEvents(action: action, arguments: arguments)
+        case "task", "tasks", "subtask", "subtasks":
+            return await manageTasks(action: action, arguments: arguments)
+        case "goal", "goals":
+            return await manageGoals(action: action, arguments: arguments)
+        case "habit", "habits":
+            return await manageHabits(action: action, arguments: arguments)
+        case "milestone", "milestones":
+            return await manageMilestones(action: action, arguments: arguments)
+        case "category", "categories":
+            return await manageCategories(action: action, arguments: arguments)
+        default:
+            return FunctionCallResult(
+                functionName: "manage",
+                success: false,
+                message: "Unknown item type: \(itemType). Supported types: event, task, goal, habit, milestone, category",
+                details: nil
+            )
+        }
+    }
+    
+    // MARK: - Smart Sub-Managers
+    
+    private func manageEvents(action: String, arguments: [String: Any]) async -> FunctionCallResult {
+        switch action.lowercased() {
+        case "create", "add", "new":
+            // Handle single or multiple creation
+            if let items = arguments["items"] as? [[String: Any]] {
+                return await createMultipleEvents(with: ["events": items])
+            } else if arguments["recurring"] as? Bool == true {
+                return await createRecurringEvent(with: arguments)
+            } else {
+                return await createEvent(with: arguments)
+            }
+            
+        case "update", "edit", "modify":
+            if arguments["all"] as? Bool == true {
+                return await updateAllEvents(with: arguments)
+            } else if let _ = arguments["filter"] {
+                return await updateAllEvents(with: arguments)
+            } else {
+                return await updateEvent(with: arguments)
+            }
+            
+        case "delete", "remove":
+            if arguments["all"] as? Bool == true {
+                return await deleteAllEvents(with: arguments)
+            } else if let _ = arguments["filter"] {
+                // Delete by filter
+                return await deleteAllEvents(with: arguments)
+            } else {
+                return await deleteEvent(with: arguments)
+            }
+            
+        case "complete", "done", "finish":
+            return await markAllComplete(with: arguments)
+            
+        case "list", "show", "get":
+            if let _ = arguments["id"] {
+                return await getEventDetails(with: arguments)
+            } else {
+                return await listEvents(with: arguments)
+            }
+            
+        case "search", "find":
+            return await searchEvents(with: arguments)
+            
+        default:
+            return FunctionCallResult(
+                functionName: "manage",
+                success: false,
+                message: "Unknown action '\(action)' for events. Try: create, update, delete, complete, list, search",
+                details: nil
+            )
+        }
+    }
+    
+    private func manageTasks(action: String, arguments: [String: Any]) async -> FunctionCallResult {
+        switch action.lowercased() {
+        case "create", "add", "new":
+            if let items = arguments["items"] as? [[String: Any]] {
+                return await createMultipleTasks(with: ["tasks": items])
+            } else if arguments["subtasks"] as? Bool == true {
+                return await createSubtasks(with: arguments)
+            } else {
+                return await createTask(with: arguments)
+            }
+            
+        case "update", "edit", "modify":
+            if let tasks = arguments["tasks"] as? [[String: Any]] {
+                return await updateMultipleTasks(with: ["tasks": tasks])
+            } else {
+                return await updateTask(with: arguments)
+            }
+            
+        case "delete", "remove":
+            if arguments["all"] as? Bool == true {
+                if arguments["completed"] as? Bool == true {
+                    return await deleteAllCompletedTasks(with: arguments)
+                } else {
+                    return await deleteAllTasks(with: arguments)
+                }
+            } else if let tasks = arguments["taskIds"] as? [String] {
+                return await deleteMultipleTasks(with: ["taskIds": tasks])
+            } else {
+                return await deleteTask(with: arguments)
+            }
+            
+        case "complete", "done", "finish":
+            if arguments["all"] as? Bool == true || arguments["filter"] != nil {
+                return await completeAllTasksByFilter(with: arguments)
+            } else if let tasks = arguments["taskIds"] as? [String] {
+                return await completeMultipleTasks(with: ["taskIds": tasks])
+            } else {
+                return await completeTask(with: arguments)
+            }
+            
+        case "reopen", "uncomplete", "undo":
+            return await reopenMultipleTasks(with: arguments)
+            
+        case "reschedule", "move":
+            return await rescheduleTasks(with: arguments)
+            
+        case "link":
+            return await linkTaskToEvent(with: arguments)
+            
+        case "list", "show", "get":
+            if arguments["statistics"] as? Bool == true {
+                return await getTaskStatistics(with: arguments)
+            } else {
+                return await listTasks(with: arguments)
+            }
+            
+        case "search", "find":
+            return await searchTasks(with: arguments)
+            
+        default:
+            return FunctionCallResult(
+                functionName: "manage",
+                success: false,
+                message: "Unknown action '\(action)' for tasks. Try: create, update, delete, complete, reopen, reschedule, link, list, search",
+                details: nil
+            )
+        }
+    }
+    
+    private func manageGoals(action: String, arguments: [String: Any]) async -> FunctionCallResult {
+        switch action.lowercased() {
+        case "create", "add", "new":
+            if let items = arguments["items"] as? [[String: Any]] {
+                return await createMultipleGoals(with: ["goals": items])
+            } else {
+                return await createGoal(with: arguments)
+            }
+            
+        case "update", "edit", "modify":
+            if let goals = arguments["goals"] as? [[String: Any]] {
+                return await updateMultipleGoals(with: ["goals": goals])
+            } else {
+                return await updateGoal(with: arguments)
+            }
+            
+        case "delete", "remove":
+            if arguments["all"] as? Bool == true {
+                return await deleteAllGoals(with: arguments)
+            } else if let goals = arguments["goalIds"] as? [String] {
+                return await deleteMultipleGoals(with: ["goalIds": goals])
+            } else {
+                return await deleteGoal(with: arguments)
+            }
+            
+        case "complete", "done", "finish", "achieve":
+            if let goals = arguments["goalIds"] as? [String] {
+                return await completeMultipleGoals(with: ["goalIds": goals])
+            } else {
+                return await completeGoal(with: arguments)
+            }
+            
+        case "progress", "update_progress":
+            return await addGoalProgress(with: arguments)
+            
+        case "list", "show", "get":
+            if arguments["progress"] as? Bool == true {
+                return await getGoalProgress(with: arguments)
+            } else {
+                return await listGoals(with: arguments)
+            }
+            
+        default:
+            return FunctionCallResult(
+                functionName: "manage",
+                success: false,
+                message: "Unknown action '\(action)' for goals. Try: create, update, delete, complete, progress, list",
+                details: nil
+            )
+        }
+    }
+    
+    private func manageHabits(action: String, arguments: [String: Any]) async -> FunctionCallResult {
+        switch action.lowercased() {
+        case "create", "add", "new":
+            if let items = arguments["items"] as? [[String: Any]] {
+                return await createMultipleHabits(with: ["habits": items])
+            } else {
+                return await createHabit(with: arguments)
+            }
+            
+        case "update", "edit", "modify":
+            if let habits = arguments["habits"] as? [[String: Any]] {
+                return await updateMultipleHabits(with: ["habits": habits])
+            } else {
+                return await updateHabit(with: arguments)
+            }
+            
+        case "delete", "remove":
+            if arguments["all"] as? Bool == true {
+                return await deleteAllHabits(with: arguments)
+            } else if let habits = arguments["habitIds"] as? [String] {
+                return await deleteMultipleHabits(with: ["habitIds": habits])
+            } else {
+                return await deleteHabit(with: arguments)
+            }
+            
+        case "log", "track", "complete", "done":
+            return await logHabit(with: arguments)
+            
+        case "pause", "suspend":
+            return await pauseHabit(with: arguments)
+            
+        case "list", "show", "get":
+            if arguments["stats"] as? Bool == true {
+                return await getHabitStats(with: arguments)
+            } else if arguments["insights"] as? Bool == true {
+                return await getHabitInsights(with: arguments)
+            } else {
+                return await listHabits(with: arguments)
+            }
+            
+        default:
+            return FunctionCallResult(
+                functionName: "manage",
+                success: false,
+                message: "Unknown action '\(action)' for habits. Try: create, update, delete, log, pause, list",
+                details: nil
+            )
+        }
+    }
+    
+    private func manageMilestones(action: String, arguments: [String: Any]) async -> FunctionCallResult {
+        switch action.lowercased() {
+        case "create", "add", "new":
+            if let items = arguments["items"] as? [[String: Any]] {
+                return await addMultipleMilestones(with: ["milestones": items, "goalId": arguments["goalId"] as Any])
+            } else {
+                return await addMilestone(with: arguments)
+            }
+            
+        case "delete", "remove":
+            if arguments["all"] as? Bool == true || arguments["pattern"] != nil {
+                return await deleteMultipleMilestones(with: arguments)
+            } else {
+                return await deleteMilestone(with: arguments)
+            }
+            
+        case "complete", "done", "finish":
+            return await completeMilestone(with: arguments)
+            
+        default:
+            return FunctionCallResult(
+                functionName: "manage",
+                success: false,
+                message: "Unknown action '\(action)' for milestones. Try: create, delete, complete",
+                details: nil
+            )
+        }
+    }
+    
+    private func manageCategories(action: String, arguments: [String: Any]) async -> FunctionCallResult {
+        switch action.lowercased() {
+        case "create", "add", "new":
+            if let items = arguments["items"] as? [[String: Any]] {
+                return await createMultipleCategories(with: ["categories": items])
+            } else {
+                return await createCategory(with: arguments)
+            }
+            
+        case "update", "edit", "modify":
+            if let categories = arguments["categories"] as? [[String: Any]] {
+                return await updateMultipleCategories(with: ["categories": categories])
+            } else {
+                return await updateCategory(with: arguments)
+            }
+            
+        case "delete", "remove":
+            if arguments["all"] as? Bool == true {
+                return await deleteAllCategories(with: arguments)
+            } else if let categories = arguments["categoryIds"] as? [String] {
+                return await deleteMultipleCategories(with: ["categoryIds": categories])
+            } else {
+                return await deleteCategory(with: arguments)
+            }
+            
+        case "list", "show", "get":
+            return await listCategories(with: arguments)
+            
+        default:
+            return FunctionCallResult(
+                functionName: "manage",
+                success: false,
+                message: "Unknown action '\(action)' for categories. Try: create, update, delete, list",
                 details: nil
             )
         }
@@ -7589,7 +8259,8 @@ class ChatViewModel: ObservableObject {
         )
     }
     
-    private func deleteMilestone(with arguments: [String: Any]) async -> FunctionCallResult {
+    // DUPLICATE REMOVED - deleteMilestone already defined above
+    private func deleteMilestoneOLD(with arguments: [String: Any]) async -> FunctionCallResult {
         guard let milestoneIdStr = arguments["milestoneId"] as? String,
               let milestoneId = UUID(uuidString: milestoneIdStr) else {
             return FunctionCallResult(
@@ -7644,7 +8315,8 @@ class ChatViewModel: ObservableObject {
         }
     }
     
-    private func deleteMultipleMilestones(with arguments: [String: Any]) async -> FunctionCallResult {
+    // DUPLICATE REMOVED - deleteMultipleMilestones already defined above
+    private func deleteMultipleMilestonesOLD(with arguments: [String: Any]) async -> FunctionCallResult {
         guard let milestoneIds = arguments["milestoneIds"] as? [String] else {
             return FunctionCallResult(
                 functionName: "delete_multiple_milestones",
@@ -8050,6 +8722,116 @@ class ChatViewModel: ObservableObject {
     // MARK: - Bulk Goal Operations
     
     private func updateMultipleGoals(with arguments: [String: Any]) async -> FunctionCallResult {
+        // Support TWO formats:
+        // 1. Old format: goalIds + single updates object (applies same to all)
+        // 2. New format: goals array with individual updates for each
+        
+        if let goals = arguments["goals"] as? [[String: Any]] {
+            // NEW SMART FORMAT - individual updates for each goal
+            print("🎯 Using smart format with individual updates for each goal")
+            
+            var updatedGoals: [String] = []
+            var failedGoals: [String] = []
+            
+            for goalData in goals {
+                var goalToUpdate: Goal?
+                
+                // Find the goal by ID or name (check both "id" and "goalId" keys)
+                if let goalIdStr = (goalData["id"] as? String) ?? (goalData["goalId"] as? String),
+                   let goalId = UUID(uuidString: goalIdStr) {
+                    goalToUpdate = goalManager.goals.first(where: { $0.id == goalId })
+                } else if let goalName = (goalData["name"] as? String) ?? (goalData["goalName"] as? String) {
+                    goalToUpdate = goalManager.goals.first(where: { 
+                        $0.title?.lowercased().contains(goalName.lowercased()) == true 
+                    })
+                }
+                
+                guard let goal = goalToUpdate else {
+                    let goalIdentifier = (goalData["name"] as? String) ?? 
+                                       (goalData["goalName"] as? String) ?? 
+                                       (goalData["id"] as? String) ?? 
+                                       (goalData["goalId"] as? String) ?? 
+                                       "Unknown"
+                    failedGoals.append(goalIdentifier)
+                    print("❌ Failed to find goal: \(goalIdentifier)")
+                    continue
+                }
+                
+                // Apply individual updates for this specific goal
+                let title = goalData["title"] as? String
+                let description = goalData["description"] as? String
+                let targetValue = goalData["targetValue"] as? Double
+                let unit = goalData["unit"] as? String
+                
+                var priority: GoalPriority?
+                if let priorityStr = goalData["priority"] as? String {
+                    let priorityValue = ["low": 0, "medium": 1, "high": 2, "critical": 3][priorityStr] ?? 1
+                    priority = GoalPriority(rawValue: Int16(priorityValue))
+                }
+                
+                var targetDate: Date?
+                if let targetDateStr = goalData["targetDate"] as? String {
+                    let formatter = ISO8601DateFormatter()
+                    targetDate = formatter.date(from: targetDateStr)
+                }
+                
+                // Handle category - THIS is where the magic happens for different categories
+                var category: Category?
+                if let categoryName = goalData["category"] as? String {
+                    print("🎯 Goal '\(goal.title ?? "")': Setting category to '\(categoryName)'")
+                    category = scheduleManager.categories.first { 
+                        $0.name?.lowercased() == categoryName.lowercased() 
+                    }
+                    
+                    if category == nil {
+                        print("⚠️ Category '\(categoryName)' not found for goal '\(goal.title ?? "")'")
+                    }
+                }
+                
+                let result = goalManager.updateGoal(
+                    goal,
+                    title: title,
+                    description: description,
+                    targetValue: targetValue,
+                    targetDate: targetDate,
+                    unit: unit,
+                    priority: priority,
+                    category: category
+                )
+                
+                switch result {
+                case .success:
+                    updatedGoals.append(goal.title ?? "")
+                    print("✅ Updated goal '\(goal.title ?? "")' with category '\(category?.name ?? "none")'")
+                case .failure:
+                    failedGoals.append(goal.title ?? "")
+                }
+            }
+            
+            var message = ""
+            if !updatedGoals.isEmpty {
+                message = "✅ **Updated \(updatedGoals.count) goals with individual settings:**\n"
+                for goal in updatedGoals {
+                    message += "• \(goal)\n"
+                }
+            }
+            
+            if !failedGoals.isEmpty {
+                message += "\n❌ **Failed to update \(failedGoals.count) goals:**\n"
+                for goal in failedGoals {
+                    message += "• \(goal)\n"
+                }
+            }
+            
+            return FunctionCallResult(
+                functionName: "update_multiple_goals",
+                success: !updatedGoals.isEmpty,
+                message: message,
+                details: ["updated": "\(updatedGoals.count)", "failed": "\(failedGoals.count)"]
+            )
+        }
+        
+        // OLD FORMAT - single updates for all
         guard let goalIdStrings = arguments["goalIds"] as? [String],
               let updates = arguments["updates"] as? [String: Any] else {
             return FunctionCallResult(
