@@ -2298,14 +2298,13 @@ class ChatViewModel: ObservableObject {
         if let data = result.details?["data"] as? [[String: Any]] {
             for eventData in data {
                 if let title = eventData["title"] as? String {
+                    let startTime = eventData["startTime"] as? String ?? "TBD"
                     events.append(EventListItem(
                         id: UUID().uuidString,
+                        time: startTime,
                         title: title,
-                        startTime: Date(),
-                        endTime: Date().addingTimeInterval(3600),
-                        category: nil,
-                        categoryColor: nil,
-                        isCompleted: false
+                        isCompleted: false,
+                        date: Date()
                     ))
                 }
             }
