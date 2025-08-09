@@ -28,7 +28,7 @@ final class TaskAIService: BaseAIService<Task> {
         task.notes = parameters["description"] as? String
         task.isCompleted = parameters["isCompleted"] as? Bool ?? false
         task.priority = Int16(parameters["priority"] as? Int ?? 1)
-        task.estimatedDuration = Int32(parameters["estimatedMinutes"] as? Int ?? 30)
+        task.estimatedDuration = Int16(parameters["estimatedMinutes"] as? Int ?? 30)
         
         if let dueDateString = parameters["dueDate"] as? String,
            let dueDate = ISO8601DateFormatter().date(from: dueDateString) {
@@ -89,7 +89,7 @@ final class TaskAIService: BaseAIService<Task> {
                 task.priority = Int16(priority)
             }
             if let estimatedMinutes = parameters["estimatedMinutes"] as? Int {
-                task.estimatedDuration = Int32(estimatedMinutes)
+                task.estimatedDuration = Int16(estimatedMinutes)
             }
             if let dueDateString = parameters["dueDate"] as? String,
                let dueDate = ISO8601DateFormatter().date(from: dueDateString) {
@@ -149,7 +149,7 @@ final class TaskAIService: BaseAIService<Task> {
                     "description": task.notes ?? "",
                     "isCompleted": task.isCompleted,
                     "priority": task.priority,
-                    "dueDate": task.dueDate != nil ? ISO8601DateFormatter().string(from: task.dueDate!) : nil as Any
+                    "dueDate": task.dueDate != nil ? ISO8601DateFormatter().string(from: task.dueDate!) : ""
                 ]
             }
             return AIResult.success("Found \(tasks.count) tasks", data: taskData)

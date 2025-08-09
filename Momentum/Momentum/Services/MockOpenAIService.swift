@@ -30,7 +30,8 @@ class MockOpenAIService: OpenAIService {
         temperature: Double = 0.7,
         maxTokens: Int = 500,
         stream: Bool = false,
-        userContext: UserContext? = nil
+        userContext: UserContext? = nil,
+        tools: [[String: Any]]? = nil
     ) async throws -> ChatResponse {
         // Simulate network delay
         try await _Concurrency.Task.sleep(nanoseconds: UInt64(simulatedDelay * 1_000_000_000))
@@ -108,7 +109,8 @@ class MockOpenAIService: OpenAIService {
         model: String = "gpt-4",
         temperature: Double = 0.7,
         maxTokens: Int = 500,
-        userContext: UserContext? = nil
+        userContext: UserContext? = nil,
+        tools: [[String: Any]]? = nil
     ) -> AsyncThrowingStream<ChatStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             AsyncTask {

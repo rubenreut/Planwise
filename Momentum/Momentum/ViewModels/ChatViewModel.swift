@@ -2206,6 +2206,44 @@ class ChatViewModel: ObservableObject {
     // - manage_goals
     // - manage_categories
     
+    // MARK: - Bulk Action Handler
+    
+    func handleBulkAction(_ action: BulkActionPreview.BulkAction, for messageId: UUID) {
+        // Handle bulk action for a specific message
+        guard let message = messages.first(where: { $0.id == messageId }) else { return }
+        
+        switch action {
+        case .confirm:
+            // Execute the bulk action
+            if let bulkAction = message.bulkActionPreview {
+                let confirmMessage = ChatMessage(
+                    content: "✅ Confirmed: \(bulkAction.description)",
+                    sender: .assistant,
+                    timestamp: Date()
+                )
+                messages.append(confirmMessage)
+            }
+        case .cancel:
+            // Cancel the bulk action
+            let cancelMessage = ChatMessage(
+                content: "❌ Action cancelled",
+                sender: .assistant,
+                timestamp: Date()
+            )
+            messages.append(cancelMessage)
+        case .undo:
+            // Undo the bulk action
+            let undoMessage = ChatMessage(
+                content: "↩️ Action undone",
+                sender: .assistant,
+                timestamp: Date()
+            )
+            messages.append(undoMessage)
+        }
+        
+        saveMessages()
+    }
+    
     // MARK: - Helper Functions (Restored for compatibility)
     
     private func actuallyCreateEvent(with arguments: [String: Any]) async -> FunctionCallResult {

@@ -32,6 +32,35 @@ struct ChatRequest: Codable {
         case tools
     }
     
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        messages = try container.decode([ChatRequestMessage].self, forKey: .messages)
+        model = try container.decode(String.self, forKey: .model)
+        temperature = try container.decodeIfPresent(Double.self, forKey: .temperature)
+        maxTokens = try container.decodeIfPresent(Int.self, forKey: .maxTokens)
+        stream = try container.decodeIfPresent(Bool.self, forKey: .stream)
+        userContext = try container.decodeIfPresent(UserContext.self, forKey: .userContext)
+        functionCall = try container.decodeIfPresent(String.self, forKey: .functionCall)
+        if let toolsData = try container.decodeIfPresent([[String: AnyCodable]].self, forKey: .tools) {
+            tools = toolsData.map { dict in
+                dict.mapValues { $0.value }
+            }
+        } else {
+            tools = nil
+        }
+    }
+    
+    init(messages: [ChatRequestMessage], model: String, temperature: Double?, maxTokens: Int?, stream: Bool?, userContext: UserContext?, functionCall: String?, tools: [[String: Any]]?) {
+        self.messages = messages
+        self.model = model
+        self.temperature = temperature
+        self.maxTokens = maxTokens
+        self.stream = stream
+        self.userContext = userContext
+        self.functionCall = functionCall
+        self.tools = tools
+    }
+    
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(messages, forKey: .messages)
