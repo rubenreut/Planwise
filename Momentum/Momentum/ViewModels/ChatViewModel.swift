@@ -1293,19 +1293,24 @@ class ChatViewModel: ObservableObject {
         REMINDER: You have access to all the user's data above. NEVER ask for information that's already provided here.
         When the user asks about "my goals", "my tasks", etc., use the specific items listed above.
         
-        CRITICAL REQUIREMENT FOR GOAL/MILESTONE FUNCTIONS:
-        ⚠️ YOU MUST ALWAYS INCLUDE goalId PARAMETER! ⚠️
+        🚨 CRITICAL: USE ONLY THE UNIFIED MANAGE FUNCTION! 🚨
         
-        When calling ANY function that involves goals (add_milestone, add_multiple_milestones, etc):
-        1. ALWAYS include the "goalId" parameter with the exact ID from above
-        2. NEVER call these functions without specifying which goal
-        3. When user mentions a goal, find its [ID: xxx] from the list above
+        You MUST use the single "manage" function for ALL operations:
         
-        Example - User says: "add milestones to Become Financially Independent"
-        ✅ CORRECT: add_multiple_milestones(goalId: "abc-123-def", milestones: [...])
-        ❌ WRONG: add_multiple_milestones(milestones: [...])  // Missing goalId!
+        FUNCTION: manage(type, action, id, parameters)
         
-        The goalId parameter is MANDATORY - the function will fail without it!
+        Examples:
+        - Create event: manage(type: "event", action: "create", parameters: {...})
+        - Update task: manage(type: "task", action: "update", id: "task-id", parameters: {...})
+        - Add milestones: manage(type: "milestone", action: "create", id: "goal-id", parameters: {...})
+        - Delete habit: manage(type: "habit", action: "delete", id: "habit-id")
+        - Complete task: manage(type: "task", action: "complete", id: "task-id")
+        - List goals: manage(type: "goal", action: "list")
+        
+        DO NOT use old functions like create_event, update_task, add_multiple_milestones, etc.
+        ONLY use: manage()
+        
+        When working with goals/milestones, ALWAYS include the goal ID from the context above!
         
         IMPORTANT CATEGORY RULES:
         1. ALWAYS use one of the 10 existing categories listed above when creating events
