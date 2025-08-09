@@ -64,6 +64,140 @@ class ChatViewModel: ObservableObject {
     
     private let φ: Double = 1.618033988749895 // Golden ratio
     
+    // MARK: - AI Coordinator
+    
+    private lazy var aiCoordinator: AICoordinator? = {
+        guard let eventManager = self.eventManager,
+              let taskManager = self.taskManager,
+              let goalManager = self.goalManager else {
+            return nil
+        }
+        
+        return AICoordinator(
+            context: PersistenceController.shared.container.viewContext,
+            eventManager: eventManager,
+            taskManager: taskManager,
+            goalManager: goalManager
+        )
+    }()
+    
+    // MARK: - Simplified Function Definitions
+    
+    private func getSimplifiedTools() -> [[String: Any]] {
+        return [
+            [
+                "type": "function",
+                "function": [
+                    "name": "manage_events",
+                    "description": "Manage events - create, update, delete, list events. Handles single and bulk operations.",
+                    "parameters": [
+                        "type": "object",
+                        "properties": [
+                            "action": [
+                                "type": "string",
+                                "enum": ["create", "update", "delete", "list", "search"],
+                                "description": "The operation to perform"
+                            ],
+                            "parameters": [
+                                "type": "object",
+                                "description": "Parameters for the action. For create/update: title, startTime, endTime, location, notes, isAllDay, categoryId. For list: date, categoryId. For delete: id or ids array. For bulk operations, pass items array."
+                            ]
+                        ],
+                        "required": ["action", "parameters"]
+                    ]
+                ]
+            ],
+            [
+                "type": "function",
+                "function": [
+                    "name": "manage_tasks",
+                    "description": "Manage tasks - create, update, delete, list tasks. Handles single and bulk operations.",
+                    "parameters": [
+                        "type": "object",
+                        "properties": [
+                            "action": [
+                                "type": "string",
+                                "enum": ["create", "update", "delete", "list", "search"],
+                                "description": "The operation to perform"
+                            ],
+                            "parameters": [
+                                "type": "object",
+                                "description": "Parameters for the action. For create/update: title, description, dueDate, priority, estimatedMinutes, goalId, categoryId, tags, isCompleted. For list: completed, goalId, categoryId, dueDate. For delete: id or ids array. For bulk operations, pass items array."
+                            ]
+                        ],
+                        "required": ["action", "parameters"]
+                    ]
+                ]
+            ],
+            [
+                "type": "function",
+                "function": [
+                    "name": "manage_habits",
+                    "description": "Manage habits - create, update, delete, list, log completions. Handles single and bulk operations.",
+                    "parameters": [
+                        "type": "object",
+                        "properties": [
+                            "action": [
+                                "type": "string",
+                                "enum": ["create", "update", "delete", "list", "log", "complete"],
+                                "description": "The operation to perform"
+                            ],
+                            "parameters": [
+                                "type": "object",
+                                "description": "Parameters for the action. For create/update: name, description, frequency, targetCount, reminderTime, categoryId, color, icon, isActive. For list: active, frequency, categoryId. For log/complete: id (habit ID). For delete: id or ids array. For bulk operations, pass items array."
+                            ]
+                        ],
+                        "required": ["action", "parameters"]
+                    ]
+                ]
+            ],
+            [
+                "type": "function",
+                "function": [
+                    "name": "manage_goals",
+                    "description": "Manage goals and milestones - create, update, delete, list goals and their milestones. Handles single and bulk operations.",
+                    "parameters": [
+                        "type": "object",
+                        "properties": [
+                            "action": [
+                                "type": "string",
+                                "enum": ["create", "update", "delete", "list", "create_milestone", "update_milestone", "delete_milestone"],
+                                "description": "The operation to perform"
+                            ],
+                            "parameters": [
+                                "type": "object",
+                                "description": "Parameters for the action. For goals: title, description, targetDate, priority, categoryId, unit, targetValue, milestones (array). For milestones: goalId (for create), id/milestoneId (for update/delete), title, description, dueDate. For delete: id or ids array. For bulk operations, pass items array."
+                            ]
+                        ],
+                        "required": ["action", "parameters"]
+                    ]
+                ]
+            ],
+            [
+                "type": "function",
+                "function": [
+                    "name": "manage_categories",
+                    "description": "Manage categories - create, update, delete, list categories for organizing items.",
+                    "parameters": [
+                        "type": "object",
+                        "properties": [
+                            "action": [
+                                "type": "string",
+                                "enum": ["create", "update", "delete", "list"],
+                                "description": "The operation to perform"
+                            ],
+                            "parameters": [
+                                "type": "object",
+                                "description": "Parameters for the action. For create/update: name, color, icon. For delete: id. For list: no parameters needed."
+                            ]
+                        ],
+                        "required": ["action", "parameters"]
+                    ]
+                ]
+            ]
+        ]
+    }
+    
     // MARK: - Initialization
     
     init(openAIService: OpenAIService? = nil, scheduleManager: ScheduleManaging? = nil, taskManager: TaskManaging? = nil, habitManager: HabitManaging? = nil, goalManager: GoalManager? = nil) {
@@ -1567,7 +1701,8 @@ class ChatViewModel: ObservableObject {
         
         let stream = openAIService.streamChatRequest(
             messages: conversationHistory,
-            userContext: userContext
+            userContext: userContext,
+            tools: getSimplifiedTools()
         )
         
         var accumulatedContent = ""
@@ -1832,6 +1967,48 @@ class ChatViewModel: ObservableObject {
         }
     }
     
+    private func routeToSimplifiedSystem(functionName: String, parameters: [String: Any]) async -> FunctionCallResult {
+        guard let aiCoordinator = self.aiCoordinator else {
+            return FunctionCallResult(
+                functionName: functionName,
+                success: false,
+                message: "AI system not initialized",
+                details: ["error": "AI Coordinator not available"]
+            )
+        }
+        
+        let action = parameters["action"] as? String ?? "unknown"
+        let params = parameters["parameters"] as? [String: Any] ?? [:]
+        
+        let result: [String: Any]
+        
+        switch functionName {
+        case "manage_events":
+            result = await aiCoordinator.manage_events(action: action, parameters: params)
+        case "manage_tasks":
+            result = await aiCoordinator.manage_tasks(action: action, parameters: params)
+        case "manage_habits":
+            result = await aiCoordinator.manage_habits(action: action, parameters: params)
+        case "manage_goals":
+            result = await aiCoordinator.manage_goals(action: action, parameters: params)
+        case "manage_categories":
+            result = await aiCoordinator.manage_categories(action: action, parameters: params)
+        default:
+            result = ["success": false, "message": "Unknown function: \(functionName)"]
+        }
+        
+        let success = result["success"] as? Bool ?? false
+        let message = result["message"] as? String ?? "Operation completed"
+        let data = result["data"]
+        
+        return FunctionCallResult(
+            functionName: functionName,
+            success: success,
+            message: message,
+            details: data != nil ? ["data": data!] : [:]
+        )
+    }
+    
     private func processFunctionCall(_ functionCall: ChatResponse.FunctionCall) async -> FunctionCallResult {
         // Processing function call
         
@@ -1865,7 +2042,19 @@ class ChatViewModel: ObservableObject {
         }
         
         switch parsedFunction.name {
-        // THE ONE FUNCTION TO RULE THEM ALL
+        // NEW SIMPLIFIED FUNCTIONS (5 total)
+        case "manage_events":
+            return await routeToSimplifiedSystem(functionName: "manage_events", parameters: parsedFunction.arguments)
+        case "manage_tasks":
+            return await routeToSimplifiedSystem(functionName: "manage_tasks", parameters: parsedFunction.arguments)
+        case "manage_habits":
+            return await routeToSimplifiedSystem(functionName: "manage_habits", parameters: parsedFunction.arguments)
+        case "manage_goals":
+            return await routeToSimplifiedSystem(functionName: "manage_goals", parameters: parsedFunction.arguments)
+        case "manage_categories":
+            return await routeToSimplifiedSystem(functionName: "manage_categories", parameters: parsedFunction.arguments)
+            
+        // LEGACY - THE ONE FUNCTION TO RULE THEM ALL (keeping for backwards compatibility temporarily)
         case "manage":
             return await self.manage(with: parsedFunction.arguments)
             

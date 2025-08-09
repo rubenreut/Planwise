@@ -23,11 +23,29 @@ struct ChatRequest: Codable {
     let stream: Bool?
     let userContext: UserContext?
     let functionCall: String?
+    let tools: [[String: Any]]?
     
     enum CodingKeys: String, CodingKey {
         case messages, model, temperature, stream, userContext
         case maxTokens = "max_tokens"
         case functionCall = "function_call"
+        case tools
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(messages, forKey: .messages)
+        try container.encode(model, forKey: .model)
+        try container.encodeIfPresent(temperature, forKey: .temperature)
+        try container.encodeIfPresent(maxTokens, forKey: .maxTokens)
+        try container.encodeIfPresent(stream, forKey: .stream)
+        try container.encodeIfPresent(userContext, forKey: .userContext)
+        try container.encodeIfPresent(functionCall, forKey: .functionCall)
+        if let tools = tools {
+            try container.encode(tools.map { dict -> [String: AnyCodable] in
+                dict.mapValues { AnyCodable($0) }
+            }, forKey: .tools)
+        }
     }
 }
 
@@ -363,7 +381,8 @@ class OpenAIService: ObservableObject {
         temperature: Double = 0.7,
         maxTokens: Int = 15000,
         stream: Bool = false,
-        userContext: UserContext? = nil
+        userContext: UserContext? = nil,
+        tools: [[String: Any]]? = nil
     ) async throws -> ChatResponse {
         isLoading = true
         defer { isLoading = false }
@@ -376,7 +395,8 @@ class OpenAIService: ObservableObject {
             maxTokens: maxTokens,
             stream: stream,
             userContext: userContext,
-            functionCall: "auto"
+            functionCall: tools != nil ? "auto" : nil,
+            tools: tools
         )
         
         print("🔵 OpenAI Request - Worker URL: \(workerURL)")
@@ -478,7 +498,8 @@ class OpenAIService: ObservableObject {
         model: String = APIConfiguration.defaultModel,
         temperature: Double = 0.7,
         maxTokens: Int = 15000,
-        userContext: UserContext? = nil
+        userContext: UserContext? = nil,
+        tools: [[String: Any]]? = nil
     ) -> AsyncThrowingStream<ChatStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             AsyncTask {
@@ -494,7 +515,8 @@ class OpenAIService: ObservableObject {
                         maxTokens: maxTokens,
                         stream: true,
                         userContext: userContext,
-                        functionCall: "auto"
+                        functionCall: tools != nil ? "auto" : nil,
+                        tools: tools
                     )
                     
         
