@@ -1984,13 +1984,23 @@ class ChatViewModel: ObservableObject {
         
         let success = result["success"] as? Bool ?? false
         let message = result["message"] as? String ?? "Operation completed"
-        let data = result["data"]
+        
+        var details: [String: String] = [:]
+        if let data = result["data"] {
+            // Convert data to JSON string for details
+            if let jsonData = try? JSONSerialization.data(withJSONObject: data, options: .prettyPrinted),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                details["data"] = jsonString
+            } else {
+                details["data"] = String(describing: data)
+            }
+        }
         
         return FunctionCallResult(
             functionName: functionName,
             success: success,
             message: message,
-            details: data != nil ? ["data": data!] : [:]
+            details: details
         )
     }
     
