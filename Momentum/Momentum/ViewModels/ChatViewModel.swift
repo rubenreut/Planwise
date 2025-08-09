@@ -1866,8 +1866,9 @@ class ChatViewModel: ObservableObject {
         case "manage":
             return await self.manage(with: parsedFunction.arguments)
             
-        // Legacy functions (kept for backwards compatibility but the AI should use "manage" instead)
-        case "create_event":
+        // Legacy functions - DISABLED (AI should only use "manage" function)
+        // Keeping the implementations since manage() sub-managers still need them
+        /* case "create_event":
             return await createEvent(with: parsedFunction.arguments)
         case "update_event":
             return await self.updateEvent(with: parsedFunction.arguments)
@@ -1998,13 +1999,14 @@ class ChatViewModel: ObservableObject {
         case "delete_multiple_categories":
             return await self.deleteMultipleCategories(with: parsedFunction.arguments)
         case "delete_all_categories":
-            return await self.deleteAllCategories(with: parsedFunction.arguments)
+            return await self.deleteAllCategories(with: parsedFunction.arguments) */
         default:
+            // If not "manage", it's an unknown or disabled function
             return FunctionCallResult(
                 functionName: parsedFunction.name,
                 success: false,
-                message: "Unknown function: \(parsedFunction.name)",
-                details: nil
+                message: "ERROR: Function '\(parsedFunction.name)' is not available. Please use the 'manage' function instead.\n\nExample: manage(type: 'event', action: 'create', parameters: {...})",
+                details: ["error": "deprecated_function", "function": parsedFunction.name, "suggestion": "Use manage() instead"]
             )
         }
     }
