@@ -22,8 +22,8 @@ final class CategoryAIService: BaseAIService<Category> {
         let category = Category(context: context)
         category.id = UUID()
         category.name = name
-        category.color = parameters["color"] as? String ?? "#007AFF"
-        category.icon = parameters["icon"] as? String ?? "folder"
+        category.colorHex = parameters["color"] as? String ?? "#007AFF"
+        category.iconName = parameters["icon"] as? String ?? "folder"
         category.createdAt = Date()
         
         do {
@@ -51,10 +51,10 @@ final class CategoryAIService: BaseAIService<Category> {
                 category.name = name
             }
             if let color = parameters["color"] as? String {
-                category.color = color
+                category.colorHex = color
             }
             if let icon = parameters["icon"] as? String {
-                category.icon = icon
+                category.iconName = icon
             }
             
             try context.save()
@@ -74,8 +74,8 @@ final class CategoryAIService: BaseAIService<Category> {
                 return [
                     "id": category.id?.uuidString ?? "",
                     "name": category.name ?? "",
-                    "color": category.color ?? "#007AFF",
-                    "icon": category.icon ?? "folder",
+                    "color": category.colorHex ?? "#007AFF",
+                    "icon": category.iconName ?? "folder",
                     "goalCount": category.goals?.count ?? 0,
                     "taskCount": category.tasks?.count ?? 0
                 ]

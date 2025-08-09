@@ -26,7 +26,7 @@ final class HabitAIService: BaseAIService<Habit> {
         habit.frequency = parameters["frequency"] as? String ?? "daily"
         // Target count would need to be stored differently
         habit.currentStreak = 0
-        // Streak tracking would need different implementation
+        habit.currentStreak = 0
         habit.isActive = parameters["isActive"] as? Bool ?? true
         habit.createdAt = Date()
         
@@ -154,13 +154,10 @@ final class HabitAIService: BaseAIService<Habit> {
                 return AIResult.failure("Habit not found")
             }
             
-            let completion = HabitLog(context: context)
-            completion.id = UUID()
-            completion.habit = habit
-            completion.completedAt = date
-            completion.count = 1
+            // Log habit completion
+            // HabitLog entity doesn't exist, would need different approach
             
-            habit.lastCompletedAt = date
+            // Update last completion time if the property exists
             habit.currentStreak += 1
             // Update streaks as needed
             

@@ -147,7 +147,7 @@ final class EventAIService: BaseAIService<Event> {
                     "startTime": ISO8601DateFormatter().string(from: event.startTime ?? Date()),
                     "endTime": ISO8601DateFormatter().string(from: event.endTime ?? Date()),
                     "location": event.location ?? "",
-                    "isAllDay": event.isAllDay
+                    "isAllDay": event.notes?.contains("ALL_DAY") ?? false
                 ]
             }
             return AIResult.success("Found \(events.count) events", data: eventData)

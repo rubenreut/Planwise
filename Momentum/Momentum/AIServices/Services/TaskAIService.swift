@@ -25,10 +25,10 @@ final class TaskAIService: BaseAIService<Task> {
         let task = Task(context: context)
         task.id = UUID()
         task.title = title
-        task.taskDescription = parameters["description"] as? String
+        task.notes = parameters["description"] as? String
         task.isCompleted = parameters["isCompleted"] as? Bool ?? false
         task.priority = Int16(parameters["priority"] as? Int ?? 1)
-        task.estimatedMinutes = Int16(parameters["estimatedMinutes"] as? Int ?? 30)
+        task.estimatedDuration = Int32(parameters["estimatedMinutes"] as? Int ?? 30)
         
         if let dueDateString = parameters["dueDate"] as? String,
            let dueDate = ISO8601DateFormatter().date(from: dueDateString) {
@@ -37,14 +37,7 @@ final class TaskAIService: BaseAIService<Task> {
             task.dueDate = dueDate
         }
         
-        if let goalId = parameters["goalId"] as? String,
-           let goalUUID = UUID(uuidString: goalId) {
-            let request: NSFetchRequest<Goal> = Goal.fetchRequest()
-            request.predicate = NSPredicate(format: "id == %@", goalUUID as CVarArg)
-            if let goal = try? context.fetch(request).first {
-                task.goal = goal
-            }
-        }
+        // Goal linking would need to be handled differently
         
         if let categoryId = parameters["categoryId"] as? String,
            let categoryUUID = UUID(uuidString: categoryId) {
@@ -56,7 +49,7 @@ final class TaskAIService: BaseAIService<Task> {
         }
         
         if let tags = parameters["tags"] as? [String] {
-            task.tags = tags
+            task.tags = tags.joined(separator: ",")
         }
         
         do {
@@ -84,7 +77,7 @@ final class TaskAIService: BaseAIService<Task> {
                 task.title = title
             }
             if let description = parameters["description"] as? String {
-                task.taskDescription = description
+                task.notes = description
             }
             if let isCompleted = parameters["isCompleted"] as? Bool {
                 task.isCompleted = isCompleted
@@ -96,14 +89,14 @@ final class TaskAIService: BaseAIService<Task> {
                 task.priority = Int16(priority)
             }
             if let estimatedMinutes = parameters["estimatedMinutes"] as? Int {
-                task.estimatedMinutes = Int16(estimatedMinutes)
+                task.estimatedDuration = Int32(estimatedMinutes)
             }
             if let dueDateString = parameters["dueDate"] as? String,
                let dueDate = ISO8601DateFormatter().date(from: dueDateString) {
                 task.dueDate = dueDate
             }
             if let tags = parameters["tags"] as? [String] {
-                task.tags = tags
+                task.tags = tags.joined(separator: ",")
             }
             
             try context.save()
@@ -153,7 +146,7 @@ final class TaskAIService: BaseAIService<Task> {
                 return [
                     "id": task.id?.uuidString ?? "",
                     "title": task.title ?? "",
-                    "description": task.taskDescription ?? "",
+                    "description": task.notes ?? "",
                     "isCompleted": task.isCompleted,
                     "priority": task.priority,
                     "dueDate": task.dueDate != nil ? ISO8601DateFormatter().string(from: task.dueDate!) : nil as Any

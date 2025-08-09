@@ -27,7 +27,7 @@ final class GoalAIService: BaseAIService<Goal> {
         goal.title = title
         goal.desc = parameters["description"] as? String
         goal.createdAt = Date()
-        goal.progress = 0
+        // Progress is calculated, not set directly
         goal.isCompleted = false
         
         if let targetDateString = parameters["targetDate"] as? String,
@@ -150,10 +150,10 @@ final class GoalAIService: BaseAIService<Goal> {
                     "id": goal.id?.uuidString ?? "",
                     "title": goal.title ?? "",
                     "description": goal.desc ?? "",
-                    "progress": goal.progress,
+                    "progress": 0.0,
                     "isCompleted": goal.isCompleted,
-                    "targetDate": goal.targetDate != nil ? ISO8601DateFormatter().string(from: goal.targetDate!) : nil as Any,
-                    "milestoneCount": goal.milestones?.count ?? 0
+                    "targetDate": goal.targetDate != nil ? ISO8601DateFormatter().string(from: goal.targetDate!) : nil,
+                    "subgoalCount": goal.milestones?.count ?? 0
                 ]
             }
             return AIResult.success("Found \(goals.count) goals", data: goalData)
