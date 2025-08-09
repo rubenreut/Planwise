@@ -19,11 +19,11 @@ final class AICoordinator {
     private let logger = AILogger.shared
     
     init(context: NSManagedObjectContext,
-         eventManager: EventManager,
+         scheduleManager: ScheduleManaging,
          taskManager: TaskManager,
          goalManager: GoalManager) {
         self.context = context
-        self.eventService = EventAIService(context: context, eventManager: eventManager)
+        self.eventService = EventAIService(context: context, scheduleManager: scheduleManager)
         self.taskService = TaskAIService(context: context, taskManager: taskManager)
         self.habitService = HabitAIService(context: context)
         self.goalService = GoalAIService(context: context, goalManager: goalManager)

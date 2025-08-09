@@ -67,15 +67,14 @@ class ChatViewModel: ObservableObject {
     // MARK: - AI Coordinator
     
     private lazy var aiCoordinator: AICoordinator? = {
-        guard let eventManager = self.eventManager,
-              let taskManager = self.taskManager,
+        guard let taskManager = self.taskManager,
               let goalManager = self.goalManager else {
             return nil
         }
         
         return AICoordinator(
             context: PersistenceController.shared.container.viewContext,
-            eventManager: eventManager,
+            scheduleManager: self.scheduleManager,
             taskManager: taskManager,
             goalManager: goalManager
         )
@@ -2210,6 +2209,141 @@ class ChatViewModel: ObservableObject {
     // - manage_habits
     // - manage_goals
     // - manage_categories
+    
+    // MARK: - Helper Functions (Restored for compatibility)
+    
+    private func actuallyCreateEvent(with arguments: [String: Any]) async -> FunctionCallResult {
+        // This is a helper for the manage function - redirect to new system
+        return await routeToSimplifiedSystem(functionName: "manage_events", parameters: ["action": "create", "parameters": arguments])
+    }
+    
+    private func manage(with arguments: [String: Any]) async -> FunctionCallResult {
+        // Legacy manage function - kept for compatibility
+        guard let type = arguments["type"] as? String,
+              let action = arguments["action"] as? String else {
+            return FunctionCallResult(
+                functionName: "manage",
+                success: false,
+                message: "Missing required parameters: type and action",
+                details: nil
+            )
+        }
+        
+        let params = arguments["parameters"] as? [String: Any] ?? [:]
+        
+        switch type.lowercased() {
+        case "event", "events":
+            return await routeToSimplifiedSystem(functionName: "manage_events", parameters: ["action": action, "parameters": params])
+        case "task", "tasks":
+            return await routeToSimplifiedSystem(functionName: "manage_tasks", parameters: ["action": action, "parameters": params])
+        case "habit", "habits":
+            return await routeToSimplifiedSystem(functionName: "manage_habits", parameters: ["action": action, "parameters": params])
+        case "goal", "goals":
+            return await routeToSimplifiedSystem(functionName: "manage_goals", parameters: ["action": action, "parameters": params])
+        case "category", "categories":
+            return await routeToSimplifiedSystem(functionName: "manage_categories", parameters: ["action": action, "parameters": params])
+        default:
+            return FunctionCallResult(
+                functionName: "manage",
+                success: false,
+                message: "Unknown type: \(type)",
+                details: nil
+            )
+        }
+    }
+    
+    private func handleGenericError(_ error: Error) {
+        let errorMessage = ChatMessage(
+            content: "I encountered an error: \(error.localizedDescription). Please try again.",
+            sender: .assistant,
+            timestamp: Date()
+        )
+        messages.append(errorMessage)
+    }
+    
+    private func handleStreamingError(_ error: Error, messageId: UUID) {
+        if let index = messages.firstIndex(where: { $0.id == messageId }) {
+            messages[index].content = "I encountered an error while processing your request: \(error.localizedDescription)"
+            messages[index].isStreaming = false
+        }
+    }
+    
+    private func createEventPreview(from result: FunctionCallResult, functionName: String) -> EventPreview? {
+        guard let details = result.details else {
+            return nil
+        }
+        
+        let title = result.message.components(separatedBy: ": ").last ?? "Event"
+        
+        return EventPreview(
+            id: UUID().uuidString,
+            icon: "📅",
+            title: title,
+            timeDescription: "Scheduled",
+            location: nil,
+            category: nil,
+            isMultiDay: false,
+            dayCount: 1,
+            dayBreakdown: nil,
+            actions: [.edit, .delete]
+        )
+    }
+    
+    private func createMultipleEventsPreview(from result: FunctionCallResult) -> [EventListItem]? {
+        guard result.success else { return nil }
+        
+        // Parse events from result
+        var events: [EventListItem] = []
+        
+        if let data = result.details?["data"] as? [[String: Any]] {
+            for eventData in data {
+                if let title = eventData["title"] as? String {
+                    events.append(EventListItem(
+                        id: UUID().uuidString,
+                        title: title,
+                        startTime: Date(),
+                        endTime: Date().addingTimeInterval(3600),
+                        category: nil,
+                        categoryColor: nil,
+                        isCompleted: false
+                    ))
+                }
+            }
+        }
+        
+        return events.isEmpty ? nil : events
+    }
+    
+    private func createBulkActionPreview(from result: FunctionCallResult, functionName: String) -> BulkActionPreview? {
+        let count = result.details?["count"] as? Int ?? 1
+        
+        let (icon, title, description, warningLevel, actionType) = getActionDetails(for: functionName, count: count)
+        
+        return BulkActionPreview(
+            id: UUID().uuidString,
+            action: actionType,
+            icon: icon,
+            title: title,
+            description: description,
+            affectedCount: count,
+            dateRange: nil,
+            warningLevel: warningLevel,
+            actions: [.confirm, .cancel]
+        )
+    }
+    
+    private func getActionDetails(for functionName: String, count: Int) -> (icon: String, title: String, description: String, warningLevel: BulkActionPreview.WarningLevel, action: String) {
+        switch functionName {
+        case "delete_event", "delete_all_events":
+            return ("🗑️", "Delete Events", "\(count) event(s) will be deleted", .critical, "delete")
+        case "update_all_events":
+            return ("✏️", "Update Events", "\(count) event(s) will be updated", .caution, "update")
+        case "mark_all_complete":
+            return ("✅", "Complete Events", "\(count) event(s) will be marked as complete", .normal, "complete")
+        default:
+            return ("⚡", "Bulk Action", "\(count) item(s) will be affected", .caution, "update")
+        }
+    }
     
     // MARK: - Category Matching Helpers
     

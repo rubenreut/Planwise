@@ -10,10 +10,10 @@ import CoreData
 
 final class EventAIService: BaseAIService<Event> {
     
-    private let eventManager: EventManager
+    private let scheduleManager: ScheduleManaging
     
-    init(context: NSManagedObjectContext, eventManager: EventManager) {
-        self.eventManager = eventManager
+    init(context: NSManagedObjectContext, scheduleManager: ScheduleManaging) {
+        self.scheduleManager = scheduleManager
         super.init(serviceName: "EventAIService", context: context)
     }
     
