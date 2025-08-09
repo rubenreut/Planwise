@@ -70,8 +70,8 @@ class ChatViewModel: ObservableObject {
         return AICoordinator(
             context: PersistenceController.shared.container.viewContext,
             scheduleManager: self.scheduleManager,
-            taskManager: self.taskManager ?? TaskManager(),
-            goalManager: self.goalManager ?? GoalManager()
+            taskManager: (self.taskManager as? TaskManager) ?? TaskManager(persistence: PersistenceController.shared),
+            goalManager: self.goalManager ?? GoalManager.shared
         )
     }()
     
