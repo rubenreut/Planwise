@@ -66,17 +66,12 @@ class ChatViewModel: ObservableObject {
     
     // MARK: - AI Coordinator
     
-    private lazy var aiCoordinator: AICoordinator? = {
-        guard let taskManager = self.taskManager,
-              let goalManager = self.goalManager else {
-            return nil
-        }
-        
+    private lazy var aiCoordinator: AICoordinator = {
         return AICoordinator(
             context: PersistenceController.shared.container.viewContext,
             scheduleManager: self.scheduleManager,
-            taskManager: taskManager,
-            goalManager: goalManager
+            taskManager: self.taskManager ?? TaskManager(),
+            goalManager: self.goalManager ?? GoalManager()
         )
     }()
     
@@ -1967,15 +1962,6 @@ class ChatViewModel: ObservableObject {
     }
     
     private func routeToSimplifiedSystem(functionName: String, parameters: [String: Any]) async -> FunctionCallResult {
-        guard let aiCoordinator = self.aiCoordinator else {
-            return FunctionCallResult(
-                functionName: functionName,
-                success: false,
-                message: "AI system not initialized",
-                details: ["error": "AI Coordinator not available"]
-            )
-        }
-        
         let action = parameters["action"] as? String ?? "unknown"
         let params = parameters["parameters"] as? [String: Any] ?? [:]
         
