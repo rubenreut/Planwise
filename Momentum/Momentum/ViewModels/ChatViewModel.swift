@@ -1151,6 +1151,25 @@ class ChatViewModel: ObservableObject {
         contextLines.append("📅 Current Date/Time: \(formatter.string(from: today))")
         contextLines.append("")
         
+        // Smart context: Analyze what the user is talking about
+        let recentUserMessage = messages.last(where: { $0.sender == .user })?.content ?? ""
+        let lowerMessage = recentUserMessage.lowercased()
+        
+        // Determine what context to include based on message content
+        let includeGoals = lowerMessage.contains("goal") || lowerMessage.contains("milestone") || 
+                          lowerMessage.contains("objective") || lowerMessage.contains("target")
+        let includeTasks = lowerMessage.contains("task") || lowerMessage.contains("todo") || 
+                          lowerMessage.contains("subtask") || lowerMessage.contains("work")
+        let includeHabits = lowerMessage.contains("habit") || lowerMessage.contains("routine") || 
+                           lowerMessage.contains("daily") || lowerMessage.contains("streak")
+        let includeEvents = lowerMessage.contains("event") || lowerMessage.contains("meeting") || 
+                           lowerMessage.contains("appointment") || lowerMessage.contains("schedule") ||
+                           lowerMessage.contains("calendar") || lowerMessage.contains("today") ||
+                           lowerMessage.contains("tomorrow") || lowerMessage.contains("week")
+        
+        // If no specific mention, include minimal context (today's items only)
+        let includeAll = !includeGoals && !includeTasks && !includeHabits && !includeEvents
+        
         // Add available categories
         let availableCategories = scheduleManager.categories
         if !availableCategories.isEmpty {
@@ -1163,18 +1182,21 @@ class ChatViewModel: ObservableObject {
             contextLines.append("")
         }
         
-        // 1. Add today's events
-        let todayEvents = scheduleManager.eventsForToday()
-        if !todayEvents.isEmpty {
-            contextLines.append("📆 TODAY'S EVENTS (\(todayEvents.count)):")
-            for event in todayEvents {
-                let startTime = event.startTime.map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) } ?? ""
-                let endTime = event.endTime.map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) } ?? ""
-                let category = event.category?.name ?? "uncategorized"
-                let status = event.isCompleted ? "✅" : "⏳"
-                contextLines.append("• \(status) \(event.title ?? "") (\(startTime)-\(endTime)) [\(category)]")
+        // 1. Add today's events (if relevant or includeAll)
+        if includeEvents || includeAll {
+            let todayEvents = scheduleManager.eventsForToday()
+            if !todayEvents.isEmpty {
+                contextLines.append("📆 TODAY'S EVENTS (\(todayEvents.count)):")
+                for event in todayEvents {
+                    let startTime = event.startTime.map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) } ?? ""
+                    let endTime = event.endTime.map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) } ?? ""
+                    let category = event.category?.name ?? "uncategorized"
+                    let status = event.isCompleted ? "✅" : "⏳"
+                    let eventId = event.id?.uuidString ?? "unknown"
+                    contextLines.append("• \(status) \(event.title ?? "") [ID: \(eventId)] (\(startTime)-\(endTime)) [\(category)]")
+                }
+                contextLines.append("")
             }
-            contextLines.append("")
         }
         
         // 1b. Add next 7 days of events (brief summary)
@@ -1196,9 +1218,10 @@ class ChatViewModel: ObservableObject {
             contextLines.append("")
         }
         
-        // 2. Add incomplete tasks
-        let incompleteTasks = taskManager.tasks.filter { !$0.isCompleted }
-        if !incompleteTasks.isEmpty {
+        // 2. Add incomplete tasks (if relevant)
+        if includeTasks || includeAll {
+            let incompleteTasks = taskManager.tasks.filter { !$0.isCompleted }
+            if !incompleteTasks.isEmpty {
             let highPriorityTasks = incompleteTasks.filter { $0.priority == 2 }.count
             let overdueTasks = incompleteTasks.filter { task in
                 guard let dueDate = task.dueDate else { return false }
@@ -1224,37 +1247,43 @@ class ChatViewModel: ObservableObject {
                 let dueInfo = task.dueDate.map { " (due \(DateFormatter.localizedString(from: $0, dateStyle: .short, timeStyle: .none)))" } ?? ""
                 let category = task.category?.name ?? "uncategorized"
                 let duration = task.estimatedDuration > 0 ? " ~\(task.estimatedDuration)min" : ""
-                contextLines.append("• \(priority) \(task.title ?? "")\(dueInfo) [\(category)]\(duration)")
+                let taskId = task.id?.uuidString ?? "unknown"
+                contextLines.append("• \(priority) \(task.title ?? "") [ID: \(taskId)]\(dueInfo) [\(category)]\(duration)")
             }
             contextLines.append("")
+            }
         }
         
-        // 3. Add active habits
-        let activeHabits = habitManager.habits.filter { !$0.isPaused }
-        let todaysHabits = activeHabits.filter { habit in
-            // Check if habit should be done today based on frequency
-            if habit.frequency == "daily" {
+        // 3. Add active habits (if relevant)
+        if includeHabits || includeAll {
+            let activeHabits = habitManager.habits.filter { !$0.isPaused }
+            let todaysHabits = activeHabits.filter { habit in
+                // Check if habit should be done today based on frequency
+                if habit.frequency == "daily" {
+                    return true
+                }
+                // Add more frequency logic as needed
                 return true
             }
-            // Add more frequency logic as needed
-            return true
-        }
-        
-        if !todaysHabits.isEmpty {
+            
+            if !todaysHabits.isEmpty {
             contextLines.append("🌟 TODAY'S HABITS (\(todaysHabits.count)):")
             for habit in todaysHabits {
                 let streak = habit.currentStreak > 0 ? " 🔥\(habit.currentStreak)" : ""
                 let completed = habit.lastCompletedDate.map { calendar.isDateInToday($0) } ?? false
                 let status = completed ? "✅" : "⭕"
                 let category = habit.category?.name ?? "uncategorized"
-                contextLines.append("• \(status) \(habit.name ?? "")\(streak) [\(category)]")
+                let habitId = habit.id?.uuidString ?? "unknown"
+                contextLines.append("• \(status) \(habit.name ?? "") [ID: \(habitId)]\(streak) [\(category)]")
             }
             contextLines.append("")
+            }
         }
         
-        // 4. Add ALL goals with complete details including milestones
-        let allGoals = goalManager.goals
-        if !allGoals.isEmpty {
+        // 4. Add ALL goals with complete details including milestones (if relevant)
+        if includeGoals {
+            let allGoals = goalManager.goals
+            if !allGoals.isEmpty {
             contextLines.append("🎯 ALL GOALS (\(allGoals.count) total):")
             for goal in allGoals {
                 let progress = Int(goal.progress * 100)
@@ -1279,6 +1308,7 @@ class ChatViewModel: ObservableObject {
                 }
             }
             contextLines.append("")
+            }
         }
         
         // 5. Add available categories
@@ -7738,16 +7768,60 @@ class ChatViewModel: ObservableObject {
         // This is the ONE function to rule them all!
         // It handles events, tasks, goals, habits, milestones, categories - EVERYTHING
         
+        // Debug: Log what the AI sent
+        print("🔍 manage() called with:")
+        for (key, value) in arguments {
+            if let array = value as? [Any] {
+                print("  - \(key): [\(array.count) items]")
+            } else {
+                print("  - \(key): \(value)")
+            }
+        }
+        
         guard let itemType = arguments["type"] as? String else {
             return FunctionCallResult(
                 functionName: "manage",
                 success: false,
-                message: "Please specify what type of item to manage (event, task, goal, habit, milestone, category)",
-                details: nil
+                message: "ERROR: Missing required 'type' parameter. Must be one of: event, task, goal, habit, milestone, category",
+                details: ["error": "missing_type", "received_args": arguments.keys.joined(separator: ", ")]
             )
         }
         
         let action = arguments["action"] as? String ?? "create"
+        
+        // Validate action for each type
+        let validActions: [String: [String]] = [
+            "event": ["create", "update", "delete", "list", "search", "complete"],
+            "task": ["create", "update", "delete", "list", "search", "complete", "reopen"],
+            "goal": ["create", "update", "delete", "list", "complete", "progress"],
+            "habit": ["create", "update", "delete", "list", "log", "pause", "stats"],
+            "milestone": ["create", "update", "delete", "complete"],
+            "category": ["create", "update", "delete", "list"]
+        ]
+        
+        if let validActionsForType = validActions[itemType.lowercased()] {
+            if !validActionsForType.contains(action.lowercased()) {
+                return FunctionCallResult(
+                    functionName: "manage",
+                    success: false,
+                    message: "Invalid action '\(action)' for type '\(itemType)'. Valid actions: \(validActionsForType.joined(separator: ", "))",
+                    details: ["type": itemType, "invalid_action": action]
+                )
+            }
+        }
+        
+        // Validate required IDs for update/delete actions
+        if ["update", "delete", "complete"].contains(action.lowercased()) && 
+           !["list", "search"].contains(action.lowercased()) {
+            if arguments["id"] == nil && arguments["ids"] == nil {
+                return FunctionCallResult(
+                    functionName: "manage",
+                    success: false,
+                    message: "ERROR: '\(action)' action requires an 'id' parameter. Use the ID from the context above.",
+                    details: ["type": itemType, "action": action, "missing": "id"]
+                )
+            }
+        }
         
         // Smart routing based on item type
         switch itemType.lowercased() {
