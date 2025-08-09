@@ -78,33 +78,8 @@ final class AICoordinator {
     // MARK: - Helper Methods
     
     private func handleMilestoneAction(action: String, parameters: [String: Any]) async -> [String: Any] {
-        let cleanAction = action.lowercased().replacingOccurrences(of: "milestone", with: "").trimmingCharacters(in: .whitespaces)
-        
-        switch cleanAction {
-        case "create", "add":
-            guard let goalId = parameters["goalId"] as? String else {
-                return formatResult(AIResult.failure("Missing goalId for milestone creation"))
-            }
-            let result = await goalService.createMilestone(goalId: goalId, parameters: parameters)
-            return formatResult(result)
-            
-        case "update", "edit":
-            guard let milestoneId = parameters["id"] as? String ?? parameters["milestoneId"] as? String else {
-                return formatResult(AIResult.failure("Missing milestone ID"))
-            }
-            let result = await goalService.updateMilestone(milestoneId: milestoneId, parameters: parameters)
-            return formatResult(result)
-            
-        case "delete", "remove":
-            guard let milestoneId = parameters["id"] as? String ?? parameters["milestoneId"] as? String else {
-                return formatResult(AIResult.failure("Missing milestone ID"))
-            }
-            let result = await goalService.deleteMilestone(milestoneId: milestoneId)
-            return formatResult(result)
-            
-        default:
-            return formatResult(AIResult.failure("Unknown milestone action: \(action)"))
-        }
+        // Milestones not currently implemented in data model
+        return formatResult(AIResult.failure("Milestone operations are not currently available"))
     }
     
     private func formatResult(_ result: AIResult) -> [String: Any] {

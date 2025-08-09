@@ -48,7 +48,7 @@ final class TaskAIService: BaseAIService<Task> {
         
         if let categoryId = parameters["categoryId"] as? String,
            let categoryUUID = UUID(uuidString: categoryId) {
-            let request: NSFetchRequest<GoalCategory> = GoalCategory.fetchRequest()
+            let request: NSFetchRequest<Category> = Category.fetchRequest()
             request.predicate = NSPredicate(format: "id == %@", categoryUUID as CVarArg)
             if let category = try? context.fetch(request).first {
                 task.category = category

@@ -25,7 +25,10 @@ final class EventAIService: BaseAIService<Event> {
         let event = Event(context: context)
         event.id = UUID()
         event.title = title
-        event.isAllDay = parameters["isAllDay"] as? Bool ?? false
+        // Store all-day info in notes
+        if let isAllDay = parameters["isAllDay"] as? Bool, isAllDay {
+            event.notes = "ALL_DAY\n" + (event.notes ?? "")
+        }
         event.location = parameters["location"] as? String
         event.notes = parameters["notes"] as? String
         
@@ -49,16 +52,14 @@ final class EventAIService: BaseAIService<Event> {
         
         if let categoryId = parameters["categoryId"] as? String,
            let categoryUUID = UUID(uuidString: categoryId) {
-            let request: NSFetchRequest<GoalCategory> = GoalCategory.fetchRequest()
+            let request: NSFetchRequest<Category> = Category.fetchRequest()
             request.predicate = NSPredicate(format: "id == %@", categoryUUID as CVarArg)
             if let category = try? context.fetch(request).first {
                 event.category = category
             }
         }
         
-        if let reminderMinutes = parameters["reminderMinutes"] as? [Int] {
-            event.reminderMinutes = reminderMinutes
-        }
+        // Reminder minutes would need to be stored elsewhere or in notes
         
         do {
             try context.save()
@@ -90,9 +91,7 @@ final class EventAIService: BaseAIService<Event> {
             if let notes = parameters["notes"] as? String {
                 event.notes = notes
             }
-            if let isAllDay = parameters["isAllDay"] as? Bool {
-                event.isAllDay = isAllDay
-            }
+            // Update all-day status in notes if needed
             if let startTimeString = parameters["startTime"] as? String,
                let startTime = ISO8601DateFormatter().date(from: startTimeString) {
                 event.startTime = startTime
@@ -103,7 +102,7 @@ final class EventAIService: BaseAIService<Event> {
             }
             if let categoryId = parameters["categoryId"] as? String,
                let categoryUUID = UUID(uuidString: categoryId) {
-                let categoryRequest: NSFetchRequest<GoalCategory> = GoalCategory.fetchRequest()
+                let categoryRequest: NSFetchRequest<Category> = Category.fetchRequest()
                 categoryRequest.predicate = NSPredicate(format: "id == %@", categoryUUID as CVarArg)
                 if let category = try context.fetch(categoryRequest).first {
                     event.category = category

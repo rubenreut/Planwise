@@ -8,7 +8,7 @@
 import Foundation
 import CoreData
 
-final class CategoryAIService: BaseAIService<GoalCategory> {
+final class CategoryAIService: BaseAIService<Category> {
     
     init(context: NSManagedObjectContext) {
         super.init(serviceName: "CategoryAIService", context: context)
@@ -19,7 +19,7 @@ final class CategoryAIService: BaseAIService<GoalCategory> {
             return AIResult.failure("Missing required field: name")
         }
         
-        let category = GoalCategory(context: context)
+        let category = Category(context: context)
         category.id = UUID()
         category.name = name
         category.color = parameters["color"] as? String ?? "#007AFF"
@@ -39,7 +39,7 @@ final class CategoryAIService: BaseAIService<GoalCategory> {
             return AIResult.failure("Invalid or missing category ID")
         }
         
-        let request: NSFetchRequest<GoalCategory> = GoalCategory.fetchRequest()
+        let request: NSFetchRequest<Category> = Category.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", uuid as CVarArg)
         
         do {
@@ -65,7 +65,7 @@ final class CategoryAIService: BaseAIService<GoalCategory> {
     }
     
     override func list(parameters: [String: Any]) async -> AIResult {
-        let request: NSFetchRequest<GoalCategory> = GoalCategory.fetchRequest()
+        let request: NSFetchRequest<Category> = Category.fetchRequest()
         request.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
         
         do {
@@ -91,7 +91,7 @@ final class CategoryAIService: BaseAIService<GoalCategory> {
             return AIResult.failure("Invalid or missing category ID")
         }
         
-        let request: NSFetchRequest<GoalCategory> = GoalCategory.fetchRequest()
+        let request: NSFetchRequest<Category> = Category.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", uuid as CVarArg)
         
         do {

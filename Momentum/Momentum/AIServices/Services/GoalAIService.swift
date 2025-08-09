@@ -25,7 +25,7 @@ final class GoalAIService: BaseAIService<Goal> {
         let goal = Goal(context: context)
         goal.id = UUID()
         goal.title = title
-        goal.goalDescription = parameters["description"] as? String
+        goal.desc = parameters["description"] as? String
         goal.createdAt = Date()
         goal.progress = 0
         goal.isCompleted = false
@@ -39,7 +39,7 @@ final class GoalAIService: BaseAIService<Goal> {
         
         if let categoryId = parameters["categoryId"] as? String,
            let categoryUUID = UUID(uuidString: categoryId) {
-            let request: NSFetchRequest<GoalCategory> = GoalCategory.fetchRequest()
+            let request: NSFetchRequest<Category> = Category.fetchRequest()
             request.predicate = NSPredicate(format: "id == %@", categoryUUID as CVarArg)
             if let category = try? context.fetch(request).first {
                 goal.category = category
@@ -58,23 +58,7 @@ final class GoalAIService: BaseAIService<Goal> {
             goal.targetValue = targetValue
         }
         
-        if let milestones = parameters["milestones"] as? [[String: Any]] {
-            for milestoneData in milestones {
-                if let milestoneTitle = milestoneData["title"] as? String {
-                    let milestone = Milestone(context: context)
-                    milestone.id = UUID()
-                    milestone.title = milestoneTitle
-                    milestone.milestoneDescription = milestoneData["description"] as? String
-                    milestone.isCompleted = false
-                    milestone.goal = goal
-                    
-                    if let dueDateString = milestoneData["dueDate"] as? String,
-                       let dueDate = ISO8601DateFormatter().date(from: dueDateString) {
-                        milestone.dueDate = dueDate
-                    }
-                }
-            }
-        }
+        // Milestones would need to be handled differently
         
         do {
             try context.save()
@@ -101,7 +85,7 @@ final class GoalAIService: BaseAIService<Goal> {
                 goal.title = title
             }
             if let description = parameters["description"] as? String {
-                goal.goalDescription = description
+                goal.desc = description
             }
             if let targetDateString = parameters["targetDate"] as? String,
                let targetDate = ISO8601DateFormatter().date(from: targetDateString) {
@@ -110,14 +94,10 @@ final class GoalAIService: BaseAIService<Goal> {
             if let priority = parameters["priority"] as? Int {
                 goal.priority = Int16(priority)
             }
-            if let progress = parameters["progress"] as? Float {
-                goal.progress = progress
-            }
+            // Progress is calculated, not directly set
             if let isCompleted = parameters["isCompleted"] as? Bool {
                 goal.isCompleted = isCompleted
-                if isCompleted {
-                    goal.completedAt = Date()
-                }
+                // Mark completion time if needed
             }
             if let unit = parameters["unit"] as? String {
                 goal.unit = unit
@@ -127,7 +107,7 @@ final class GoalAIService: BaseAIService<Goal> {
             }
             if let categoryId = parameters["categoryId"] as? String,
                let categoryUUID = UUID(uuidString: categoryId) {
-                let categoryRequest: NSFetchRequest<GoalCategory> = GoalCategory.fetchRequest()
+                let categoryRequest: NSFetchRequest<Category> = Category.fetchRequest()
                 categoryRequest.predicate = NSPredicate(format: "id == %@", categoryUUID as CVarArg)
                 if let category = try context.fetch(categoryRequest).first {
                     goal.category = category
@@ -169,7 +149,7 @@ final class GoalAIService: BaseAIService<Goal> {
                 return [
                     "id": goal.id?.uuidString ?? "",
                     "title": goal.title ?? "",
-                    "description": goal.goalDescription ?? "",
+                    "description": goal.desc ?? "",
                     "progress": goal.progress,
                     "isCompleted": goal.isCompleted,
                     "targetDate": goal.targetDate != nil ? ISO8601DateFormatter().string(from: goal.targetDate!) : nil as Any,
@@ -182,94 +162,7 @@ final class GoalAIService: BaseAIService<Goal> {
         }
     }
     
-    func createMilestone(goalId: String, parameters: [String: Any]) async -> AIResult {
-        guard let goalUUID = UUID(uuidString: goalId),
-              let title = parameters["title"] as? String else {
-            return AIResult.failure("Invalid goal ID or missing title")
-        }
-        
-        let goalRequest: NSFetchRequest<Goal> = Goal.fetchRequest()
-        goalRequest.predicate = NSPredicate(format: "id == %@", goalUUID as CVarArg)
-        
-        do {
-            guard let goal = try context.fetch(goalRequest).first else {
-                return AIResult.failure("Goal not found")
-            }
-            
-            let milestone = Milestone(context: context)
-            milestone.id = UUID()
-            milestone.title = title
-            milestone.milestoneDescription = parameters["description"] as? String
-            milestone.isCompleted = false
-            milestone.goal = goal
-            
-            if let dueDateString = parameters["dueDate"] as? String,
-               let dueDate = ISO8601DateFormatter().date(from: dueDateString) {
-                milestone.dueDate = dueDate
-            }
-            
-            try context.save()
-            return AIResult.success("Created milestone: \(title)", data: ["id": milestone.id?.uuidString ?? ""])
-        } catch {
-            return AIResult.failure("Failed to create milestone: \(error.localizedDescription)")
-        }
-    }
+    // Milestone functions removed - not part of current data model
     
-    func updateMilestone(milestoneId: String, parameters: [String: Any]) async -> AIResult {
-        guard let uuid = UUID(uuidString: milestoneId) else {
-            return AIResult.failure("Invalid milestone ID")
-        }
-        
-        let request: NSFetchRequest<Milestone> = Milestone.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", uuid as CVarArg)
-        
-        do {
-            guard let milestone = try context.fetch(request).first else {
-                return AIResult.failure("Milestone not found")
-            }
-            
-            if let title = parameters["title"] as? String {
-                milestone.title = title
-            }
-            if let description = parameters["description"] as? String {
-                milestone.milestoneDescription = description
-            }
-            if let isCompleted = parameters["isCompleted"] as? Bool {
-                milestone.isCompleted = isCompleted
-                if isCompleted {
-                    milestone.completedAt = Date()
-                }
-            }
-            if let dueDateString = parameters["dueDate"] as? String,
-               let dueDate = ISO8601DateFormatter().date(from: dueDateString) {
-                milestone.dueDate = dueDate
-            }
-            
-            try context.save()
-            return AIResult.success("Updated milestone: \(milestone.title ?? "")")
-        } catch {
-            return AIResult.failure("Failed to update milestone: \(error.localizedDescription)")
-        }
-    }
-    
-    func deleteMilestone(milestoneId: String) async -> AIResult {
-        guard let uuid = UUID(uuidString: milestoneId) else {
-            return AIResult.failure("Invalid milestone ID")
-        }
-        
-        let request: NSFetchRequest<Milestone> = Milestone.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", uuid as CVarArg)
-        
-        do {
-            guard let milestone = try context.fetch(request).first else {
-                return AIResult.failure("Milestone not found")
-            }
-            
-            context.delete(milestone)
-            try context.save()
-            return AIResult.success("Deleted milestone")
-        } catch {
-            return AIResult.failure("Failed to delete milestone: \(error.localizedDescription)")
-        }
-    }
+    // Milestone functions removed - not part of current data model
 }
