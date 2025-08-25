@@ -16,7 +16,7 @@ struct TermsOfServiceView: View {
                 // Agreement
                 Section {
                     Text("By using Planwise, you agree to these Terms of Service.")
-                        .font(.body)
+                        .scaledFont(size: 17)
                         .padding(.bottom, 10)
                 }
                 
@@ -28,7 +28,7 @@ struct TermsOfServiceView: View {
                     Text("""
                     We grant you a personal, non-transferable, non-exclusive license to use Planwise on your devices. This license is for personal and non-commercial use only.
                     """)
-                    .font(.body)
+                    .scaledFont(size: 17)
                 }
                 
                 // Acceptable Use
@@ -44,7 +44,7 @@ struct TermsOfServiceView: View {
                     • Share your account or subscription with others
                     • Use the app in any way that could damage our reputation
                     """)
-                    .font(.body)
+                    .scaledFont(size: 17)
                 }
                 
                 // Subscriptions
@@ -59,7 +59,7 @@ struct TermsOfServiceView: View {
                     • You can manage subscriptions in your Apple ID settings
                     • Refunds are subject to Apple's refund policy
                     """)
-                    .font(.body)
+                    .scaledFont(size: 17)
                 }
                 
                 // User Content
@@ -73,7 +73,7 @@ struct TermsOfServiceView: View {
                     • We're not liable for any loss of data
                     • Your data syncs via iCloud under Apple's terms
                     """)
-                    .font(.body)
+                    .scaledFont(size: 17)
                 }
                 
                 // AI Usage
@@ -89,7 +89,7 @@ struct TermsOfServiceView: View {
                     • Should not be relied upon for critical decisions
                     • Is subject to usage limits based on your subscription
                     """)
-                    .font(.body)
+                    .scaledFont(size: 17)
                 }
                 
                 // Disclaimers
@@ -103,7 +103,7 @@ struct TermsOfServiceView: View {
                     • We're not responsible for missed appointments or lost data
                     • Features may change or be discontinued
                     """)
-                    .font(.body)
+                    .scaledFont(size: 17)
                 }
                 
                 // Limitation of Liability
@@ -114,7 +114,7 @@ struct TermsOfServiceView: View {
                     Text("""
                     To the maximum extent permitted by law, we shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of Planwise.
                     """)
-                    .font(.body)
+                    .scaledFont(size: 17)
                 }
                 
                 // Termination
@@ -125,7 +125,7 @@ struct TermsOfServiceView: View {
                     Text("""
                     We may terminate or suspend your access to Planwise immediately, without prior notice, for any breach of these Terms.
                     """)
-                    .font(.body)
+                    .scaledFont(size: 17)
                 }
                 
                 // Governing Law
@@ -134,7 +134,7 @@ struct TermsOfServiceView: View {
                         .font(.headline)
                     
                     Text("These Terms are governed by the laws of Ireland and the European Union.")
-                        .font(.body)
+                        .scaledFont(size: 17)
                 }
                 
                 // Contact
@@ -143,7 +143,7 @@ struct TermsOfServiceView: View {
                         .font(.headline)
                     
                     Text("For questions about these Terms, contact us at rubenreut19@gmail.com")
-                        .font(.body)
+                        .scaledFont(size: 17)
                 }
             }
             .padding()

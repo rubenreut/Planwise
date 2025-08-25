@@ -99,6 +99,8 @@ class TaskManager: NSObject, ObservableObject, @preconcurrency TaskManaging {
         ]
         // Filter out subtasks - only fetch top-level tasks
         request.predicate = NSPredicate(format: "parentTask == nil")
+        // Prefetch relationships to avoid faulting
+        request.relationshipKeyPathsForPrefetching = ["category", "linkedEvent", "subtasks"]
         
         fetchedResultsController = NSFetchedResultsController(
             fetchRequest: request,
@@ -353,15 +355,33 @@ class TaskManager: NSObject, ObservableObject, @preconcurrency TaskManaging {
         
         return grouped
     }
+    
+    func completedTasks(for date: Date) -> [Task] {
+        let calendar = Calendar.current
+        return tasks.filter { task in
+            guard task.isCompleted,
+                  let completedAt = task.completedAt else { return false }
+            return calendar.isDate(completedAt, inSameDayAs: date)
+        }
+    }
+    
+    func todayCompletedTasks() -> [Task] {
+        completedTasks(for: Date())
+    }
 }
 
 // MARK: - NSFetchedResultsControllerDelegate
 extension TaskManager: NSFetchedResultsControllerDelegate {
-    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        // Re-fetch tasks when Core Data changes
-        if controller == fetchedResultsController {
-            tasks = fetchedResultsController?.fetchedObjects ?? []
-            clearTaskCache()
+    nonisolated func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        _Concurrency.Task { 
+            await MainActor.run { [weak self] in
+                guard let self = self else { return }
+                // Re-fetch tasks when Core Data changes
+                if controller == self.fetchedResultsController {
+                    self.tasks = self.fetchedResultsController?.fetchedObjects ?? []
+                    self.clearTaskCache()
+                }
+            }
         }
     }
 }

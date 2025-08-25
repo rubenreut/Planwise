@@ -15,6 +15,13 @@ struct TaskHeaderView: View {
     private let expandedHeight: CGFloat = 100
     private let collapsedHeight: CGFloat = 12
     
+    private func getHeaderText() -> String {
+        // Always show greeting regardless of filter
+        let greeting = Date.formatDateWithGreeting(Date())
+        print("🔴 TaskHeaderView - Filter: \(selectedFilter.rawValue), Greeting: \(greeting)")
+        return greeting
+    }
+    
     // Calculate progress based on drag or animation
     private var dragProgress: CGFloat {
         if isDragging {
@@ -38,10 +45,10 @@ struct TaskHeaderView: View {
             Spacer()
                 .frame(height: 1)
             
-            // Current filter text - always visible (like dateTitle in PremiumHeaderView)
+            // Show greeting for today, filter text otherwise
             HStack {
-                Text("\(selectedFilter.rawValue) (\(taskCount(selectedFilter)))")
-                    .font(.system(size: 18, weight: .semibold))
+                Text(getHeaderText())
+                    .scaledFont(size: 18, weight: .semibold)
                     .foregroundColor(.white)
                     .animation(.easeInOut(duration: 0.2), value: dragProgress)
                 
@@ -67,15 +74,15 @@ struct TaskHeaderView: View {
                                 }) {
                                     VStack(spacing: 2) {
                                         Image(systemName: filter.icon)
-                                            .font(.system(size: 16, weight: .medium))
+                                            .scaledFont(size: 16, weight: .medium)
                                             .foregroundColor(isSelected ? Color(red: 0.05, green: 0.1, blue: 0.25) : .white.opacity(0.7))
                                         
                                         Text(filter.rawValue)
-                                            .font(.system(size: 11, weight: .medium))
+                                            .scaledFont(size: 11, weight: .medium)
                                             .foregroundColor(isSelected ? Color(red: 0.05, green: 0.1, blue: 0.25) : .white.opacity(0.7))
                                         
                                         Text("\(count)")
-                                            .font(.system(size: 10, weight: .semibold))
+                                            .scaledFont(size: 10, weight: .semibold)
                                             .foregroundColor(isSelected ? Color(red: 0.05, green: 0.1, blue: 0.25) : .white)
                                     }
                                     .frame(width: 50, height: 70)
@@ -98,7 +105,7 @@ struct TaskHeaderView: View {
                     // No collapsed content - just the title is visible
                 }
             }
-            .frame(height: collapsedHeight + (dragProgress * CGFloat(expandedHeight - collapsedHeight)))
+            .frame(height: max(0, collapsedHeight + (dragProgress * CGFloat(expandedHeight - collapsedHeight))))
             .clipped()
             
             // Swipe indicator at the bottom center with larger hit box

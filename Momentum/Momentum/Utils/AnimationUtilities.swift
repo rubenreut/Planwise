@@ -31,7 +31,7 @@ struct TaskCompletionAnimation: ViewModifier {
                     .offset(y: particleOffset)
                     .allowsHitTesting(false)
             )
-            .onChange(of: isCompleted) { newValue in
+            .onChange(of: isCompleted) { _, newValue in
                 if newValue {
                     performCompletionAnimation()
                 }
@@ -108,7 +108,7 @@ struct ParticleEffectView: View {
         .onAppear {
             createParticles()
         }
-        .onChange(of: isActive) { newValue in
+        .onChange(of: isActive) { _, newValue in
             if newValue {
                 animateParticles()
             }
@@ -316,7 +316,7 @@ struct AnimatedProgressRing: View {
         .onAppear {
             animatedProgress = progress
         }
-        .onChange(of: progress) { newValue in
+        .onChange(of: progress) { _, newValue in
             animatedProgress = newValue
         }
     }

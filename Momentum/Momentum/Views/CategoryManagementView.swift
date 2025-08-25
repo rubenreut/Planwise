@@ -179,7 +179,8 @@ struct CategoryRow: View {
         HStack {
             // Icon
             Image(systemName: category.iconName ?? "folder.fill")
-                .font(.system(size: 20))
+                        .scaledIcon()
+                    .scaledFont(size: 20)
                 .foregroundColor(Color(hex: category.colorHex ?? "#007AFF"))
                 .frame(width: 30)
             
@@ -203,7 +204,8 @@ struct CategoryRow: View {
             if !category.isDefault {
                 Button(action: onDelete) {
                     Image(systemName: "trash")
-                        .font(.system(size: 14))
+                        .scaledIcon()
+                    .scaledFont(size: 14)
                         .foregroundColor(.red)
                 }
                 .buttonStyle(BorderlessButtonStyle())
@@ -237,7 +239,8 @@ struct AddCategorySheet: View {
                                 selectedIcon = icon
                             }) {
                                 Image(systemName: icon)
-                                    .font(.system(size: 20))
+                        .scaledIcon()
+                    .scaledFont(size: 20)
                                     .foregroundColor(selectedIcon == icon ? .white : Color(hex: selectedColor))
                                     .frame(width: 36, height: 36)
                                     .background(
@@ -280,7 +283,8 @@ struct AddCategorySheet: View {
                 Section("Preview") {
                     HStack {
                         Image(systemName: selectedIcon)
-                            .font(.system(size: 24))
+                        .scaledIcon()
+                    .scaledFont(size: 24)
                             .foregroundColor(Color(hex: selectedColor))
                         
                         Text(categoryName.isEmpty ? "Category Name" : categoryName)

@@ -45,7 +45,7 @@ extension View {
     ///   - error: The error binding to track
     ///   - context: Additional context about where the error occurred
     func trackError(_ error: Binding<Error?>, context: String) -> some View {
-        self.onChange(of: error.wrappedValue != nil) { hasError in
+        self.onChange(of: error.wrappedValue != nil) { _, hasError in
             if hasError, let error = error.wrappedValue {
                 CrashReporter.shared.logError(
                     error,

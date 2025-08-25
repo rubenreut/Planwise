@@ -19,12 +19,12 @@ struct LaunchScreenView: View {
             VStack(spacing: 24) {
                 // App name
                 Text("Planwise")
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .scaledFont(size: 48, weight: .bold, design: .rounded)
                     .foregroundColor(.white)
                 
                 // Tagline (optional)
                 Text("AI Scheduling Assistant")
-                    .font(.system(size: 18, weight: .medium))
+                    .scaledFont(size: 18, weight: .medium)
                     .foregroundColor(.white.opacity(0.9))
             }
         }

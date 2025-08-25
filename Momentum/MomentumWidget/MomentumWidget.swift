@@ -328,7 +328,7 @@ struct EventBlockWidget: View {
             
             Text(event.title ?? "")
                 .font(.system(size: 10, weight: .medium))
-                .foregroundColor(isActive ? .white : .adaptivePrimaryText)
+                .foregroundColor(isActive ? .white : .label)
                 .lineLimit(1)
                 .padding(.horizontal, 4)
             
@@ -466,10 +466,10 @@ struct MomentumWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
             MomentumWidgetEntryView(entry: entry)
-                .containerBackground(.background, for: .widget)
+                .containerBackground(Color(UIColor.systemBackground), for: .widget)
         }
-        .configurationDisplayName("Planwise")
-        .description("Keep track of your upcoming events.")
+        .configurationDisplayName("Today Overview")
+        .description("See your day at a glance with events and tasks.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }

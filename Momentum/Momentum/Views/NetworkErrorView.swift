@@ -36,7 +36,7 @@ struct NetworkErrorView: View {
                         .multilineTextAlignment(.center)
                     
                     Text(errorMessage)
-                        .font(.body)
+                        .scaledFont(size: 17)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
@@ -70,7 +70,7 @@ struct NetworkErrorView: View {
                 .frame(width: 120, height: 120)
             
             Image(systemName: iconName)
-                .font(.system(size: 60))
+                .scaledFont(size: 60)
                 .foregroundColor(.adaptiveOrange)
                 .symbolEffect(.pulse, options: .repeating.speed(0.5))
         }
@@ -270,7 +270,7 @@ private struct TroubleshootingTip: View {
     var body: some View {
         HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
             Image(systemName: icon)
-                .font(.system(size: 20))
+                .scaledFont(size: 20)
                 .foregroundColor(.accentColor)
                 .frame(width: 30)
             

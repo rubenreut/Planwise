@@ -11,8 +11,10 @@ import Charts
 struct GoalDetailView: View {
     @ObservedObject var goal: Goal
     @EnvironmentObject private var goalManager: GoalManager
+    @EnvironmentObject private var habitManager: HabitManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
+    @AppStorage("accentColor") private var selectedAccentColor = "blue"
     
     @State private var showingUpdateProgress = false
     @State private var showingAddMilestone = false
@@ -108,6 +110,7 @@ struct GoalDetailView: View {
             }
             .sheet(isPresented: $showingEditGoal) {
                 EditGoalSheet(goal: goal)
+                    .environmentObject(habitManager)
             }
             .onAppear {
                 progressValue = goal.currentValue
@@ -123,12 +126,12 @@ struct GoalDetailView: View {
             HStack(spacing: DesignSystem.Spacing.md) {
                 ZStack {
                     Circle()
-                        .fill(Color(hex: goal.colorHex ?? "#007AFF").opacity(DesignSystem.Opacity.medium))
+                        .fill(Color(hex: goal.category?.colorHex ?? "#007AFF").opacity(DesignSystem.Opacity.medium))
                         .frame(width: DesignSystem.IconSize.xxl + DesignSystem.Spacing.md, height: DesignSystem.IconSize.xxl + DesignSystem.Spacing.md)
                     
-                    Image(systemName: goal.iconName ?? "target")
+                    Image(systemName: goal.category?.iconName ?? "target")
                         .font(.title)
-                        .foregroundColor(Color(hex: goal.colorHex ?? "#007AFF"))
+                        .foregroundColor(Color(hex: goal.category?.colorHex ?? "#007AFF"))
                 }
                 
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs) {
@@ -148,17 +151,26 @@ struct GoalDetailView: View {
             
             // Stats Row
             HStack(spacing: DesignSystem.Spacing.lg) {
-                GoalStatItem(
-                    label: "Priority",
-                    value: goal.priorityEnum.displayName,
-                    color: Color(hex: goal.priorityEnum.color)
-                )
+                VStack(spacing: 4) {
+                    Text("Priority")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color(hex: goal.priorityEnum.color))
+                            .frame(width: 8, height: 8)
+                        Text(goal.priorityEnum.displayName)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(Color(hex: goal.priorityEnum.color))
+                    }
+                }
                 
                 if let daysRemaining = goal.daysRemaining {
                     GoalStatItem(
                         label: "Days Left",
                         value: "\(daysRemaining)",
-                        color: daysRemaining <= 7 ? .orange : .blue
+                        color: daysRemaining <= 7 ? .orange : Color.fromAccentString(selectedAccentColor)
                     )
                 }
                 
@@ -180,92 +192,77 @@ struct GoalDetailView: View {
     }
     
     private var progressOverview: some View {
-        VStack(spacing: DesignSystem.Spacing.lg) {
-            // Progress Circle
-            ZStack {
-                Circle()
-                    .stroke(Color.gray.opacity(DesignSystem.Opacity.medium), lineWidth: 20)
-                    .frame(width: 150, height: 150)
-                
-                Circle()
-                    .trim(from: 0, to: goal.progress)
-                    .stroke(
-                        Color(hex: goal.colorHex ?? "#007AFF"),
-                        style: StrokeStyle(lineWidth: 20, lineCap: .round)
-                    )
-                    .frame(width: 150, height: 150)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.spring(response: 0.5), value: goal.progress)
-                
-                VStack(spacing: DesignSystem.Spacing.xxs) {
-                    Text("\(Int(goal.progress * 100))")
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                    Text("percent")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            // Current vs Target
-            if goal.typeEnum == .numeric {
-                HStack(spacing: DesignSystem.Spacing.xl) {
-                    VStack(spacing: DesignSystem.Spacing.xxs) {
-                        Text("Current")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("\(Int(goal.currentValue))")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        if let unit = goal.unit {
-                            Text(unit)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            // Minimal progress bar
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                HStack {
+                    Text("\(Int(goal.progress * 100))%")
+                        .font(.title3)
+                        .fontWeight(.semibold)
                     
-                    VStack(spacing: DesignSystem.Spacing.xxs) {
-                        Text("Target")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("\(Int(goal.targetValue))")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        if let unit = goal.unit {
-                            Text(unit)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-            } else if goal.typeEnum == .milestone || goal.typeEnum == .project {
-                // For milestone goals, show milestone completion status
-                VStack(spacing: DesignSystem.Spacing.xxs) {
-                    Text("Milestones")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Spacer()
                     
-                    let milestones = goal.sortedMilestones
-                    let completedCount = milestones.filter { $0.isCompleted }.count
-                    
-                    HStack {
-                        Text("\(completedCount)")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        Text("of")
+                    if goal.typeEnum == .numeric {
+                        Text("\(Int(goal.currentValue)) / \(Int(goal.targetValue)) \(goal.unit ?? "")")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                        Text("\(milestones.count)")
-                            .font(.title2)
-                            .fontWeight(.bold)
+                    } else if goal.typeEnum == .milestone || goal.typeEnum == .project {
+                        let milestones = goal.sortedMilestones
+                        let completedCount = milestones.filter { $0.isCompleted }.count
+                        Text("\(completedCount) / \(milestones.count) milestones")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                // Progress bar
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 8)
+                        
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color(hex: goal.category?.colorHex ?? "#007AFF"))
+                            .frame(width: geometry.size.width * goal.progress, height: 8)
+                            .animation(.spring(response: 0.5), value: goal.progress)
+                    }
+                }
+                .frame(height: 8)
+            }
+            
+            // Stats row
+            if goal.typeEnum == .numeric && goal.targetValue > 0 {
+                HStack(spacing: DesignSystem.Spacing.lg) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Daily Average")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        if let startDate = goal.startDate {
+                            let days = max(1, Calendar.current.dateComponents([.day], from: startDate, to: Date()).day ?? 1)
+                            let average = goal.currentValue / Double(days)
+                            Text("\(Int(average)) \(goal.unit ?? "")")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                        }
                     }
                     
-                    Text("completed")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    if let daysRemaining = goal.daysRemaining, daysRemaining > 0 {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Required Daily")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            let remaining = goal.targetValue - goal.currentValue
+                            let dailyNeeded = remaining / Double(daysRemaining)
+                            Text("\(Int(ceil(dailyNeeded))) \(goal.unit ?? "")")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(dailyNeeded > 10 ? .orange : .primary)
+                        }
+                    }
                 }
             }
         }
-        .frame(maxWidth: .infinity)
         .padding()
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
@@ -311,6 +308,13 @@ struct GoalDetailView: View {
                     MilestoneRow(milestone: milestone) {
                         completeMilestone(milestone)
                     }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            deleteMilestone(milestone)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
                 }
             }
         }
@@ -338,13 +342,13 @@ struct GoalDetailView: View {
                         x: .value("Date", update.date ?? Date()),
                         y: .value("Progress", update.value)
                     )
-                    .foregroundStyle(Color(hex: goal.colorHex ?? "#007AFF"))
+                    .foregroundStyle(Color(hex: goal.category?.colorHex ?? "#007AFF"))
                     
                     PointMark(
                         x: .value("Date", update.date ?? Date()),
                         y: .value("Progress", update.value)
                     )
-                    .foregroundStyle(Color(hex: goal.colorHex ?? "#007AFF"))
+                    .foregroundStyle(Color(hex: goal.category?.colorHex ?? "#007AFF"))
                 }
                 .frame(height: 200)
                 .chartYScale(domain: 0...(goal.targetValue > 0 ? goal.targetValue : 100))
@@ -372,7 +376,7 @@ struct GoalDetailView: View {
                 ForEach(goal.recentUpdates.prefix(5)) { update in
                     HStack {
                         Image(systemName: updateIcon(for: update))
-                            .foregroundColor(Color(hex: goal.colorHex ?? "#007AFF"))
+                            .foregroundColor(Color(hex: goal.category?.colorHex ?? "#007AFF"))
                         
                         VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs) {
                             Text(update.notes ?? "Progress update")
@@ -457,6 +461,10 @@ struct GoalDetailView: View {
     
     private func completeMilestone(_ milestone: GoalMilestone) {
         _ = goalManager.completeMilestone(milestone)
+    }
+    
+    private func deleteMilestone(_ milestone: GoalMilestone) {
+        _ = goalManager.deleteMilestone(milestone, from: goal)
     }
     
     private func markAsCompleted() {
@@ -571,7 +579,7 @@ struct UpdateProgressSheet: View {
                         
                         if goal.targetValue > 0 {
                             Slider(value: $progressValue, in: 0...goal.targetValue, step: 1.0)
-                                .accentColor(Color(hex: goal.colorHex ?? "#007AFF"))
+                                .accentColor(Color(hex: goal.category?.colorHex ?? "#007AFF"))
                         }
                     }
                 }
@@ -669,10 +677,15 @@ struct EditGoalSheet: View {
     @State private var selectedColor: String = "#007AFF"
     @State private var selectedIcon: String = "target"
     @State private var selectedCategory: Category?
+    @State private var selectedHabits: Set<Habit> = []
     @State private var showingColorPicker = false
     @State private var showingIconPicker = false
+    @State private var showingHabitPicker = false
+    @State private var showingAddMilestone = false
+    @State private var editedMilestones: [GoalMilestone] = []
     
     @EnvironmentObject private var goalManager: GoalManager
+    @EnvironmentObject private var habitManager: HabitManager
     @StateObject private var areaManager = GoalAreaManager.shared
     @Environment(\.dismiss) private var dismiss
     
@@ -683,8 +696,19 @@ struct EditGoalSheet: View {
                 Section(header: Text("Basic Information")) {
                     TextField("Goal Title", text: $title)
                     
-                    TextField("Description (optional)", text: $description, axis: .vertical)
-                        .lineLimit(3...6)
+                    VStack(alignment: .leading, spacing: 4) {
+                        TextField("Description, links, or attachments...", text: $description, axis: .vertical)
+                            .lineLimit(3...6)
+                        
+                        HStack(spacing: 4) {
+                            Image(systemName: "paperclip")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Text("You can paste links or describe documents here")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
                 
                 // Goal Type and Values
@@ -716,6 +740,109 @@ struct EditGoalSheet: View {
                                 Text(priority.displayName)
                             }
                             .tag(priority)
+                        }
+                    }
+                }
+                
+                // Linked Habits for habit-based goals
+                if selectedType == .habit {
+                    Section(header: Text("Linked Habits")) {
+                        Button {
+                            showingHabitPicker = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "link")
+                                    .font(.system(size: 17))
+                                    .foregroundColor(.indigo)
+                                
+                                Text("Link Habits")
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                if !selectedHabits.isEmpty {
+                                    Text("\(selectedHabits.count) selected")
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                            }
+                        }
+                        
+                        // Display selected habits
+                        if !selectedHabits.isEmpty {
+                            ForEach(Array(selectedHabits)) { habit in
+                                HStack {
+                                    Image(systemName: habit.iconName ?? "star")
+                                        .foregroundColor(Color(hex: habit.colorHex ?? "#007AFF"))
+                                    Text(habit.name ?? "")
+                                    Spacer()
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Milestones for milestone/project goals
+                if selectedType == .milestone || selectedType == .project {
+                    Section(header: Text("Milestones")) {
+                        Button {
+                            showingAddMilestone = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 17))
+                                    .foregroundColor(.blue)
+                                
+                                Text("Add Milestone")
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                            }
+                        }
+                        
+                        // Display existing milestones
+                        ForEach(editedMilestones) { milestone in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(milestone.title ?? "")
+                                        .font(.system(size: 16))
+                                    
+                                    if milestone.targetValue > 0 {
+                                        Text("Target: \(Int(milestone.targetValue))")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    if milestone.isCompleted {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.caption)
+                                                .foregroundColor(.green)
+                                            Text("Completed")
+                                                .font(.caption)
+                                                .foregroundColor(.green)
+                                        }
+                                    }
+                                }
+                                
+                                Spacer()
+                                
+                                if !milestone.isCompleted {
+                                    Button {
+                                        HapticFeedback.light.trigger()
+                                        withAnimation {
+                                            editedMilestones.removeAll { $0.id == milestone.id }
+                                        }
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(.red)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -784,6 +911,9 @@ struct EditGoalSheet: View {
                 }
             }
             .onAppear {
+                // Load categories first
+                areaManager.loadCategories()
+                
                 // Load current goal values
                 title = goal.title ?? ""
                 description = goal.desc ?? ""
@@ -792,9 +922,21 @@ struct EditGoalSheet: View {
                 selectedType = goal.typeEnum
                 selectedPriority = goal.priorityEnum
                 targetDate = goal.targetDate ?? Date()
-                selectedColor = goal.colorHex ?? "#007AFF"
-                selectedIcon = goal.iconName ?? "target"
+                selectedColor = goal.category?.colorHex ?? "#007AFF"
+                selectedIcon = goal.category?.iconName ?? "target"
                 selectedCategory = goal.category
+                
+                // Load linked habits
+                if let linkedHabits = goal.linkedHabits?.allObjects as? [Habit] {
+                    selectedHabits = Set(linkedHabits)
+                }
+                
+                // Load existing milestones
+                if let milestones = goal.milestones?.allObjects as? [GoalMilestone] {
+                    editedMilestones = milestones.sorted { 
+                        ($0.sortOrder, $0.title ?? "") < ($1.sortOrder, $1.title ?? "")
+                    }
+                }
             }
             .sheet(isPresented: $showingColorPicker) {
                 GoalColorPickerSheet(selectedColor: $selectedColor)
@@ -802,22 +944,100 @@ struct EditGoalSheet: View {
             .sheet(isPresented: $showingIconPicker) {
                 GoalIconPickerSheet(selectedIcon: $selectedIcon, selectedColor: selectedColor)
             }
+            .sheet(isPresented: $showingHabitPicker) {
+                HabitPickerSheet(selectedHabits: $selectedHabits)
+                    .environmentObject(habitManager)
+            }
+            .sheet(isPresented: $showingAddMilestone) {
+                AddEditMilestoneSheet(
+                    goal: goal,
+                    milestones: $editedMilestones,
+                    isPresented: $showingAddMilestone
+                )
+            }
         }
     }
     
     private func updateGoal() {
-        goal.title = title
-        goal.desc = description.isEmpty ? nil : description
-        goal.type = selectedType.rawValue
-        goal.targetValue = targetValue
-        goal.unit = unit.isEmpty ? nil : unit
-        goal.priority = selectedPriority.rawValue
-        goal.targetDate = targetDate
-        goal.colorHex = selectedColor
-        goal.iconName = selectedIcon
-        goal.category = selectedCategory
+        print("🎯 UpdateGoal - Selected category: \(selectedCategory?.name ?? "None")")
+        print("🎯 UpdateGoal - Category ID: \(selectedCategory?.id?.uuidString ?? "nil")")
         
-        _ = goalManager.updateGoal(goal)
+        // Use the proper updateGoal function with parameters
+        let result = goalManager.updateGoal(
+            goal,
+            title: title,
+            description: description.isEmpty ? nil : description,
+            targetValue: targetValue,
+            targetDate: targetDate,
+            unit: unit.isEmpty ? nil : unit,
+            priority: selectedPriority,
+            category: selectedCategory,
+            updateCategory: true  // Explicitly update category
+        )
+        
+        // Also update the type directly since it's not in the updateGoal function parameters
+        goal.type = selectedType.rawValue
+        goal.modifiedAt = Date()
+        
+        // Update linked habits if this is a habit-based goal
+        if selectedType == .habit {
+            // Get current linked habits
+            let currentHabits = Set((goal.linkedHabits?.allObjects as? [Habit]) ?? [])
+            
+            // Find habits to unlink (in current but not in selected)
+            let habitsToUnlink = currentHabits.subtracting(selectedHabits)
+            for habit in habitsToUnlink {
+                _ = goalManager.unlinkHabit(habit, from: goal)
+            }
+            
+            // Find habits to link (in selected but not in current)
+            let habitsToLink = selectedHabits.subtracting(currentHabits)
+            for habit in habitsToLink {
+                _ = goalManager.linkHabit(habit, to: goal)
+            }
+        }
+        
+        // Update milestones if this is a milestone/project goal
+        if selectedType == .milestone || selectedType == .project {
+            // Get current milestones
+            let currentMilestones = goal.milestones?.allObjects as? [GoalMilestone] ?? []
+            
+            // Delete removed milestones
+            for milestone in currentMilestones {
+                if !editedMilestones.contains(where: { $0.id == milestone.id }) {
+                    _ = goalManager.deleteMilestone(milestone, from: goal)
+                }
+            }
+            
+            // Add new milestones (those without IDs or not in current)
+            for milestone in editedMilestones {
+                if !currentMilestones.contains(where: { $0.id == milestone.id }) {
+                    _ = goalManager.addMilestone(
+                        to: goal,
+                        title: milestone.title ?? "",
+                        targetValue: milestone.targetValue
+                    )
+                }
+            }
+        }
+        
+        // Save the context to ensure changes persist
+        do {
+            try goal.managedObjectContext?.save()
+            print("🎯 UpdateGoal - Context saved successfully")
+        } catch {
+            print("🎯 UpdateGoal - Failed to save goal changes: \(error)")
+        }
+        
+        // Print result
+        switch result {
+        case .success:
+            print("🎯 UpdateGoal - Goal updated successfully")
+            print("🎯 UpdateGoal - Goal category after update: \(goal.category?.name ?? "None")")
+            print("🎯 UpdateGoal - Linked habits count: \(goal.linkedHabits?.count ?? 0)")
+        case .failure(let error):
+            print("🎯 UpdateGoal - Failed to update goal: \(error)")
+        }
     }
 }
 
@@ -938,11 +1158,110 @@ struct GoalIconPickerSheet: View {
     goal.targetValue = 50
     goal.currentValue = 23
     goal.unit = "books"
-    goal.colorHex = "#007AFF"
-    goal.iconName = "book"
+    // Color and icon come from category
     goal.startDate = Date()
     goal.targetDate = Calendar.current.date(byAdding: .month, value: 6, to: Date())
     
     return GoalDetailView(goal: goal)
         .environmentObject(GoalManager.shared)
+}
+
+// MARK: - Add/Edit Milestone Sheet
+
+struct AddEditMilestoneSheet: View {
+    let goal: Goal
+    @Binding var milestones: [GoalMilestone]
+    @Binding var isPresented: Bool
+    
+    @State private var title = ""
+    @State private var targetValue: Double = 0
+    @State private var includeTarget = false
+    @FocusState private var isTitleFocused: Bool
+    
+    @EnvironmentObject private var goalManager: GoalManager
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section {
+                    TextField("Milestone title", text: $title)
+                        .focused($isTitleFocused)
+                    
+                    Toggle("Include target value", isOn: $includeTarget.animation())
+                        .onChange(of: includeTarget) { _, _ in
+                            HapticFeedback.selection.trigger()
+                        }
+                    
+                    if includeTarget {
+                        HStack {
+                            Text("Target")
+                            Spacer()
+                            TextField("0", value: $targetValue, format: .number)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 100)
+                        }
+                    }
+                }
+                
+                if !milestones.isEmpty {
+                    Section(header: Text("Existing Milestones")) {
+                        ForEach(milestones) { milestone in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(milestone.title ?? "")
+                                        .font(.system(size: 15))
+                                    if milestone.targetValue > 0 {
+                                        Text("Target: \(Int(milestone.targetValue))")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                Spacer()
+                                if milestone.isCompleted {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Add Milestone")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        HapticFeedback.light.trigger()
+                        isPresented = false
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Add") {
+                        HapticFeedback.success.trigger()
+                        
+                        // Create a temporary milestone to add to the list
+                        let context = goal.managedObjectContext ?? PersistenceController.shared.container.viewContext
+                        let newMilestone = GoalMilestone(context: context)
+                        newMilestone.id = UUID()
+                        newMilestone.title = title
+                        newMilestone.targetValue = includeTarget ? targetValue : 0
+                        newMilestone.isCompleted = false
+                        newMilestone.sortOrder = Int32(milestones.count)
+                        
+                        milestones.append(newMilestone)
+                        isPresented = false
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(title.isEmpty)
+                }
+            }
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    isTitleFocused = true
+                }
+            }
+        }
+    }
 }

@@ -63,7 +63,7 @@ struct OnboardingView: View {
                         currentPage = 6
                     }) {
                         Text("Skip")
-                            .font(.system(size: 18, weight: .medium))
+                            .scaledFont(size: 18, weight: .medium)
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 10)
@@ -78,9 +78,9 @@ struct OnboardingView: View {
                     }) {
                         HStack(spacing: 8) {
                             Text("Next")
-                                .font(.system(size: 18, weight: .semibold))
+                                .scaledFont(size: 18, weight: .semibold)
                             Image(systemName: "arrow.right")
-                                .font(.system(size: 16, weight: .semibold))
+                                .scaledFont(size: 16, weight: .semibold)
                         }
                         .foregroundColor(.white)
                         .padding(.horizontal, 30)
@@ -127,7 +127,7 @@ struct OnboardingPage: View {
                     .frame(width: 140, height: 140)
                 
                 Image(systemName: image)
-                    .font(.system(size: 70, weight: .medium))
+                    .scaledFont(size: 70, weight: .medium)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [Color.blue, Color.purple],
@@ -141,12 +141,12 @@ struct OnboardingPage: View {
             
             VStack(spacing: 20) {
                 Text(title)
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .scaledFont(size: 36, weight: .bold, design: .rounded)
                     .multilineTextAlignment(.center)
                     .foregroundColor(.primary)
                 
                 Text(description)
-                    .font(.system(size: 20, weight: .regular))
+                    .scaledFont(size: 20, weight: .regular)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(8)
@@ -181,7 +181,7 @@ struct SampleEventsPage: View {
                     .frame(width: 140, height: 140)
                 
                 Image(systemName: "calendar.day.timeline.left")
-                    .font(.system(size: 70, weight: .medium))
+                    .scaledFont(size: 70, weight: .medium)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [Color.green, Color.mint],
@@ -194,11 +194,11 @@ struct SampleEventsPage: View {
             
             VStack(spacing: 20) {
                 Text("Try Sample\nEvents")
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .scaledFont(size: 36, weight: .bold, design: .rounded)
                     .multilineTextAlignment(.center)
                 
                 Text("Add sample events to explore all the amazing features.")
-                    .font(.system(size: 20, weight: .regular))
+                    .scaledFont(size: 20, weight: .regular)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(8)
@@ -209,7 +209,7 @@ struct SampleEventsPage: View {
                 if samplesCreated {
                     HStack(spacing: 10) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 24))
+                            .scaledFont(size: 24)
                             .foregroundStyle(
                                 LinearGradient(
                                     colors: [Color.green, Color.mint],
@@ -218,7 +218,7 @@ struct SampleEventsPage: View {
                                 )
                             )
                         Text("Sample events created!")
-                            .font(.system(size: 18, weight: .semibold))
+                            .scaledFont(size: 18, weight: .semibold)
                             .foregroundColor(.primary)
                     }
                     .padding(.vertical, 20)
@@ -231,10 +231,10 @@ struct SampleEventsPage: View {
                                     .tint(.white)
                             } else {
                                 Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 20))
+                                    .scaledFont(size: 20)
                             }
                             Text("Add Sample Events")
-                                .font(.system(size: 18, weight: .semibold))
+                                .scaledFont(size: 18, weight: .semibold)
                         }
                         .foregroundColor(.white)
                         .padding(.horizontal, 40)
@@ -343,7 +343,7 @@ struct PremiumFeaturesPage: View {
                     .frame(width: 140, height: 140)
                 
                 Image(systemName: "sparkles")
-                    .font(.system(size: 70, weight: .medium))
+                    .scaledFont(size: 70, weight: .medium)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [Color.purple, Color.pink],
@@ -356,11 +356,11 @@ struct PremiumFeaturesPage: View {
             
             VStack(spacing: 20) {
                 Text("Go Premium")
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .scaledFont(size: 36, weight: .bold, design: .rounded)
                     .multilineTextAlignment(.center)
                 
                 Text("Unlock unlimited AI messages, voice input, and image analysis.")
-                    .font(.system(size: 20, weight: .regular))
+                    .scaledFont(size: 20, weight: .regular)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(8)
@@ -382,9 +382,9 @@ struct PremiumFeaturesPage: View {
                 }) {
                     HStack(spacing: 10) {
                         Image(systemName: "crown.fill")
-                            .font(.system(size: 20))
+                            .scaledFont(size: 20)
                         Text("View Plans")
-                            .font(.system(size: 18, weight: .semibold))
+                            .scaledFont(size: 18, weight: .semibold)
                     }
                     .foregroundColor(.white)
                     .padding(.horizontal, 40)
@@ -422,7 +422,7 @@ struct OnboardingFeatureRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 22))
+                .scaledFont(size: 22)
                 .foregroundStyle(
                     LinearGradient(
                         colors: [Color.purple, Color.pink],
@@ -433,7 +433,7 @@ struct OnboardingFeatureRow: View {
                 .frame(width: 30)
             
             Text(text)
-                .font(.system(size: 16, weight: .medium))
+                .scaledFont(size: 16, weight: .medium)
                 .foregroundColor(.primary)
             
             Spacer()
@@ -461,7 +461,7 @@ struct PermissionsPage: View {
                     .frame(width: 140, height: 140)
                 
                 Image(systemName: "bell.badge")
-                    .font(.system(size: 70, weight: .medium))
+                    .scaledFont(size: 70, weight: .medium)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [Color.orange, Color.red],
@@ -474,11 +474,11 @@ struct PermissionsPage: View {
             
             VStack(spacing: 20) {
                 Text("Stay On\nSchedule")
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .scaledFont(size: 36, weight: .bold, design: .rounded)
                     .multilineTextAlignment(.center)
                 
                 Text("Get timely reminders so you never miss important events.")
-                    .font(.system(size: 20, weight: .regular))
+                    .scaledFont(size: 20, weight: .regular)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(8)
@@ -489,9 +489,9 @@ struct PermissionsPage: View {
                 Button(action: requestNotificationPermission) {
                     HStack(spacing: 10) {
                         Image(systemName: "bell.fill")
-                            .font(.system(size: 20))
+                            .scaledFont(size: 20)
                         Text("Enable Notifications")
-                            .font(.system(size: 18, weight: .semibold))
+                            .scaledFont(size: 18, weight: .semibold)
                     }
                     .foregroundColor(.white)
                     .padding(.horizontal, 40)
@@ -547,7 +547,7 @@ struct GetStartedPage: View {
                     .frame(width: 140, height: 140)
                 
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 80, weight: .medium))
+                    .scaledFont(size: 80, weight: .medium)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [Color.green, Color.mint],
@@ -561,11 +561,11 @@ struct GetStartedPage: View {
             
             VStack(spacing: 20) {
                 Text("You're\nAll Set!")
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .scaledFont(size: 42, weight: .bold, design: .rounded)
                     .multilineTextAlignment(.center)
                 
                 Text("Let's create your perfect schedule together.")
-                    .font(.system(size: 20, weight: .regular))
+                    .scaledFont(size: 20, weight: .regular)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(8)
@@ -578,9 +578,9 @@ struct GetStartedPage: View {
             }) {
                 HStack(spacing: 10) {
                     Text("Get Started")
-                        .font(.system(size: 20, weight: .bold))
+                        .scaledFont(size: 20, weight: .bold)
                     Image(systemName: "arrow.right.circle.fill")
-                        .font(.system(size: 22))
+                        .scaledFont(size: 22)
                 }
                 .foregroundColor(.white)
                 .padding(.horizontal, 50)

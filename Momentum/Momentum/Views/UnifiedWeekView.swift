@@ -22,6 +22,10 @@ struct UnifiedWeekView: View {
     @State private var selectedTimeSlot: (date: Date, hour: Int)?
     @State private var showingMiniCalendar = false
     @State private var draggedEvent: Event?
+    @State private var extractedColors: (primary: Color, secondary: Color)? = nil
+    @State private var isEditingHeaderImage = false
+    @State private var headerImageOffset: CGFloat = 0
+    @State private var lastHeaderImageOffset: CGFloat = 0
     
     // Adaptive layout constants
     private var hourHeight: CGFloat {
@@ -37,71 +41,105 @@ struct UnifiedWeekView: View {
     }
     
     var body: some View {
-        NavigationView {
-            GeometryReader { geometry in
-                VStack(spacing: 0) {
-                    // Week summary bar
-                    weekSummaryBar
-                        .background(Color(UIColor.systemBackground))
-                        .zIndex(3)
+        ZStack {
+            // Super light gray background
+            backgroundView
+            
+            VStack(spacing: 0) {
+                // Stack with blue header extending behind content
+                ZStack(alignment: .top) {
+                    // Background - either custom image or gradient
+                    headerBackgroundView
                     
-                    // Days header with mini calendar toggle
-                    daysHeader(width: geometry.size.width)
-                        .background(Color(UIColor.systemBackground))
+                    VStack(spacing: 0) {
+                        // Premium header like Day view
+                        PremiumHeaderView(
+                            dateTitle: viewModel.weekTitle,
+                            selectedDate: viewModel.currentWeekStart,
+                            onPreviousDay: viewModel.previousWeek,
+                            onNextDay: viewModel.nextWeek,
+                            onToday: viewModel.goToToday,
+                            onSettings: {},
+                            onAddEvent: { showingAddEvent = true },
+                            onDateSelected: nil,
+                            showViewToggle: true, // Enable view toggle for iPad
+                            isWeekView: true // Show week icon
+                        )
+                        .opacity(isEditingHeaderImage ? 0 : 1)
                         .zIndex(2)
-                    
-                    // Main content
-                    ScrollViewReader { scrollProxy in
-                        ScrollView(.vertical, showsIndicators: true) {
-                            ZStack(alignment: .topLeading) {
-                                // Time grid background
-                                timeGridBackground(width: geometry.size.width)
-                                
-                                // Events layer with smart layout
-                                eventsLayer(width: geometry.size.width)
-                                
-                                // Current time indicator
-                                if viewModel.isCurrentWeek {
-                                    currentTimeIndicator(width: geometry.size.width)
-                                }
+                        
+                        // White content container with rounded corners
+                        ZStack {
+                            // Gradient background that extends beyond safe area
+                            if let colors = extractedColors {
+                                ExtendedGradientBackground(
+                                    colors: [
+                                        colors.primary.opacity(0.8),
+                                        colors.primary.opacity(0.6),
+                                        colors.secondary.opacity(0.4),
+                                        colors.primary.opacity(0.2),
+                                        colors.secondary.opacity(0.1),
+                                        Color(UIColor.systemBackground).opacity(0.02),
+                                        Color.clear
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom,
+                                    extendFactor: 3.0
+                                )
+                                .blur(radius: 2)
                             }
-                            .frame(height: CGFloat(24) * hourHeight)
+                            
+                            mainContentView
                         }
-                        .onAppear {
-                            scrollToCurrentTime(proxy: scrollProxy)
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Week View")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { showingMiniCalendar.toggle() }) {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 16, weight: .medium))
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button(action: viewModel.goToToday) {
-                            Label("Today", systemImage: "calendar.badge.clock")
-                        }
-                        
-                        Divider()
-                        
-                        Button(action: { showingAddEvent = true }) {
-                            Label("Add Event", systemImage: "plus.circle")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.system(size: 16, weight: .medium))
+                        .opacity(isEditingHeaderImage ? 0 : 1)
+                        .frame(maxHeight: .infinity)
+                        .background(Color(UIColor.systemGroupedBackground))
+                        .clipShape(
+                            .rect(
+                                topLeadingRadius: 40,
+                                topTrailingRadius: 40
+                            )
+                        )
+                        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: -2)
+                        .ignoresSafeArea(edges: .bottom)
                     }
                 }
             }
         }
-        .navigationViewStyle(StackNavigationViewStyle())
+        .navigationBarHidden(true)
+        .onAppear {
+            // Load saved header image offset
+            headerImageOffset = CGFloat(UserDefaults.standard.double(forKey: "headerImageVerticalOffset"))
+            lastHeaderImageOffset = headerImageOffset
+            
+            // Load gradient colors based on settings
+            let useAutoGradient = UserDefaults.standard.bool(forKey: "useAutoGradient")
+            
+            if useAutoGradient {
+                // Load extracted colors from header image
+                self.extractedColors = UserDefaults.standard.getExtractedColors()
+                
+                // If no colors saved but we have an image, extract them
+                if extractedColors == nil, let headerData = SettingsView.loadHeaderImage() {
+                    let colors = ColorExtractor.extractColors(from: headerData.image)
+                    UserDefaults.standard.setExtractedColors(colors)
+                    self.extractedColors = (colors.primary, colors.secondary)
+                }
+            } else {
+                // Use manual gradient color
+                let customHex = UserDefaults.standard.string(forKey: "customGradientColorHex") ?? ""
+                var baseColor: Color
+                
+                if !customHex.isEmpty {
+                    baseColor = Color(hex: customHex)
+                } else {
+                    let manualColor = UserDefaults.standard.string(forKey: "manualGradientColor") ?? "blue"
+                    baseColor = Color.fromAccentString(manualColor)
+                }
+                
+                self.extractedColors = (baseColor, baseColor.opacity(0.7))
+            }
+        }
         .sheet(item: $selectedEvent) { event in
             EventDetailView(event: event)
         }
@@ -118,61 +156,85 @@ struct UnifiedWeekView: View {
         }
     }
     
-    // MARK: - Week Summary Bar
+    // MARK: - View Components
     
-    private var weekSummaryBar: some View {
-        HStack(spacing: 12) {
-            // Previous week
-            Button(action: viewModel.previousWeek) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.primary)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color(UIColor.systemGray5)))
+    @ViewBuilder
+    var backgroundView: some View {
+        Color(UIColor.systemGroupedBackground)
+            .ignoresSafeArea()
+            .transition(.identity)
+    }
+    
+    @ViewBuilder
+    var headerBackgroundView: some View {
+        if let headerData = SettingsView.loadHeaderImage() {
+            // Image with gesture
+            GeometryReader { imageGeo in
+                Image(uiImage: headerData.image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: imageGeo.size.width)
+                    .offset(y: CGFloat(UserDefaults.standard.double(forKey: "headerImageVerticalOffset")))
+                    .overlay(
+                        // Dark overlay
+                        Color.black.opacity(isEditingHeaderImage ? 0.1 : 0.3)
+                    )
             }
-            
-            // Week info
-            VStack(spacing: 2) {
-                Text(viewModel.weekTitle)
-                    .font(.system(size: 16, weight: .semibold))
+            .frame(height: 280)
+            .ignoresSafeArea()
+        } else {
+            // Default blue gradient background
+            ExtendedGradientBackground(
+                colors: [
+                    Color(red: 0.08, green: 0.15, blue: 0.35),
+                    Color(red: 0.12, green: 0.25, blue: 0.55)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing,
+                extendFactor: 3.0
+            )
+            .frame(height: 280)
+        }
+    }
+    
+    @ViewBuilder
+    var mainContentView: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Days header (no weekSummaryBar needed since we have PremiumHeaderView)
+                daysHeader(width: geometry.size.width)
+                    .padding(.top, 20)
+                    .background(Color.clear)
+                    .zIndex(2)
                 
-                // Week summary
-                HStack(spacing: 4) {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 10))
-                    Text("\(viewModel.totalEvents) events")
-                        .font(.system(size: 11))
-                    
-                    if viewModel.totalHours > 0 {
-                        Text("•")
-                            .font(.system(size: 11))
-                        Image(systemName: "clock")
-                            .font(.system(size: 10))
-                        Text("\(Int(viewModel.totalHours))h")
-                            .font(.system(size: 11))
+                // Main content
+                ScrollViewReader { scrollProxy in
+                    ScrollView(.vertical, showsIndicators: true) {
+                        ZStack(alignment: .topLeading) {
+                            // Time grid background
+                            timeGridBackground(width: geometry.size.width)
+                            
+                            // Events layer with smart layout
+                            eventsLayer(width: geometry.size.width)
+                            
+                            // Current time indicator
+                            if viewModel.isCurrentWeek {
+                                currentTimeIndicator(width: geometry.size.width)
+                            }
+                        }
+                        .frame(height: CGFloat(24) * hourHeight)
+                    }
+                    .onAppear {
+                        scrollToCurrentTime(proxy: scrollProxy)
                     }
                 }
-                .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            
-            // Next week
-            Button(action: viewModel.nextWeek) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.primary)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color(UIColor.systemGray5)))
             }
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(
-            Rectangle()
-                .fill(Color(UIColor.systemBackground))
-                .shadow(color: Color.black.opacity(0.05), radius: 1, y: 1)
-        )
     }
+    
+    // MARK: - Week Summary Bar (Removed - using PremiumHeaderView instead)
+    // The weekSummaryBar is no longer needed since we're using PremiumHeaderView
+    // which already provides navigation controls
     
     // MARK: - Days Header
     
@@ -204,7 +266,7 @@ struct UnifiedWeekView: View {
         
         return VStack(spacing: 2) {
             Text(dayName(for: date))
-                .font(.system(size: 11, weight: .medium))
+                .scaledFont(size: 11, weight: .medium)
                 .foregroundColor(isToday ? .blue : .secondary)
             
             ZStack {
@@ -215,7 +277,7 @@ struct UnifiedWeekView: View {
                 }
                 
                 Text("\(Calendar.current.component(.day, from: date))")
-                    .font(.system(size: 16, weight: isToday ? .bold : .medium))
+                    .scaledFont(size: 16, weight: isToday ? .bold : .medium)
                     .foregroundColor(isToday ? .white : .primary)
             }
             
@@ -246,7 +308,7 @@ struct UnifiedWeekView: View {
             VStack(spacing: 0) {
                 ForEach(0..<24, id: \.self) { hour in
                     Text(formatHour(hour))
-                        .font(.system(size: 10, weight: .medium))
+                        .scaledFont(size: 10, weight: .medium)
                         .foregroundColor(.secondary)
                         .frame(width: timeColumnWidth, height: hourHeight, alignment: .topTrailing)
                         .padding(.top, -6)
@@ -536,7 +598,7 @@ struct CurrentTimeLineView: View {
             HStack(spacing: 0) {
                 // Time badge
                 Text(formatTime(currentTime))
-                    .font(.system(size: 10, weight: .semibold))
+                    .scaledFont(size: 10, weight: .semibold)
                     .foregroundColor(.white)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -638,7 +700,7 @@ struct MiniCalendarView: View {
         let isCurrentMonth = Calendar.current.isDate(date, equalTo: displayedMonth, toGranularity: .month)
         
         return Text("\(Calendar.current.component(.day, from: date))")
-            .font(.system(size: 14, weight: isToday ? .bold : .regular))
+            .scaledFont(size: 14, weight: isToday ? .bold : .regular)
             .foregroundColor(isCurrentMonth ? .primary : .secondary)
             .frame(width: 36, height: 36)
             .background(
@@ -728,6 +790,12 @@ class UnifiedWeekViewModel: ObservableObject {
     }
     
     var weekTitle: String {
+        // Show greeting for current week
+        if isCurrentWeek {
+            return Date.formatDateWithGreeting(Date())
+        }
+        
+        // Show date range for other weeks
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         let start = formatter.string(from: currentWeekStart)

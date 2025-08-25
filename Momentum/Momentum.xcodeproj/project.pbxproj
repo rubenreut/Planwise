@@ -7,12 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D50D11E92E5B4F2600D5ED53 /* MomentumDeviceActivity.appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = D50D11DD2E5B4F2600D5ED53 /* MomentumDeviceActivity.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D530334C2E16B0CD00E8341F /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D530334B2E16B0CD00E8341F /* WidgetKit.framework */; };
 		D530334E2E16B0CD00E8341F /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D530334D2E16B0CD00E8341F /* SwiftUI.framework */; };
 		D53033602E16B0CF00E8341F /* MomentumWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D53033492E16B0CD00E8341F /* MomentumWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		D50D11E72E5B4F2600D5ED53 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D530313C2E113ACB00E8341F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D50D11DC2E5B4F2600D5ED53;
+			remoteInfo = MomentumDeviceActivity;
+		};
 		D530315C2E113ACD00E8341F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = D530313C2E113ACB00E8341F /* Project object */;
@@ -37,6 +45,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		D50D11EE2E5B4F2600D5ED53 /* Embed ExtensionKit Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				D50D11E92E5B4F2600D5ED53 /* MomentumDeviceActivity.appex in Embed ExtensionKit Extensions */,
+			);
+			name = "Embed ExtensionKit Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D530335F2E16B0CF00E8341F /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -52,6 +71,7 @@
 
 /* Begin PBXFileReference section */
 		D50147C72E293AF200BB39DC /* maynooth.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = maynooth.xcodeproj; sourceTree = "<group>"; };
+		D50D11DD2E5B4F2600D5ED53 /* MomentumDeviceActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = MomentumDeviceActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D53031442E113ACB00E8341F /* Momentum.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Momentum.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D530315B2E113ACD00E8341F /* MomentumTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MomentumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D53031652E113ACD00E8341F /* MomentumUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MomentumUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -62,6 +82,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D50D11ED2E5B4F2600D5ED53 /* Exceptions for "MomentumDeviceActivity" folder in "MomentumDeviceActivity" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D50D11DC2E5B4F2600D5ED53 /* MomentumDeviceActivity */;
+		};
 		D530316D2E113ACD00E8341F /* Exceptions for "Momentum" folder in "Momentum" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -88,6 +115,14 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		D50D11DE2E5B4F2600D5ED53 /* MomentumDeviceActivity */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D50D11ED2E5B4F2600D5ED53 /* Exceptions for "MomentumDeviceActivity" folder in "MomentumDeviceActivity" target */,
+			);
+			path = MomentumDeviceActivity;
+			sourceTree = "<group>";
+		};
 		D53031462E113ACB00E8341F /* Momentum */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -118,6 +153,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		D50D11DA2E5B4F2600D5ED53 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D53031412E113ACB00E8341F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -166,6 +208,7 @@
 				D530315E2E113ACD00E8341F /* MomentumTests */,
 				D53031682E113ACD00E8341F /* MomentumUITests */,
 				D530334F2E16B0CD00E8341F /* MomentumWidget */,
+				D50D11DE2E5B4F2600D5ED53 /* MomentumDeviceActivity */,
 				D530334A2E16B0CD00E8341F /* Frameworks */,
 				D53031452E113ACB00E8341F /* Products */,
 			);
@@ -178,6 +221,7 @@
 				D530315B2E113ACD00E8341F /* MomentumTests.xctest */,
 				D53031652E113ACD00E8341F /* MomentumUITests.xctest */,
 				D53033492E16B0CD00E8341F /* MomentumWidgetExtension.appex */,
+				D50D11DD2E5B4F2600D5ED53 /* MomentumDeviceActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -194,6 +238,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		D50D11DC2E5B4F2600D5ED53 /* MomentumDeviceActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D50D11EA2E5B4F2600D5ED53 /* Build configuration list for PBXNativeTarget "MomentumDeviceActivity" */;
+			buildPhases = (
+				D50D11D92E5B4F2600D5ED53 /* Sources */,
+				D50D11DA2E5B4F2600D5ED53 /* Frameworks */,
+				D50D11DB2E5B4F2600D5ED53 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D50D11DE2E5B4F2600D5ED53 /* MomentumDeviceActivity */,
+			);
+			name = MomentumDeviceActivity;
+			packageProductDependencies = (
+			);
+			productName = MomentumDeviceActivity;
+			productReference = D50D11DD2E5B4F2600D5ED53 /* MomentumDeviceActivity.appex */;
+			productType = "com.apple.product-type.extensionkit-extension";
+		};
 		D53031432E113ACB00E8341F /* Momentum */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = D530316E2E113ACD00E8341F /* Build configuration list for PBXNativeTarget "Momentum" */;
@@ -202,11 +268,13 @@
 				D53031412E113ACB00E8341F /* Frameworks */,
 				D53031422E113ACB00E8341F /* Resources */,
 				D530335F2E16B0CF00E8341F /* Embed Foundation Extensions */,
+				D50D11EE2E5B4F2600D5ED53 /* Embed ExtensionKit Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				D530335E2E16B0CF00E8341F /* PBXTargetDependency */,
+				D50D11E82E5B4F2600D5ED53 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				D53031462E113ACB00E8341F /* Momentum */,
@@ -296,6 +364,9 @@
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
+					D50D11DC2E5B4F2600D5ED53 = {
+						CreatedOnToolsVersion = 16.0;
+					};
 					D53031432E113ACB00E8341F = {
 						CreatedOnToolsVersion = 16.0;
 					};
@@ -336,11 +407,19 @@
 				D530315A2E113ACD00E8341F /* MomentumTests */,
 				D53031642E113ACD00E8341F /* MomentumUITests */,
 				D53033482E16B0CD00E8341F /* MomentumWidgetExtension */,
+				D50D11DC2E5B4F2600D5ED53 /* MomentumDeviceActivity */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		D50D11DB2E5B4F2600D5ED53 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D53031422E113ACB00E8341F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -372,6 +451,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		D50D11D92E5B4F2600D5ED53 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D53031402E113ACB00E8341F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -403,6 +489,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		D50D11E82E5B4F2600D5ED53 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D50D11DC2E5B4F2600D5ED53 /* MomentumDeviceActivity */;
+			targetProxy = D50D11E72E5B4F2600D5ED53 /* PBXContainerItemProxy */;
+		};
 		D530315D2E113ACD00E8341F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = D53031432E113ACB00E8341F /* Momentum */;
@@ -421,6 +512,60 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		D50D11EB2E5B4F2600D5ED53 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = MomentumDeviceActivity/MomentumDeviceActivity.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9658TG25VL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MomentumDeviceActivity/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MomentumDeviceActivity;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rubenreut.Momentum.MomentumDeviceActivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D50D11EC2E5B4F2600D5ED53 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = MomentumDeviceActivity/MomentumDeviceActivity.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9658TG25VL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MomentumDeviceActivity/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MomentumDeviceActivity;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rubenreut.Momentum.MomentumDeviceActivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		D530316F2E113ACD00E8341F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -747,6 +892,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		D50D11EA2E5B4F2600D5ED53 /* Build configuration list for PBXNativeTarget "MomentumDeviceActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D50D11EB2E5B4F2600D5ED53 /* Debug */,
+				D50D11EC2E5B4F2600D5ED53 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		D530313F2E113ACB00E8341F /* Build configuration list for PBXProject "Momentum" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

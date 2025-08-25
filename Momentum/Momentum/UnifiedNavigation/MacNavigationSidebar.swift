@@ -165,7 +165,7 @@ struct MacNavigationButton: View {
                 if showsPremiumBadge {
                     Image(systemName: "sparkles")
                         .font(.system(size: 10))
-                        .foregroundColor(.adaptiveOrange)
+                        .foregroundColor(.orange)
                         .opacity(isSelected ? 1 : 0.7)
                 }
                 
@@ -263,7 +263,7 @@ struct MacSidebarFooter: View {
                         Text(subscriptionManager.isPremium ? "Premium" : "Free")
                             .font(.system(size: 11))
                     }
-                    .foregroundColor(subscriptionManager.isPremium ? .adaptiveOrange : .secondary)
+                    .foregroundColor(subscriptionManager.isPremium ? .orange : .secondary)
                 }
                 
                 Spacer()

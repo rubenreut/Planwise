@@ -96,14 +96,14 @@ class DayViewModel: ObservableObject {
         loadError = nil
         
         // Simulate async loading with proper error handling
-        _Concurrency.Task {
+        AsyncTask {
             do {
                 // Add a small delay for better UX on fast operations
-                try await _Concurrency.Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                try await AsyncTask.sleep(nanoseconds: 100_000_000) // 0.1 seconds
                 
                 // ISSUE: Need to efficiently filter events for selected date
                 // RESOLUTION: Use ScheduleManager's filtered method instead of filtering all events
-                let allEvents = scheduleManager.events
+                _ = scheduleManager.events
                 
                 // Debug: Show what day we're looking at
                 let formatter = DateFormatter()
@@ -112,7 +112,7 @@ class DayViewModel: ObservableObject {
                 let fetchedEvents = scheduleManager.events(for: selectedDate)
                     .sorted { ($0.startTime ?? Date.distantPast) < ($1.startTime ?? Date.distantPast) }
                 
-                for event in fetchedEvents {
+                for _ in fetchedEvents {
                     formatter.dateFormat = "yyyy-MM-dd HH:mm"
                 }
                 
@@ -136,7 +136,7 @@ class DayViewModel: ObservableObject {
     }
     
     // MARK: - Event Positioning
-    func calculateEventPosition(_ event: Event) -> CGFloat {
+    func calculateEventPosition(_ event: Event, hourHeight: CGFloat? = nil) -> CGFloat {
         guard let startTime = event.startTime else { return 0 }
         
         // Use local time zone for display
@@ -145,28 +145,32 @@ class DayViewModel: ObservableObject {
         let hour = CGFloat(components.hour ?? 0)
         let minute = CGFloat(components.minute ?? 0)
         
-        // Use the actual hour height from the view
-        let hourHeight: CGFloat = DeviceType.isIPad ? 80 : 68
-        let position = (hour * hourHeight) + (minute * hourHeight / 60)
+        // Use passed hour height or default
+        let height = hourHeight ?? (DeviceType.isIPad ? 80 : 136)
+        let position = (hour * height) + (minute * height / 60)
         
         return position
     }
     
-    func calculateEventHeight(_ event: Event) -> CGFloat {
+    func calculateEventHeight(_ event: Event, hourHeight: CGFloat? = nil) -> CGFloat {
         guard let startTime = event.startTime,
               let endTime = event.endTime else { return 0 }
         
         let duration = endTime.timeIntervalSince(startTime)
         let minutes = duration / 60
-        let hourHeight: CGFloat = DeviceType.isIPad ? 80 : 68
-        let height = CGFloat(minutes) * (hourHeight / 60.0)
+        let height = hourHeight ?? (DeviceType.isIPad ? 80 : 136)
+        let calculatedHeight = CGFloat(minutes) * (height / 60.0)
         
-        // Return exact height - no minimum
-        return height
+        // Return exact height - no minimum, add small buffer for very short events
+        // This prevents visual overlap by adding 1px spacing for events < 15 minutes
+        if minutes < 15 {
+            return max(calculatedHeight - 1, 1) // Ensure at least 1px but add spacing
+        }
+        return calculatedHeight
     }
     
     // MARK: - Overlapping Events
-    func calculateEventLayout(for events: [Event]? = nil) -> [EventLayout] {
+    func calculateEventLayout(for events: [Event]? = nil, hourHeight: CGFloat? = nil) -> [EventLayout] {
         let eventsToLayout = events ?? self.events
         
         // Check cache first
@@ -196,8 +200,11 @@ class DayViewModel: ObservableObject {
                     guard let existingStart = existingEvent.startTime,
                           let existingEnd = existingEvent.endTime else { return true }
                     
-                    // Check if events don't overlap
-                    return eventEnd <= existingStart || eventStart >= existingEnd
+                    // Check if events don't overlap - add 1 minute buffer for very short events
+                    // This prevents visual overlap for 5-minute blocks
+                    let buffer = TimeInterval(60) // 1 minute buffer
+                    return eventEnd.addingTimeInterval(buffer) <= existingStart || 
+                           eventStart >= existingEnd.addingTimeInterval(buffer)
                 }
                 
                 if canFit {
@@ -206,8 +213,8 @@ class DayViewModel: ObservableObject {
                         event: event,
                         column: index,
                         totalColumns: columns.count,
-                        yPosition: calculateEventPosition(event),
-                        height: calculateEventHeight(event)
+                        yPosition: calculateEventPosition(event, hourHeight: hourHeight),
+                        height: calculateEventHeight(event, hourHeight: hourHeight)
                     ))
                     placed = true
                     break
@@ -221,8 +228,8 @@ class DayViewModel: ObservableObject {
                     event: event,
                     column: columns.count - 1,
                     totalColumns: columns.count,
-                    yPosition: calculateEventPosition(event),
-                    height: calculateEventHeight(event)
+                    yPosition: calculateEventPosition(event, hourHeight: hourHeight),
+                    height: calculateEventHeight(event, hourHeight: hourHeight)
                 ))
             }
         }

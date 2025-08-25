@@ -12,6 +12,11 @@ struct ChatInputView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var attachedImage: UIImage?
     @State private var pulseAnimation = false
+    @State private var isTabBarCollapsed = false
+    @AppStorage("accentColor") private var selectedAccentColor = "blue"
+    @State private var isRecording = false
+    @State private var showingSuggestions = false
+    @State private var messageAnimation = false
     
     // MARK: - Mathematical Constants
     
@@ -25,7 +30,7 @@ struct ChatInputView: View {
     }
     
     private var borderColor: Color {
-        Color(UIColor.separator).opacity(0.3)
+        isTextFieldFocused ? Color.fromAccentString(selectedAccentColor).opacity(0.5) : Color(UIColor.separator).opacity(0.3)
     }
     
     private var canSendMessage: Bool {
@@ -38,7 +43,7 @@ struct ChatInputView: View {
         } else if !canSendMessage {
             return "Upgrade to continue chatting"
         }
-        return "Message"
+        return "Ask me anything..."
     }
     
     private func sendMessageWithImage() {
@@ -71,11 +76,132 @@ struct ChatInputView: View {
         case "pdf":
             return .red
         case "doc", "docx":
-            return .blue
+            return Color.fromAccentString(selectedAccentColor)
         case "txt":
             return .gray
         default:
             return .orange
+        }
+    }
+    
+    private func handleSendButtonAction() {
+        if viewModel.isRateLimited {
+            // Don't do anything when rate limited
+            return
+        } else if !canSendMessage {
+            viewModel.showPaywall = true
+        } else if !subscriptionManager.isPremium && text.isEmpty && viewModel.selectedImage == nil && viewModel.selectedFileData == nil {
+            // Free user trying to use voice - show paywall
+            viewModel.showPaywall = true
+        } else if viewModel.isRecordingVoice {
+            // Always stop recording when recording is active
+            viewModel.handleVoiceInput()
+        } else if text.isEmpty && viewModel.selectedImage == nil && viewModel.selectedFileData == nil {
+            // Start recording when no text/attachments
+            viewModel.handleVoiceInput()
+        } else {
+            // Send message when there's content
+            sendMessageWithImage()
+        }
+    }
+    
+    @ViewBuilder
+    private var sendButtonContent: some View {
+        if viewModel.isRateLimited {
+            rateLimitedButton
+        } else if viewModel.isRecordingVoice {
+            recordingButton
+        } else {
+            defaultSendButton
+        }
+    }
+    
+    @ViewBuilder
+    private var rateLimitedButton: some View {
+        ZStack {
+            Circle()
+                .fill(Color.orange.opacity(0.2))
+                .frame(width: 32, height: 32)
+            
+            if let resetTime = viewModel.rateLimitResetTime {
+                TimeText(targetTime: resetTime)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.orange)
+            } else {
+                Image(systemName: "clock.fill")
+                        .scaledIcon()
+                    .scaledFont(size: 16)
+                    .foregroundColor(.orange)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var recordingButton: some View {
+        RecordingButtonView(pulseAnimation: $pulseAnimation)
+    }
+    
+    @ViewBuilder
+    private var defaultSendButton: some View {
+        if text.isEmpty && viewModel.selectedImage == nil && viewModel.selectedFileData == nil {
+            microphoneButton
+        } else {
+            sendArrowButton
+        }
+    }
+    
+    @ViewBuilder
+    private var microphoneButton: some View {
+        ZStack {
+            Circle()
+                .fill(Color.fromAccentString(selectedAccentColor).opacity(0.1))
+                .frame(width: 36, height: 36)
+            
+            Image(systemName: isRecording ? "mic.fill" : "mic")
+                .scaledIcon()
+                .scaledFont(size: 20, weight: .medium)
+                .foregroundColor(Color.fromAccentString(selectedAccentColor))
+                .symbolEffect(.pulse, value: isRecording)
+        }
+        .overlay(premiumBadgeOverlay)
+        .scaleEffect(isRecording ? 1.2 : 1.0)
+        .animation(.spring(response: 0.3), value: isRecording)
+    }
+    
+    @ViewBuilder
+    private var sendArrowButton: some View {
+        Image(systemName: "arrow.up.circle.fill")
+                        .scaledIcon()
+                    .scaledFont(size: 26)
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [Color.fromAccentString(selectedAccentColor), Color.fromAccentString(selectedAccentColor).opacity(0.8)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .scaleEffect(messageAnimation ? 1.1 : 1.0)
+            .animation(.spring(response: 0.3), value: messageAnimation)
+    }
+    
+    @ViewBuilder
+    private var premiumBadgeOverlay: some View {
+        if !subscriptionManager.isPremium && text.isEmpty && viewModel.selectedImage == nil && viewModel.selectedFileData == nil {
+            Image(systemName: "crown.fill")
+                        .scaledIcon()
+                    .scaledFont(size: 10, weight: .bold)
+                .foregroundColor(.white)
+                .padding(3)
+                .background(
+                    Circle()
+                        .fill(LinearGradient(
+                            colors: [Color.purple, Color.pink],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ))
+                        .shadow(color: Color.purple.opacity(0.3), radius: 2, x: 0, y: 1)
+                )
+                .offset(x: 12, y: -12)
         }
     }
     
@@ -90,7 +216,7 @@ struct ChatInputView: View {
             if viewModel.isRecordingVoice {
                 HStack {
                     Image(systemName: "mic.fill")
-                        .foregroundColor(.red)
+                        .scaledIcon()                        .foregroundColor(.red)
                         .font(.system(size: 14))
                     
                     Text("Recording...")
@@ -111,8 +237,9 @@ struct ChatInputView: View {
                     showAttachmentMenu.toggle()
                 }) {
                     Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(.accentColor)
+                        .scaledIcon()
+                    .scaledFont(size: 24)
+                        .foregroundColor(Color.fromAccentString(selectedAccentColor))
                         .scaleEffect(showAttachmentMenu ? 0.9 : 1.0)
                 }
                 .accessibilityLabel("Add attachment")
@@ -135,7 +262,8 @@ struct ChatInputView: View {
                                         viewModel.selectedImage = nil
                                     }) {
                                         Image(systemName: "xmark.circle.fill")
-                                            .font(.system(size: 22))
+                        .scaledIcon()
+                    .scaledFont(size: 22)
                                             .foregroundColor(.white)
                                             .background(Circle().fill(Color.black.opacity(0.6)))
                                     }
@@ -173,7 +301,8 @@ struct ChatInputView: View {
                                     viewModel.clearFileAttachment()
                                 }) {
                                     Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 22))
+                        .scaledIcon()
+                    .scaledFont(size: 22)
                                         .foregroundColor(.white)
                                         .background(Circle().fill(Color.black.opacity(0.6)))
                                 }
@@ -212,212 +341,10 @@ struct ChatInputView: View {
                             }
                             .accessibilityLabel("Message input")
                             .accessibilityHint(canSendMessage ? "Type your message to the assistant" : "Upgrade to premium to send messages")
-                            .simultaneousGesture(
-                                TapGesture()
-                                    .onEnded { _ in
-                                        isTextFieldFocused = true
-                                        isKeyboardVisible = true
-                                    }
-                            )
                         
                         // Send or microphone button
-                        Button(action: {
-                            if viewModel.isRateLimited {
-                                // Don't do anything when rate limited
-                                return
-                            } else if !canSendMessage {
-                                viewModel.showPaywall = true
-                            } else if !subscriptionManager.isPremium && text.isEmpty && viewModel.selectedImage == nil && viewModel.selectedFileData == nil {
-                                // Free user trying to use voice - show paywall
-                                viewModel.showPaywall = true
-                            } else if viewModel.isRecordingVoice {
-                                // Always stop recording when recording is active
-                                viewModel.handleVoiceInput()
-                            } else if text.isEmpty && viewModel.selectedImage == nil && viewModel.selectedFileData == nil {
-                                // Start recording when no text/attachments
-                                viewModel.handleVoiceInput()
-                            } else {
-                                // Send message when there's content
-                                sendMessageWithImage()
-                            }
-                        }) {
-                            if viewModel.isRateLimited {
-                                // Rate limit indicator
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.orange.opacity(0.2))
-                                        .frame(width: 32, height: 32)
-                                    
-                                    if let resetTime = viewModel.rateLimitResetTime {
-                                        TimeText(targetTime: resetTime)
-                                            .font(.system(size: 10, weight: .bold))
-                                            .foregroundColor(.orange)
-                                    } else {
-                                        Image(systemName: "clock.fill")
-                                            .font(.system(size: 16))
-                                            .foregroundColor(.orange)
-                                    }
-                                }
-                            } else if viewModel.isRecordingVoice {
-                                // Enhanced recording animation
-                                ZStack {
-                                    // Outer pulsing ring
-                                    Circle()
-                                        .stroke(
-                                            LinearGradient(
-                                                colors: [Color.red, Color.red.opacity(0.7)],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            ),
-                                            lineWidth: 2
-                                        )
-                                        .scaleEffect(pulseAnimation ? 1.5 : 1.0)
-                                        .opacity(pulseAnimation ? 0.0 : 0.8)
-                                        .animation(
-                                            Animation.easeOut(duration: 1.5)
-                                                .repeatForever(autoreverses: false),
-                                            value: pulseAnimation
-                                        )
-                                        .frame(width: 36, height: 36)
-                                    
-                                    // Middle pulsing ring
-                                    Circle()
-                                        .stroke(Color.red.opacity(0.5), lineWidth: 1.5)
-                                        .scaleEffect(pulseAnimation ? 1.3 : 0.9)
-                                        .opacity(pulseAnimation ? 0.0 : 0.6)
-                                        .animation(
-                                            Animation.easeOut(duration: 1.5)
-                                                .repeatForever(autoreverses: false)
-                                                .delay(0.5),
-                                            value: pulseAnimation
-                                        )
-                                        .frame(width: 36, height: 36)
-                                    
-                                    // Main button with gradient
-                                    ZStack {
-                                        Circle()
-                                            .fill(
-                                                LinearGradient(
-                                                    colors: [Color.red, Color.red.opacity(0.8)],
-                                                    startPoint: .topLeading,
-                                                    endPoint: .bottomTrailing
-                                                )
-                                            )
-                                            .frame(width: 36, height: 36)
-                                            .shadow(color: Color.red.opacity(0.4), radius: 8, x: 0, y: 2)
-                                        
-                                        // Rotating gradient overlay
-                                        Circle()
-                                            .fill(
-                                                AngularGradient(
-                                                    colors: [
-                                                        Color.white.opacity(0.3),
-                                                        Color.white.opacity(0.0),
-                                                        Color.white.opacity(0.1),
-                                                        Color.white.opacity(0.0)
-                                                    ],
-                                                    center: .center
-                                                )
-                                            )
-                                            .frame(width: 36, height: 36)
-                                            .rotationEffect(.degrees(pulseAnimation ? 360 : 0))
-                                            .animation(
-                                                Animation.linear(duration: 3)
-                                                    .repeatForever(autoreverses: false),
-                                                value: pulseAnimation
-                                            )
-                                        
-                                        // Stop icon with scale animation
-                                        Image(systemName: "stop.fill")
-                                            .font(.system(size: 14, weight: .bold))
-                                            .foregroundColor(.white)
-                                            .scaleEffect(pulseAnimation ? 1.1 : 0.9)
-                                            .animation(
-                                                Animation.easeInOut(duration: 0.6)
-                                                    .repeatForever(autoreverses: true),
-                                                value: pulseAnimation
-                                            )
-                                    }
-                                    .scaleEffect(1.0)
-                                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: viewModel.isRecordingVoice)
-                                }
-                                .onAppear {
-                                    withAnimation {
-                                        pulseAnimation = true
-                                    }
-                                }
-                                .onDisappear {
-                                    pulseAnimation = false
-                                }
-                            } else {
-                                ZStack {
-                                    // Enhanced microphone/send button
-                                    if text.isEmpty && viewModel.selectedImage == nil && viewModel.selectedFileData == nil {
-                                        // Microphone state with subtle glow
-                                        ZStack {
-                                            // Subtle background circle
-                                            Circle()
-                                                .fill(Color.secondary.opacity(0.1))
-                                                .frame(width: 36, height: 36)
-                                            
-                                            Image(systemName: "mic.fill")
-                                                .font(.system(size: 20, weight: .medium))
-                                                .foregroundStyle(
-                                                    LinearGradient(
-                                                        colors: [Color.secondary, Color.secondary.opacity(0.8)],
-                                                        startPoint: .top,
-                                                        endPoint: .bottom
-                                                    )
-                                                )
-                                                .scaleEffect(pulseAnimation ? 1.05 : 1.0)
-                                                .animation(
-                                                    Animation.easeInOut(duration: 2)
-                                                        .repeatForever(autoreverses: true),
-                                                    value: pulseAnimation
-                                                )
-                                        }
-                                        .onAppear {
-                                            withAnimation(.easeInOut(duration: 2)) {
-                                                pulseAnimation = true
-                                            }
-                                        }
-                                    } else {
-                                        // Send button state
-                                        Image(systemName: "arrow.up.circle.fill")
-                                            .font(.system(size: 26))
-                                            .foregroundStyle(
-                                                LinearGradient(
-                                                    colors: [Color.accentColor, Color.accentColor.opacity(0.8)],
-                                                    startPoint: .topLeading,
-                                                    endPoint: .bottomTrailing
-                                                )
-                                            )
-                                            .scaleEffect(1.0)
-                                            .transition(.scale.combined(with: .opacity))
-                                    }
-                                }
-                                .overlay(
-                                    // Show crown for voice if user is free
-                                    Group {
-                                        if !subscriptionManager.isPremium && text.isEmpty && viewModel.selectedImage == nil && viewModel.selectedFileData == nil {
-                                            Image(systemName: "crown.fill")
-                                                .font(.system(size: 10, weight: .bold))
-                                                .foregroundColor(.white)
-                                                .padding(3)
-                                                .background(
-                                                    Circle()
-                                                        .fill(LinearGradient(
-                                                            colors: [Color.purple, Color.pink],
-                                                            startPoint: .topLeading,
-                                                            endPoint: .bottomTrailing
-                                                        ))
-                                                        .shadow(color: Color.purple.opacity(0.3), radius: 2, x: 0, y: 1)
-                                                )
-                                                .offset(x: 12, y: -12)
-                                        }
-                                    }
-                                )
-                            }
+                        Button(action: handleSendButtonAction) {
+                            sendButtonContent
                         }
                         .accessibilityLabel(viewModel.isRecordingVoice ? "Stop recording" : (text.isEmpty ? "Voice input" : "Send message"))
                         .accessibilityHint(viewModel.isRecordingVoice ? "Stop voice recording" : (text.isEmpty ? "Start voice recording" : "Send the typed message"))
@@ -427,38 +354,41 @@ struct ChatInputView: View {
                 }
                 .background(
                     RoundedRectangle(cornerRadius: baseUnit * 2.5)
-                        .fill(Color(UIColor.systemBackground))
+                        .fill(.ultraThinMaterial)
                         .overlay(
                             RoundedRectangle(cornerRadius: baseUnit * 2.5)
-                                .stroke(borderColor, lineWidth: 1)
+                                .stroke(borderColor.opacity(0.3), lineWidth: 0.5)
                         )
                 )
                 .contentShape(Rectangle())
                 .onTapGesture {
                     // Make text field focused when tapping anywhere on the input container
                     isTextFieldFocused = true
-                    isKeyboardVisible = true
                 }
             }
             .padding(.horizontal, baseUnit * 2)
             .padding(.vertical, baseUnit)
-            .padding(.bottom, isKeyboardVisible ? 0 : 85) // Add padding when tab bar visible
+            .padding(.bottom, 10) // Fixed 10px padding
+        }
+        .background(Color.clear) // Make entire view background transparent
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("TabBarCollapseChanged"))) { notification in
+            if let userInfo = notification.userInfo,
+               let collapsed = userInfo["isCollapsed"] as? Bool {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    isTabBarCollapsed = collapsed
+                }
+            }
         }
         .sheet(isPresented: $showAttachmentMenu) {
             AttachmentMenuView(viewModel: viewModel)
                 .presentationDetents([.height(200)])
                 .presentationDragIndicator(.visible)
+                .presentationBackground(.ultraThinMaterial)
         }
         .onChange(of: viewModel.inputText) { _, newValue in
             // Sync voice transcription to the text field
             if viewModel.isRecordingVoice {
                 text = newValue
-            }
-        }
-        .onChange(of: isTextFieldFocused) { _, newValue in
-            // Immediately update keyboard visibility when focus changes
-            DispatchQueue.main.async {
-                isKeyboardVisible = newValue
             }
         }
     }
@@ -514,7 +444,7 @@ struct AttachmentMenuView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
-        .background(Color(.systemBackground))
+        .background(Color.clear)
     }
 }
 
@@ -540,7 +470,8 @@ struct AttachmentButton: View {
                         .frame(width: baseUnit * 7, height: baseUnit * 7)
                         .overlay(
                             Image(systemName: icon)
-                                .font(.system(size: 24))
+                        .scaledIcon()
+                    .scaledFont(size: 24)
                                 .foregroundColor(color)
                         )
                         .scaleEffect(isPressed ? 0.95 : 1.0)
@@ -548,7 +479,8 @@ struct AttachmentButton: View {
                     // Premium badge
                     if showPremium {
                         Image(systemName: "crown.fill")
-                            .font(.system(size: 12, weight: .bold))
+                        .scaledIcon()
+                    .scaledFont(size: 12, weight: .bold)
                             .foregroundColor(.white)
                             .padding(3)
                             .background(
@@ -612,10 +544,85 @@ struct TimeText: View {
 
 // MARK: - Preview
 
+// MARK: - Recording Button View
+
+struct RecordingButtonView: View {
+    @Binding var pulseAnimation: Bool
+    
+    var body: some View {
+        ZStack {
+            // Outer pulsing ring
+            Circle()
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.red, Color.red.opacity(0.7)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 2
+                )
+                .scaleEffect(pulseAnimation ? 1.5 : 1.0)
+                .opacity(pulseAnimation ? 0.0 : 0.8)
+                .animation(
+                    Animation.easeOut(duration: 1.5)
+                        .repeatForever(autoreverses: false),
+                    value: pulseAnimation
+                )
+                .frame(width: 36, height: 36)
+            
+            // Middle pulsing ring
+            Circle()
+                .stroke(Color.red.opacity(0.5), lineWidth: 1.5)
+                .scaleEffect(pulseAnimation ? 1.3 : 0.9)
+                .opacity(pulseAnimation ? 0.0 : 0.6)
+                .animation(
+                    Animation.easeOut(duration: 1.5)
+                        .repeatForever(autoreverses: false)
+                        .delay(0.5),
+                    value: pulseAnimation
+                )
+                .frame(width: 36, height: 36)
+            
+            // Main button
+            mainButton
+        }
+        .onAppear {
+            withAnimation {
+                pulseAnimation = true
+            }
+        }
+        .onDisappear {
+            pulseAnimation = false
+        }
+    }
+    
+    @ViewBuilder
+    private var mainButton: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.red, Color.red.opacity(0.8)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 36, height: 36)
+                .shadow(color: Color.red.opacity(0.4), radius: 8, x: 0, y: 2)
+            
+            // Stop icon
+            Image(systemName: "stop.fill")
+                        .scaledIcon()
+                    .scaledFont(size: 14, weight: .bold)
+                .foregroundColor(.white)
+        }
+    }
+}
+
 #Preview {
     VStack {
         Spacer()
         ChatInputView(text: .constant(""), viewModel: ChatViewModel(), isKeyboardVisible: .constant(false))
     }
-    .background(Color(.systemBackground))
+    .background(Color.clear)
 }

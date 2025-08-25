@@ -9,11 +9,14 @@ import Foundation
 import CoreData
 import Combine
 
+// GoalType is now deprecated - goals can have multiple components
+// Keeping for backwards compatibility but goals are now hybrid
 enum GoalType: String, CaseIterable {
     case milestone = "milestone"
     case numeric = "numeric"
     case habit = "habit"
     case project = "project"
+    case hybrid = "hybrid" // New type for goals with multiple components
     
     var displayName: String {
         switch self {
@@ -21,6 +24,7 @@ enum GoalType: String, CaseIterable {
         case .numeric: return "Numeric Goal"
         case .habit: return "Habit-Based Goal"
         case .project: return "Project Goal"
+        case .hybrid: return "Multi-Component Goal"
         }
     }
     
@@ -30,6 +34,7 @@ enum GoalType: String, CaseIterable {
         case .numeric: return "chart.line.uptrend.xyaxis"
         case .habit: return "repeat.circle"
         case .project: return "folder.badge.checkmark"
+        case .hybrid: return "sparkles"
         }
     }
 }
@@ -97,13 +102,11 @@ class GoalManager: ObservableObject {
     func createGoal(
         title: String,
         description: String? = nil,
-        type: GoalType,
+        type: GoalType = .hybrid, // Default to hybrid for new goals
         targetValue: Double? = nil,
         targetDate: Date? = nil,
         unit: String? = nil,
         priority: GoalPriority = .medium,
-        colorHex: String = "#007AFF",
-        iconName: String = "target",
         category: Category? = nil,
         linkedHabits: [Habit] = []
     ) -> Result<Goal, Error> {
@@ -125,13 +128,34 @@ class GoalManager: ObservableObject {
         goal.startDate = Date()
         goal.unit = unit
         goal.priority = priority.rawValue
-        goal.colorHex = colorHex
-        goal.iconName = iconName
         goal.isActive = true
         goal.isCompleted = false
         goal.createdAt = Date()
         goal.modifiedAt = Date()
-        goal.category = category
+        
+        // Set category relationship properly
+        if let category = category {
+            // Ensure category is from the same context
+            if category.managedObjectContext != context {
+                // Fetch the category in the current context
+                let fetchRequest: NSFetchRequest<Category> = Category.fetchRequest()
+                fetchRequest.predicate = NSPredicate(format: "id == %@", category.id! as CVarArg)
+                fetchRequest.fetchLimit = 1
+                
+                if let fetchedCategory = try? context.fetch(fetchRequest).first {
+                    goal.category = fetchedCategory
+                    goal.colorHex = fetchedCategory.colorHex ?? "#007AFF"
+                    goal.iconName = fetchedCategory.iconName ?? "target"
+                }
+            } else {
+                goal.category = category
+                goal.colorHex = category.colorHex ?? "#007AFF"
+                goal.iconName = category.iconName ?? "target"
+            }
+        } else {
+            goal.colorHex = "#007AFF"
+            goal.iconName = "target"
+        }
         
         // Link habits if any
         for habit in linkedHabits {
@@ -150,11 +174,22 @@ class GoalManager: ObservableObject {
     func updateGoal(_ goal: Goal) -> Result<Void, Error> {
         goal.modifiedAt = Date()
         
+        // Ensure the context recognizes the changes
+        let context = persistenceController.container.viewContext
+        
         do {
-            try persistenceController.container.viewContext.save()
+            // Save the context
+            if context.hasChanges {
+                try context.save()
+            }
+            
+            // Force Core Data to refresh the object
+            context.refresh(goal, mergeChanges: true)
+            
             loadGoals()
             return .success(())
         } catch {
+            print("Failed to update goal: \(error)")
             return .failure(error)
         }
     }
@@ -167,7 +202,8 @@ class GoalManager: ObservableObject {
         targetDate: Date? = nil,
         unit: String? = nil,
         priority: GoalPriority? = nil,
-        category: Category? = nil
+        category: Category? = nil,
+        updateCategory: Bool = false
     ) -> Result<Void, Error> {
         if let title = title {
             goal.title = title
@@ -187,9 +223,43 @@ class GoalManager: ObservableObject {
         if let priority = priority {
             goal.priority = priority.rawValue
         }
-        if let category = category {
-            goal.category = category
+        
+        // Important: Only update category if explicitly requested
+        if updateCategory {
+            if let category = category {
+                print("🎯 GoalManager - Setting category: \(category.name ?? "Unknown")")
+                // Ensure category is from the same context
+                let context = goal.managedObjectContext ?? persistenceController.container.viewContext
+                
+                // Fetch the category in the same context if needed
+                if category.managedObjectContext != context {
+                    print("🎯 GoalManager - Category from different context, fetching...")
+                    let fetchRequest: NSFetchRequest<Category> = Category.fetchRequest()
+                    fetchRequest.predicate = NSPredicate(format: "id == %@", category.id! as CVarArg)
+                    fetchRequest.fetchLimit = 1
+                    
+                    if let fetchedCategory = try? context.fetch(fetchRequest).first {
+                        goal.category = fetchedCategory
+                        goal.colorHex = fetchedCategory.colorHex ?? "#007AFF"
+                        goal.iconName = fetchedCategory.iconName ?? "target"
+                        print("🎯 GoalManager - Category fetched and set: \(fetchedCategory.name ?? "Unknown")")
+                    } else {
+                        print("🎯 GoalManager - Failed to fetch category in context")
+                    }
+                } else {
+                    goal.category = category
+                    goal.colorHex = category.colorHex ?? "#007AFF"
+                    goal.iconName = category.iconName ?? "target"
+                    print("🎯 GoalManager - Category set directly: \(category.name ?? "Unknown")")
+                }
+            } else {
+                // Explicitly setting to nil
+                print("🎯 GoalManager - Clearing category")
+                goal.category = nil
+            }
         }
+        
+        print("🎯 GoalManager - Goal category before update: \(goal.category?.name ?? "None")")
         
         return updateGoal(goal)
     }
@@ -244,6 +314,28 @@ class GoalManager: ObservableObject {
                     goal.isCompleted = true
                     goal.completedDate = Date()
                 }
+            }
+        case .hybrid:
+            // For hybrid goals, check all components
+            var shouldComplete = false
+            
+            // Check numeric target if exists
+            if goal.targetValue > 0 && value >= goal.targetValue {
+                shouldComplete = true
+            }
+            
+            // Check milestones if exist
+            let milestones = goal.milestones?.allObjects as? [GoalMilestone] ?? []
+            if !milestones.isEmpty {
+                let allCompleted = milestones.allSatisfy { $0.isCompleted }
+                if allCompleted {
+                    shouldComplete = true
+                }
+            }
+            
+            if shouldComplete {
+                goal.isCompleted = true
+                goal.completedDate = Date()
             }
         }
         
@@ -348,12 +440,23 @@ class GoalManager: ObservableObject {
             NSSortDescriptor(keyPath: \Goal.priority, ascending: false),
             NSSortDescriptor(keyPath: \Goal.createdAt, ascending: false)
         ]
+        // Prefetch relationships to avoid faulting
+        request.relationshipKeyPathsForPrefetching = ["category", "updates", "milestones", "linkedHabits"]
+        request.returnsObjectsAsFaults = false
         
         do {
             goals = try persistenceController.container.viewContext.fetch(request)
             activeGoals = goals.filter { $0.isActive && !$0.isCompleted }
+            
+            // Debug: Print loaded goals with categories
+            print("🎯 LoadGoals - Loaded \(goals.count) goals:")
+            for goal in goals {
+                print("  - \(goal.title ?? "Unknown"): Category = \(goal.category?.name ?? "None")")
+            }
+            
             completedGoals = goals.filter { $0.isCompleted }
         } catch {
+            print("🎯 LoadGoals - Error loading goals: \(error)")
         }
     }
     
@@ -433,9 +536,89 @@ class GoalManager: ObservableObject {
         do {
             try persistenceController.container.viewContext.save()
             loadGoals()
+            
+            // Immediately sync progress from the linked habit
+            syncProgressFromHabits(for: goal)
+            
             return .success(())
         } catch {
             return .failure(error)
+        }
+    }
+    
+    func unlinkHabit(_ habit: Habit, from goal: Goal) -> Result<Void, Error> {
+        goal.removeFromLinkedHabits(habit)
+        goal.modifiedAt = Date()
+        
+        do {
+            try persistenceController.container.viewContext.save()
+            loadGoals()
+            
+            // Recalculate progress after unlinking
+            syncProgressFromHabits(for: goal)
+            
+            return .success(())
+        } catch {
+            return .failure(error)
+        }
+    }
+    
+    private func syncProgressFromHabits(for goal: Goal) {
+        guard goal.typeEnum == .habit,
+              let linkedHabits = goal.linkedHabits?.allObjects as? [Habit],
+              !linkedHabits.isEmpty else { return }
+        
+        var totalProgress: Double = 0
+        let calendar = Calendar.current
+        let daysSinceStart = calendar.dateComponents([.day], from: goal.startDate ?? Date(), to: Date()).day ?? 1
+        
+        for habit in linkedHabits {
+            // Count completed entries for this habit
+            let completedEntries = (habit.entries?.allObjects as? [HabitEntry] ?? [])
+                .filter { !$0.skipped }
+                .count
+            
+            // Calculate habit progress based on frequency
+            let expectedCompletions: Double
+            switch HabitFrequency(rawValue: habit.frequency ?? "daily") {
+            case .daily:
+                expectedCompletions = Double(daysSinceStart)
+            case .weekly:
+                expectedCompletions = Double(daysSinceStart) / 7.0 * Double(habit.weeklyTarget)
+            default:
+                expectedCompletions = Double(daysSinceStart)
+            }
+            
+            let habitProgress = Double(completedEntries) / max(expectedCompletions, 1)
+            totalProgress += habitProgress
+        }
+        
+        // Calculate average progress across all linked habits
+        let averageProgress = totalProgress / Double(linkedHabits.count)
+        let newValue = min(averageProgress * goal.targetValue, goal.targetValue)
+        
+        // Update goal progress
+        goal.currentValue = newValue
+        goal.modifiedAt = Date()
+        
+        // Check for goal completion
+        if newValue >= goal.targetValue && !goal.isCompleted {
+            goal.isCompleted = true
+            goal.completedDate = Date()
+        }
+        
+        do {
+            try persistenceController.container.viewContext.save()
+            objectWillChange.send()
+            
+            // Post notification for UI updates
+            NotificationCenter.default.post(
+                name: Notification.Name("GoalProgressUpdated"),
+                object: nil,
+                userInfo: ["goalId": goal.id ?? UUID()]
+            )
+        } catch {
+            print("Failed to sync habit progress to goal: \(error)")
         }
     }
     
@@ -517,25 +700,55 @@ extension Goal {
             return 1.0
         }
         
-        switch typeEnum {
-        case .numeric:
-            // For numeric goals, use current/target value
-            guard targetValue > 0 else { return 0 }
-            return min(currentValue / targetValue, 1.0)
-            
-        case .milestone, .project:
-            // For milestone/project goals, calculate based on completed milestones
-            let milestones = self.milestones?.allObjects as? [GoalMilestone] ?? []
-            guard !milestones.isEmpty else { return 0 }
-            
+        // New unified progress calculation - average of all active components
+        var progressComponents: [Double] = []
+        
+        // Component 1: Milestone progress (if has milestones)
+        let milestones = self.milestones?.allObjects as? [GoalMilestone] ?? []
+        if !milestones.isEmpty {
             let completedCount = milestones.filter { $0.isCompleted }.count
-            return Double(completedCount) / Double(milestones.count)
-            
-        case .habit:
-            // For habit goals, use the current value which should be synced from habits
-            guard targetValue > 0 else { return 0 }
-            return min(currentValue / targetValue, 1.0)
+            let milestoneProgress = Double(completedCount) / Double(milestones.count)
+            progressComponents.append(milestoneProgress)
         }
+        
+        // Component 2: Numeric progress (if has target value)
+        if targetValue > 0 {
+            let numericProgress = min(currentValue / targetValue, 1.0)
+            progressComponents.append(numericProgress)
+        }
+        
+        // Component 3: Habit progress (if has linked habits)
+        let habits = self.linkedHabits?.allObjects as? [Habit] ?? []
+        if !habits.isEmpty {
+            // Calculate habit completion rate
+            let totalCompletions = habits.reduce(0) { sum, habit in
+                let entries = habit.entries?.allObjects as? [HabitEntry] ?? []
+                return sum + entries.count
+            }
+            
+            // If there's a specific habit target, use it; otherwise use days since start
+            let habitProgress: Double
+            if targetValue > 0 && typeEnum == .habit {
+                // Legacy: if it was specifically a habit type goal with target
+                habitProgress = min(Double(totalCompletions) / targetValue, 1.0)
+            } else {
+                // Calculate based on consistency - average completion rate of linked habits
+                let avgCompletionRate = habits.reduce(0.0) { sum, habit in
+                    // Simple completion rate: entries / days since goal started
+                    let daysSinceStart = Calendar.current.dateComponents([.day], 
+                        from: startDate ?? Date(), to: Date()).day ?? 1
+                    let entries = habit.entries?.allObjects as? [HabitEntry] ?? []
+                    let rate = min(Double(entries.count) / Double(max(daysSinceStart, 1)), 1.0)
+                    return sum + rate
+                } / Double(habits.count)
+                habitProgress = avgCompletionRate
+            }
+            progressComponents.append(habitProgress)
+        }
+        
+        // Return average of all active components
+        guard !progressComponents.isEmpty else { return 0 }
+        return progressComponents.reduce(0, +) / Double(progressComponents.count)
     }
     
     var daysRemaining: Int? {

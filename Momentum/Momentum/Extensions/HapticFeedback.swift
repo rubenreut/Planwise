@@ -12,6 +12,8 @@ enum HapticFeedback {
     case light
     case medium
     case heavy
+    case soft
+    case rigid
     case success
     case warning
     case error
@@ -32,6 +34,26 @@ enum HapticFeedback {
             let generator = UIImpactFeedbackGenerator(style: .heavy)
             generator.prepare()
             generator.impactOccurred()
+        case .soft:
+            if #available(iOS 13.0, *) {
+                let generator = UIImpactFeedbackGenerator(style: .soft)
+                generator.prepare()
+                generator.impactOccurred()
+            } else {
+                let generator = UIImpactFeedbackGenerator(style: .light)
+                generator.prepare()
+                generator.impactOccurred()
+            }
+        case .rigid:
+            if #available(iOS 13.0, *) {
+                let generator = UIImpactFeedbackGenerator(style: .rigid)
+                generator.prepare()
+                generator.impactOccurred()
+            } else {
+                let generator = UIImpactFeedbackGenerator(style: .heavy)
+                generator.prepare()
+                generator.impactOccurred()
+            }
         case .success:
             let generator = UINotificationFeedbackGenerator()
             generator.prepare()
@@ -50,6 +72,14 @@ enum HapticFeedback {
             generator.selectionChanged()
         }
         #endif
+    }
+    
+    // Convenience method for double haptic
+    func triggerDouble(delay: TimeInterval = 0.1) {
+        trigger()
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            self.trigger()
+        }
     }
 }
 

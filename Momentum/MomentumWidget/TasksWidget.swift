@@ -32,7 +32,7 @@ struct TasksWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: kind, intent: ConfigurationAppIntent.self, provider: TasksProvider()) { entry in
             TasksWidgetView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                .containerBackground(Color(UIColor.systemBackground), for: .widget)
         }
         .configurationDisplayName("Tasks")
         .description("View and manage your tasks")

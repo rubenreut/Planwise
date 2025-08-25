@@ -6,6 +6,8 @@ struct TaskGlassCard: View {
     
     @EnvironmentObject private var taskManager: TaskManager
     @State private var isCompleted: Bool = false
+    @State private var showCompletionAnimation: Bool = false
+    @AppStorage("accentColor") private var selectedAccentColor = "blue"
     
     private var priorityColor: Color {
         task.priorityEnum.color
@@ -19,17 +21,17 @@ struct TaskGlassCard: View {
     }
     
     var body: some View {
-        GlassCard(cornerRadius: DesignSystem.CornerRadius.md, padding: 0) {
-            HStack(spacing: DesignSystem.Spacing.md) {
-                // Completion button - simple circle with larger tap area
+        HStack(spacing: DesignSystem.Spacing.md) {
+                // Completion button with animation
                 Button {
                     toggleCompletion()
                 } label: {
-                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: DesignSystem.IconSize.lg))
-                        .foregroundColor(isCompleted ? .green : .gray)
-                        .frame(width: DesignSystem.IconSize.xxl, height: DesignSystem.IconSize.xxl) // Larger tap target
-                        .contentShape(Rectangle()) // Make entire frame tappable
+                    CompletionAnimationView(
+                        isCompleted: $showCompletionAnimation,
+                        style: task.priority == TaskPriority.high.rawValue ? .celebration : .checkmark
+                    )
+                    .frame(width: DesignSystem.IconSize.xxl, height: DesignSystem.IconSize.xxl)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
                 
@@ -38,7 +40,7 @@ struct TaskGlassCard: View {
                     // Title with priority indicator
                     HStack(spacing: DesignSystem.Spacing.xs - 2) {
                         Text(task.title ?? "Untitled Task")
-                            .font(.body)
+                            .scaledFont(size: 17)
                             .fontWeight(task.priority == TaskPriority.high.rawValue ? .semibold : .regular)
                             .strikethrough(isCompleted)
                             .foregroundColor(isCompleted ? .secondary : .primary)
@@ -80,18 +82,29 @@ struct TaskGlassCard: View {
                 }
                 
                 Spacer()
-            }
-            .padding(DesignSystem.Spacing.md)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                onTap()
-            }
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                .fill(Color(UIColor.systemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+                        .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                )
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Add haptic feedback for tap
+            HapticFeedback.light.trigger()
+            onTap()
         }
         .onAppear {
             isCompleted = task.isCompleted
+            showCompletionAnimation = task.isCompleted
         }
         .onChange(of: task.isCompleted) { _, newValue in
             isCompleted = newValue
+            showCompletionAnimation = newValue
         }
     }
     
@@ -103,10 +116,15 @@ struct TaskGlassCard: View {
     private func toggleCompletion() {
         if isCompleted {
             isCompleted = false
+            showCompletionAnimation = false
             _ = taskManager.uncompleteTask(task)
+            // Haptic for uncomplete
+            HapticFeedback.light.trigger()
         } else {
             isCompleted = true
+            showCompletionAnimation = true
             _ = taskManager.completeTask(task)
+            // Success haptic is triggered by the animation component
         }
     }
     
@@ -148,6 +166,8 @@ struct TaskRow: View {
     
     @EnvironmentObject private var taskManager: TaskManager
     @State private var isCompleted: Bool = false
+    @State private var showCompletionAnimation: Bool = false
+    @AppStorage("accentColor") private var selectedAccentColor = "blue"
     
     private var priorityColor: Color {
         task.priorityEnum.color
@@ -162,13 +182,13 @@ struct TaskRow: View {
             } label: {
                 ZStack {
                     Circle()
-                        .strokeBorder(isCompleted ? Color.green : Color.secondary.opacity(DesignSystem.Opacity.disabled), lineWidth: 2)
+                        .strokeBorder(isCompleted ? Color.fromAccentString(selectedAccentColor) : Color.secondary.opacity(DesignSystem.Opacity.disabled), lineWidth: 2)
                         .frame(width: DesignSystem.IconSize.lg, height: DesignSystem.IconSize.lg)
                     
                     if isCompleted {
                         Image(systemName: "checkmark")
                             .font(.system(size: DesignSystem.Spacing.sm, weight: .bold))
-                            .foregroundColor(.green)
+                            .foregroundColor(Color.fromAccentString(selectedAccentColor))
                             .transition(.identity)
                     }
                 }
@@ -179,7 +199,7 @@ struct TaskRow: View {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs) {
                 HStack {
                     Text(task.title ?? "Untitled Task")
-                        .font(.body)
+                        .scaledFont(size: 17)
                         .fontWeight(task.priority == TaskPriority.high.rawValue ? .semibold : .regular)
                         .strikethrough(isCompleted)
                         .foregroundColor(isCompleted ? .secondary : .primary)
@@ -270,9 +290,11 @@ struct TaskRow: View {
         }
         .onAppear {
             isCompleted = task.isCompleted
+            showCompletionAnimation = task.isCompleted
         }
         .onChange(of: task.isCompleted) { _, newValue in
             isCompleted = newValue
+            showCompletionAnimation = newValue
         }
     }
     
@@ -281,10 +303,15 @@ struct TaskRow: View {
     private func toggleCompletion() {
         if isCompleted {
             isCompleted = false
+            showCompletionAnimation = false
             _ = taskManager.uncompleteTask(task)
+            // Haptic for uncomplete
+            HapticFeedback.light.trigger()
         } else {
             isCompleted = true
+            showCompletionAnimation = true
             _ = taskManager.completeTask(task)
+            // Success haptic is triggered by the animation component
         }
     }
     

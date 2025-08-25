@@ -135,7 +135,7 @@ struct EventDetailView: View {
                 
                 Label {
                     Text(location)
-                        .font(.body)
+                        .scaledFont(size: 17)
                 } icon: {
                     Image(systemName: "location")
                         .foregroundColor(.blue)
@@ -153,11 +153,11 @@ struct EventDetailView: View {
                     
                     if let attributedString = try? AttributedString(markdown: notes) {
                         Text(attributedString)
-                            .font(.body)
+                            .scaledFont(size: 17)
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
                         Text(notes)
-                            .font(.body)
+                            .scaledFont(size: 17)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }

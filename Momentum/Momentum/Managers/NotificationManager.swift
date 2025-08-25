@@ -240,7 +240,7 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
     
     private func handleSnoozeAction(userInfo: [AnyHashable: Any]) {
         guard let eventIdString = userInfo["eventId"] as? String,
-              let eventId = UUID(uuidString: eventIdString),
+              let _ = UUID(uuidString: eventIdString),
               let eventTitle = userInfo["eventTitle"] as? String else { return }
         
         // Schedule new notification for 5 minutes from now

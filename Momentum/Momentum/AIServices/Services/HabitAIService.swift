@@ -130,7 +130,6 @@ final class HabitAIService: BaseAIService<Habit> {
                     "name": habit.name ?? "",
                     "description": habit.notes ?? "",
                     "frequency": habit.frequency ?? "daily",
-                    "frequency": habit.frequency ?? "daily",
                     "currentStreak": habit.currentStreak,
                     "isActive": habit.isActive
                 ]

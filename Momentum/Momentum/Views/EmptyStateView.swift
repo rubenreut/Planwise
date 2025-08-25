@@ -32,7 +32,8 @@ struct EmptyStateView: View {
         VStack(spacing: DesignSystem.Spacing.md) {
             if let icon = icon {
                 Image(systemName: icon)
-                    .font(.system(size: 48, weight: .thin))
+                        .scaledIcon()
+                    .scaledFont(size: 48, weight: .thin)
                     .foregroundColor(.secondary.opacity(0.5))
             }
             

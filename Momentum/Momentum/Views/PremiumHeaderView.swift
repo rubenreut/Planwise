@@ -9,6 +9,8 @@ struct PremiumHeaderView: View {
     let onSettings: () -> Void
     let onAddEvent: () -> Void
     let onDateSelected: ((Date) -> Void)?
+    var showViewToggle: Bool = false // For iPad view toggle
+    var isWeekView: Bool = false // To show correct icon
     
     @Environment(\.colorScheme) var colorScheme
     @State private var currentTime = Date()
@@ -18,6 +20,11 @@ struct PremiumHeaderView: View {
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
     @State private var animationProgress: CGFloat = 1
+    @State private var weekSwipeOffset: CGFloat = 0
+    @State private var isSwipingWeek = false
+    @State private var weekTransition: Bool = false
+    @State private var weekScale: CGFloat = 1.0
+    @State private var weekOpacity: Double = 1.0
     
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     private let expandedHeight: CGFloat = 100
@@ -49,23 +56,71 @@ struct PremiumHeaderView: View {
             // Date header - always visible
             HStack {
                 Text(dateTitle)
-                    .font(.system(size: 18, weight: .semibold))
+                    .scaledFont(size: 18, weight: .semibold)
                     .foregroundColor(.white)
                     .animation(.easeInOut(duration: 0.2), value: dragProgress)
                 
                 Spacer()
+                
+                // View toggle menu for iPad
+                if showViewToggle && DeviceType.isIPad {
+                    Menu {
+                        Button(action: {
+                            // Navigate to Day view
+                            if isWeekView {
+                                NotificationCenter.default.post(
+                                    name: Notification.Name("NavigateToDayView"),
+                                    object: nil
+                                )
+                            }
+                        }) {
+                            Label("Day View", systemImage: "calendar.day.timeline.left")
+                        }
+                        
+                        Button(action: {
+                            // Navigate to Week view
+                            if !isWeekView {
+                                NotificationCenter.default.post(
+                                    name: Notification.Name("NavigateToWeekView"),
+                                    object: nil
+                                )
+                            }
+                        }) {
+                            Label("Week View", systemImage: "calendar")
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: isWeekView ? "calendar" : "calendar.day.timeline.left")
+                                .font(.system(size: 14, weight: .medium))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.2))
+                        )
+                    }
+                }
             }
             .padding(.horizontal, 16)
             .offset(y: 20)
             
-            // Date selector content with smooth height
-            VStack(spacing: 0) {
-                // Always render both states, control visibility with opacity
-                ZStack(alignment: .top) {
-                    // Expanded content
-                    VStack(spacing: 0) {
-                        // Week view - shows current week only
-                        HStack(spacing: 8) {
+            // Date selector content with smooth height (hide content for Week view on iPad but keep space)
+            if isWeekView && DeviceType.isIPad {
+                // Empty spacer to maintain header height - add extra 43px for iPad
+                Spacer()
+                    .frame(height: max(0, collapsedHeight + (dragProgress * CGFloat(expandedHeight - collapsedHeight)) + 43))
+            } else {
+                VStack(spacing: 0) {
+                    // Always render both states, control visibility with opacity
+                    ZStack(alignment: .top) {
+                        // Expanded content
+                        VStack(spacing: 0) {
+                            // Week view - shows current week only
+                            HStack(spacing: 8) {
                             let calendar = Calendar.current
                             let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate
                             
@@ -81,11 +136,11 @@ struct PremiumHeaderView: View {
                                     }) {
                                         VStack(spacing: 2) {
                                             Text(dayOfWeek(for: date))
-                                                .font(.system(size: 11, weight: .medium))
+                                                .scaledFont(size: 11, weight: .medium)
                                                 .foregroundColor(isSelected ? Color(red: 0.05, green: 0.1, blue: 0.25) : .white.opacity(0.7))
                                             
                                             Text("\(Calendar.current.component(.day, from: date))")
-                                                .font(.system(size: 18, weight: .semibold))
+                                                .scaledFont(size: 18, weight: .semibold)
                                                 .foregroundColor(isSelected ? Color(red: 0.05, green: 0.1, blue: 0.25) : .white)
                                             
                                             if isToday {
@@ -107,21 +162,138 @@ struct PremiumHeaderView: View {
                             }
                         }
                         .padding(.horizontal, 16)
-                        .gesture(
-                            DragGesture(minimumDistance: 30)
-                                .onEnded { value in
-                                    let calendar = Calendar.current
-                                    if value.translation.width > 50 {
-                                        // Swipe right - previous week
-                                        if let previousWeek = calendar.date(byAdding: .weekOfYear, value: -1, to: selectedDate) {
-                                            onDateSelected?(previousWeek)
+                        .offset(x: weekSwipeOffset)
+                        .scaleEffect(weekScale)
+                        .opacity(weekOpacity)
+                        .blur(radius: weekTransition ? 2 : 0)
+                        .rotation3DEffect(
+                            .degrees(Double(weekSwipeOffset) * 0.05),
+                            axis: (x: 0, y: 1, z: 0),
+                            perspective: 0.5
+                        )
+                        .overlay(
+                            // Week navigation hint arrows
+                            HStack {
+                                // Previous week arrow
+                                if weekSwipeOffset > 10 {
+                                    Image(systemName: "chevron.left")
+                                        .font(.system(size: 20, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .opacity(min(1.0, Double(weekSwipeOffset) / 50.0))
+                                        .transition(.scale.combined(with: .opacity))
+                                }
+                                
+                                Spacer()
+                                
+                                // Next week arrow
+                                if weekSwipeOffset < -10 {
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 20, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .opacity(min(1.0, Double(abs(weekSwipeOffset)) / 50.0))
+                                        .transition(.scale.combined(with: .opacity))
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            .animation(.easeOut(duration: 0.2), value: weekSwipeOffset)
+                        )
+                        .contentShape(Rectangle()) // Make entire area tappable
+                        .simultaneousGesture(
+                            DragGesture(minimumDistance: 15)
+                                .onChanged { value in
+                                    // Only handle horizontal swipes
+                                    if abs(value.translation.width) > abs(value.translation.height) {
+                                        if !isSwipingWeek {
+                                            isSwipingWeek = true
+                                            withAnimation(.easeOut(duration: 0.15)) {
+                                                weekScale = 0.95
+                                            }
                                         }
-                                    } else if value.translation.width < -50 {
-                                        // Swipe left - next week  
-                                        if let nextWeek = calendar.date(byAdding: .weekOfYear, value: 1, to: selectedDate) {
-                                            onDateSelected?(nextWeek)
+                                        // Add visual feedback during swipe with elastic feel
+                                        let resistance = 1.0 - min(0.5, abs(value.translation.width) / 200.0)
+                                        weekSwipeOffset = value.translation.width * 0.4 * resistance
+                                        
+                                        // Fade out as we swipe further
+                                        withAnimation(.easeOut(duration: 0.1)) {
+                                            weekOpacity = 1.0 - min(0.3, abs(value.translation.width) / 300.0)
                                         }
                                     }
+                                }
+                                .onEnded { value in
+                                    // Only process if it was a horizontal swipe
+                                    if abs(value.translation.width) > abs(value.translation.height) {
+                                        let calendar = Calendar.current
+                                        // Lower threshold for easier swiping
+                                        if value.translation.width > 25 {
+                                            // Swipe right - previous week
+                                            HapticFeedback.medium.trigger()
+                                            
+                                            // Animate transition
+                                            withAnimation(.easeInOut(duration: 0.15)) {
+                                                weekTransition = true
+                                                weekSwipeOffset = UIScreen.main.bounds.width
+                                                weekOpacity = 0
+                                            }
+                                            
+                                            // Change week after animation starts
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                                if let previousWeek = calendar.date(byAdding: .weekOfYear, value: -1, to: selectedDate) {
+                                                    onDateSelected?(previousWeek)
+                                                }
+                                                
+                                                // Slide in from left
+                                                weekSwipeOffset = -UIScreen.main.bounds.width
+                                                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                                    weekSwipeOffset = 0
+                                                    weekOpacity = 1
+                                                    weekScale = 1
+                                                    weekTransition = false
+                                                }
+                                            }
+                                        } else if value.translation.width < -25 {
+                                            // Swipe left - next week  
+                                            HapticFeedback.medium.trigger()
+                                            
+                                            // Animate transition
+                                            withAnimation(.easeInOut(duration: 0.15)) {
+                                                weekTransition = true
+                                                weekSwipeOffset = -UIScreen.main.bounds.width
+                                                weekOpacity = 0
+                                            }
+                                            
+                                            // Change week after animation starts
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                                if let nextWeek = calendar.date(byAdding: .weekOfYear, value: 1, to: selectedDate) {
+                                                    onDateSelected?(nextWeek)
+                                                }
+                                                
+                                                // Slide in from right
+                                                weekSwipeOffset = UIScreen.main.bounds.width
+                                                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                                    weekSwipeOffset = 0
+                                                    weekOpacity = 1
+                                                    weekScale = 1
+                                                    weekTransition = false
+                                                }
+                                            }
+                                        } else {
+                                            // Not enough swipe - bounce back
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                weekSwipeOffset = 0
+                                                weekScale = 1
+                                                weekOpacity = 1
+                                            }
+                                        }
+                                    } else {
+                                        // Reset if not horizontal swipe
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                            weekSwipeOffset = 0
+                                            weekScale = 1
+                                            weekOpacity = 1
+                                        }
+                                    }
+                                    
+                                    isSwipingWeek = false
                                 }
                         )
                         .padding(.bottom, 12)
@@ -133,7 +305,7 @@ struct PremiumHeaderView: View {
                     // No navigation buttons when collapsed
                 }
             }
-            .frame(height: collapsedHeight + (dragProgress * CGFloat(expandedHeight - collapsedHeight)))
+            .frame(height: max(0, collapsedHeight + (dragProgress * CGFloat(expandedHeight - collapsedHeight))))
             .clipped()
             
             // Swipe indicator at the bottom center with larger hit box
@@ -200,6 +372,7 @@ struct PremiumHeaderView: View {
             .onTapGesture {
                 isDateSelectorExpanded.toggle()
             }
+            } // End of else
         }
         .onChange(of: isDateSelectorExpanded) { _, newValue in
             withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {

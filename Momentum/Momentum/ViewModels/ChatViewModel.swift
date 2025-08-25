@@ -8,8 +8,6 @@ import PhotosUI
 import UIKit
 import PDFKit
 
-// Type alias to avoid conflicts with CoreData
-
 // MARK: - Chat View Model
 
 @MainActor
@@ -48,7 +46,9 @@ class ChatViewModel: ObservableObject {
     
     // MARK: - Private Properties
     
-    private let userName: String = "User" // Could be fetched from settings
+    private var userName: String {
+        UserDefaults.standard.string(forKey: "userDisplayName") ?? "User"
+    }
     private let openAIService: OpenAIService
     private let scheduleManager: ScheduleManaging
     private let taskManager: TaskManaging
@@ -56,7 +56,7 @@ class ChatViewModel: ObservableObject {
     private let goalManager: GoalManager
     private let subscriptionManager = SubscriptionManager.shared
     private var cancellables = Set<AnyCancellable>()
-    private var streamingTask: _Concurrency.Task<Void, Never>?
+    private var streamingTask: AsyncTask<Void, Never>?
     private var conversationHistory: [ChatRequestMessage] = []
     private var rateLimitTimer: Timer?
     
@@ -71,7 +71,8 @@ class ChatViewModel: ObservableObject {
             context: PersistenceController.shared.container.viewContext,
             scheduleManager: self.scheduleManager,
             taskManager: (self.taskManager as? TaskManager) ?? TaskManager(persistence: PersistenceController.shared),
-            goalManager: self.goalManager ?? GoalManager.shared
+            goalManager: self.goalManager,
+            habitManager: self.habitManager
         )
     }()
     
@@ -83,7 +84,7 @@ class ChatViewModel: ObservableObject {
                 "type": "function",
                 "function": [
                     "name": "manage_events",
-                    "description": "Manage events - create, update, delete, list events. Handles single and bulk operations.",
+                    "description": "Manage events - create, update, delete, list events. Handles single and bulk operations. Smart scheduling available.",
                     "parameters": [
                         "type": "object",
                         "properties": [
@@ -236,9 +237,9 @@ class ChatViewModel: ObservableObject {
         var fileName: String? = nil
         var fileExtension: String? = nil
         
-        if let pdfName = pdfFileName, selectedImage != nil {
+        if pdfFileName != nil, selectedImage != nil {
             // PDF converted to image
-            fileName = pdfName
+            fileName = pdfFileName
             fileExtension = "pdf"
         } else if let selectedFileName = selectedFileName, let selectedFileExtension = selectedFileExtension, selectedFileData != nil {
             // Other file types
@@ -267,7 +268,7 @@ class ChatViewModel: ObservableObject {
         if let image = selectedImage {
             // Handle image attachment
             var imagePrompt = inputText
-            if let pdfName = pdfFileName {
+            if pdfFileName != nil {
                 // This is a PDF converted to image - use same prompt as regular images
                 imagePrompt = inputText.isEmpty ? "What's in this image?" : inputText
             } else {
@@ -301,7 +302,7 @@ class ChatViewModel: ObservableObject {
             selectedImage = nil
             pdfFileName = nil
             pdfPageCount = 1
-        } else if let fileData = selectedFileData,
+        } else if selectedFileData != nil,
                   let fileExtension = selectedFileExtension,
                   let fileName = selectedFileName {
             // Handle non-PDF document attachments
@@ -346,14 +347,14 @@ class ChatViewModel: ObservableObject {
         streamingTask?.cancel()
         
         // Send to OpenAI
-        _Concurrency.Task {
+        AsyncTask {
             await sendToOpenAI()
         }
     }
     
     func retryLastMessage() {
         // Find the last user message
-        guard let lastUserMessage = messages.last(where: { $0.sender.isUser }) else { return }
+        guard messages.last(where: { $0.sender.isUser }) != nil else { return }
         
         // Remove any error messages after it
         if let lastUserIndex = messages.lastIndex(where: { $0.sender.isUser }) {
@@ -361,7 +362,7 @@ class ChatViewModel: ObservableObject {
         }
         
         // Retry sending
-        _Concurrency.Task {
+        AsyncTask {
             await sendToOpenAI()
         }
     }
@@ -414,7 +415,7 @@ class ChatViewModel: ObservableObject {
             selectedImage = nil
             
             // Send to AI with image context
-            _Concurrency.Task {
+            AsyncTask {
                 await sendImageToAI(base64Image: base64String)
             }
         }
@@ -435,7 +436,7 @@ class ChatViewModel: ObservableObject {
         selectedFileURL = url
         selectedFileName = url.lastPathComponent
         
-        _Concurrency.Task { @MainActor in
+        AsyncTask { @MainActor in
             // Start accessing the security-scoped resource
             let accessing = url.startAccessingSecurityScopedResource()
             defer {
@@ -734,7 +735,7 @@ class ChatViewModel: ObservableObject {
         let combinedImage = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
         
-        if let image = combinedImage {
+        if combinedImage != nil {
         }
         
         return combinedImage
@@ -762,7 +763,7 @@ class ChatViewModel: ObservableObject {
             stopVoiceRecording()
         } else {
             // Start recording
-            _Concurrency.Task { @MainActor in
+            AsyncTask { @MainActor in
                 await startVoiceRecognition()
             }
         }
@@ -785,10 +786,12 @@ class ChatViewModel: ObservableObject {
         }
         
         // Cancel the recognition task after a short delay to ensure final results are processed
-        _Concurrency.Task {
+        AsyncTask { [weak self] in
             try? await _Concurrency.Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-            self.recognitionTask?.cancel()
-            self.recognitionTask = nil
+            await MainActor.run {
+                self?.recognitionTask?.cancel()
+                self?.recognitionTask = nil
+            }
         }
         
         // Clean up
@@ -802,7 +805,7 @@ class ChatViewModel: ObservableObject {
         
         // Check microphone permission
         if #available(iOS 17.0, *) {
-            let microphoneStatus = await AVAudioApplication.shared.recordPermission
+            let microphoneStatus = AVAudioApplication.shared.recordPermission
             
             switch microphoneStatus {
             case .undetermined:
@@ -836,7 +839,7 @@ class ChatViewModel: ObservableObject {
             case .undetermined:
                 AVAudioSession.sharedInstance().requestRecordPermission { granted in
                     if granted {
-                        _Concurrency.Task { @MainActor in
+                        AsyncTask { @MainActor in
                             await self.startVoiceRecognition()
                         }
                     }
@@ -868,7 +871,7 @@ class ChatViewModel: ObservableObject {
         case .notDetermined:
             SFSpeechRecognizer.requestAuthorization { status in
                 if status == .authorized {
-                    _Concurrency.Task { @MainActor in
+                    AsyncTask { @MainActor in
                         await self.startVoiceRecognition()
                     }
                 }
@@ -935,7 +938,7 @@ class ChatViewModel: ObservableObject {
             try audioEngine.start()
             
             // Set recording state immediately
-            _Concurrency.Task { @MainActor in
+            AsyncTask { @MainActor in
                 self.isRecordingVoice = true
             }
             
@@ -946,7 +949,7 @@ class ChatViewModel: ObservableObject {
                     let transcribedText = result.bestTranscription.formattedString
                     
                     // Update the input field in real-time
-                    _Concurrency.Task { @MainActor in
+                    AsyncTask { @MainActor in
                         // Only update if we're still recording or if it's the final result
                         if self.isRecordingVoice || result.isFinal {
                             self.inputText = transcribedText
@@ -958,7 +961,7 @@ class ChatViewModel: ObservableObject {
                         }
                     }
                 } else if let error = error {
-                    _Concurrency.Task { @MainActor in
+                    AsyncTask { @MainActor in
                         self.stopVoiceRecording()
                         
                         let message = ChatMessage(
@@ -989,7 +992,7 @@ class ChatViewModel: ObservableObject {
             break
         case .delete:
             // Silently delete the event
-            _Concurrency.Task { @MainActor in
+            AsyncTask { @MainActor in
                 // Find the event in the events array
                 if let event = scheduleManager.events.first(where: { $0.id?.uuidString == eventId }) {
                     let result = scheduleManager.deleteEvent(event)
@@ -1004,9 +1007,44 @@ class ChatViewModel: ObservableObject {
                     }
                 }
             }
+        case .viewFull:
+            // Open the event in a detailed view or navigate to calendar
+            AsyncTask { @MainActor in
+                // Find the event in the events array
+                if let event = scheduleManager.events.first(where: { $0.id?.uuidString == eventId }) {
+                    // Navigate to the day view with this event's date
+                    if let eventDate = event.startTime {
+                        // Post notification to switch to day view
+                        NotificationCenter.default.post(
+                            name: Notification.Name("NavigateToDate"),
+                            object: nil,
+                            userInfo: ["date": eventDate, "eventId": eventId]
+                        )
+                    }
+                }
+            }
+        case .share:
+            // Share the event details
+            AsyncTask { @MainActor in
+                if let message = messages.first(where: { $0.eventPreview?.id == eventId }),
+                   let eventPreview = message.eventPreview {
+                    let shareText = "📅 \(eventPreview.title)\n⏰ \(eventPreview.timeDescription)"
+                        + (eventPreview.location != nil ? "\n📍 \(eventPreview.location!)" : "")
+                    
+                    let activityController = UIActivityViewController(
+                        activityItems: [shareText],
+                        applicationActivities: nil
+                    )
+                    
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let rootViewController = windowScene.windows.first?.rootViewController {
+                        rootViewController.present(activityController, animated: true)
+                    }
+                }
+            }
         case .complete:
             // Accept button - now actually create the event
-            _Concurrency.Task { @MainActor in
+            AsyncTask { @MainActor in
                 // Find the message with this event preview
                 if let message = messages.first(where: { $0.eventPreview?.id == eventId }),
                    let functionCall = message.functionCall,
@@ -1043,7 +1081,7 @@ class ChatViewModel: ObservableObject {
                         )
                         
                         switch result {
-                        case .success(let event):
+                        case .success(_):
                             // Mark as accepted and keep visible
                             acceptedEventIds.insert(eventId)
                             // Event created and accepted
@@ -1055,14 +1093,6 @@ class ChatViewModel: ObservableObject {
                     }
                 }
             }
-        case .viewFull:
-            // TODO: Navigate to full event view
-            break
-            // View full event
-        case .share:
-            // TODO: Share event
-            break
-            // Share event
         default:
             break
         }
@@ -1070,13 +1100,13 @@ class ChatViewModel: ObservableObject {
     
     func handleMultiEventAction(_ action: MultiEventAction, messageId: UUID) {
         switch action {
-        case .toggleComplete(let eventId):
+        case .toggleComplete(_):
             // TODO: Toggle specific event completion
             break
             // Toggle complete
         case .markAllComplete:
             // Accept all - now actually create all the events
-            _Concurrency.Task { @MainActor in
+            AsyncTask { @MainActor in
                 if let message = messages.first(where: { $0.id == messageId }),
                    let functionCall = message.functionCall,
                    let details = functionCall.details {
@@ -1116,108 +1146,100 @@ class ChatViewModel: ObservableObject {
     // MARK: - Message Persistence
     
     private func saveMessages() {
-        do {
-            // Keep only the last 10 messages
-            let messagesToSave = Array(messages.suffix(10))
+        // Keep only the last 10 messages
+        let messagesToSave = Array(messages.suffix(10))
+        
+        // Convert messages to a format that can be saved
+        let messageData = messagesToSave.compactMap { message -> [String: Any]? in
+            // Only save text messages, not ones with images or complex content
+            guard message.error == nil else { return nil }
             
-            // Convert messages to a format that can be saved
-            let messageData = messagesToSave.compactMap { message -> [String: Any]? in
-                // Only save text messages, not ones with images or complex content
-                guard message.error == nil else { return nil }
-                
-                // Create a dictionary with only property list compatible types
-                let dict: [String: Any] = [
-                    "id": message.id.uuidString,
-                    "content": message.content,
-                    "sender": message.sender.isUser ? "user" : "assistant",
-                    "timestamp": message.timestamp.timeIntervalSince1970,
-                    "isStreaming": message.isStreaming
-                ]
-                
-                // Ensure all values are property list compatible
-                return dict
+            // Create a dictionary with only property list compatible types
+            let dict: [String: Any] = [
+                "id": message.id.uuidString,
+                "content": message.content,
+                "sender": message.sender.isUser ? "user" : "assistant",
+                "timestamp": message.timestamp.timeIntervalSince1970,
+                "isStreaming": message.isStreaming
+            ]
+            
+            // Ensure all values are property list compatible
+            return dict
+        }
+        
+        // Validate property list compatibility before saving
+        if PropertyListSerialization.propertyList(messageData, isValidFor: .binary) {
+            UserDefaults.standard.set(messageData, forKey: "ChatMessages")
+        } else {
+            print("Warning: Message data is not property list compatible")
+        }
+        
+        // Also save conversation history for context
+        let historyToSave = Array(conversationHistory.suffix(20))
+        let historyData = historyToSave.compactMap { message -> [String: String]? in
+            // Extract string content from MessageContent enum
+            let contentString: String
+            switch message.content {
+            case .text(let text):
+                contentString = text
+            case .array:
+                // For array content (images, etc.), we'll skip saving
+                return nil
             }
             
-            // Validate property list compatibility before saving
-            if PropertyListSerialization.propertyList(messageData, isValidFor: .binary) {
-                UserDefaults.standard.set(messageData, forKey: "ChatMessages")
-            } else {
-                print("Warning: Message data is not property list compatible")
-            }
-            
-            // Also save conversation history for context
-            let historyToSave = Array(conversationHistory.suffix(20))
-            let historyData = historyToSave.compactMap { message -> [String: String]? in
-                // Extract string content from MessageContent enum
-                let contentString: String
-                switch message.content {
-                case .text(let text):
-                    contentString = text
-                case .array:
-                    // For array content (images, etc.), we'll skip saving
-                    return nil
-                }
-                
-                return [
-                    "role": message.role,
-                    "content": contentString
-                ]
-            }
-            
-            // Validate property list compatibility before saving
-            if PropertyListSerialization.propertyList(historyData, isValidFor: .binary) {
-                UserDefaults.standard.set(historyData, forKey: "ChatHistory")
-            } else {
-                print("Warning: History data is not property list compatible")
-            }
-        } catch {
-            print("Error saving messages: \(error)")
+            return [
+                "role": message.role,
+                "content": contentString
+            ]
+        }
+        
+        // Validate property list compatibility before saving
+        if PropertyListSerialization.propertyList(historyData, isValidFor: .binary) {
+            UserDefaults.standard.set(historyData, forKey: "ChatHistory")
+        } else {
+            print("Warning: History data is not property list compatible")
         }
     }
     
     private func loadPersistedMessages() {
-        do {
-            // Load saved messages
-            if let messageData = UserDefaults.standard.array(forKey: "ChatMessages") as? [[String: Any]] {
-                messages = messageData.compactMap { data in
-                    guard let idString = data["id"] as? String,
-                          let id = UUID(uuidString: idString),
-                          let content = data["content"] as? String,
-                          let senderString = data["sender"] as? String,
-                          let timestamp = data["timestamp"] as? TimeInterval else {
-                        return nil
-                    }
-                    
-                    let sender: ChatMessage.MessageSender = senderString == "user" ? .user(name: "User") : .assistant
-                    let date = Date(timeIntervalSince1970: timestamp)
-                    let isStreaming = data["isStreaming"] as? Bool ?? false
-                    
-                    // Create message with persisted ID to maintain consistency
-                    var message = ChatMessage(
-                        content: content,
-                        sender: sender,
-                        timestamp: date,
-                        isStreaming: isStreaming
-                    )
-                    
-                    // Note: We can't restore the original ID due to it being a let constant
-                    // This is acceptable since we generate new IDs for each session
-                    return message
+        // Load saved messages
+        if let messageData = UserDefaults.standard.array(forKey: "ChatMessages") as? [[String: Any]] {
+            messages = messageData.compactMap { data in
+                guard let idString = data["id"] as? String,
+                      let _ = UUID(uuidString: idString),
+                      let content = data["content"] as? String,
+                      let senderString = data["sender"] as? String,
+                      let timestamp = data["timestamp"] as? TimeInterval else {
+                    return nil
                 }
+                
+                let sender: ChatMessage.MessageSender = senderString == "user" ? .user(name: "User") : .assistant
+                let date = Date(timeIntervalSince1970: timestamp)
+                let isStreaming = data["isStreaming"] as? Bool ?? false
+                
+                // Create message with persisted ID to maintain consistency
+                let message = ChatMessage(
+                    content: content,
+                    sender: sender,
+                    timestamp: date,
+                    isStreaming: isStreaming
+                )
+                
+                // Note: We can't restore the original ID due to it being a let constant
+                // This is acceptable since we generate new IDs for each session
+                return message
             }
-            
-            // Load conversation history
-            if let historyData = UserDefaults.standard.array(forKey: "ChatHistory") as? [[String: String]] {
-                conversationHistory = historyData.compactMap { data in
-                    guard let role = data["role"],
-                          let content = data["content"] else {
-                        return nil
-                    }
-                    return ChatRequestMessage(role: role, content: content)
+        }
+        
+        // Load conversation history
+        if let historyData = UserDefaults.standard.array(forKey: "ChatHistory") as? [[String: String]] {
+            conversationHistory = historyData.compactMap { data in
+                guard let role = data["role"],
+                      let content = data["content"] else {
+                    return nil
                 }
+                return ChatRequestMessage(role: role, content: content)
             }
-        } catch {
-            print("Error loading persisted messages: \(error)")
         }
     }
     
@@ -1229,7 +1251,8 @@ class ChatViewModel: ObservableObject {
         
         // Start new timer
         rateLimitTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(seconds), repeats: false) { [weak self] _ in
-            DispatchQueue.main.async {
+            guard let self = self else { return }
+            DispatchQueue.main.async { [weak self] in
                 self?.isRateLimited = false
                 self?.rateLimitResetTime = nil
             }
@@ -1279,27 +1302,14 @@ class ChatViewModel: ObservableObject {
         contextLines.append("📅 Current Date/Time: \(formatter.string(from: today))")
         contextLines.append("")
         
-        // Smart context: Analyze what the user is talking about
-        let recentUserMessage = messages.last(where: { 
-            if case .user = $0.sender { return true }
-            return false
-        })?.content ?? ""
-        let lowerMessage = recentUserMessage.lowercased()
-        
-        // Determine what context to include based on message content
-        let includeGoals = lowerMessage.contains("goal") || lowerMessage.contains("milestone") || 
-                          lowerMessage.contains("objective") || lowerMessage.contains("target")
-        let includeTasks = lowerMessage.contains("task") || lowerMessage.contains("todo") || 
-                          lowerMessage.contains("subtask") || lowerMessage.contains("work")
-        let includeHabits = lowerMessage.contains("habit") || lowerMessage.contains("routine") || 
-                           lowerMessage.contains("daily") || lowerMessage.contains("streak")
-        let includeEvents = lowerMessage.contains("event") || lowerMessage.contains("meeting") || 
-                           lowerMessage.contains("appointment") || lowerMessage.contains("schedule") ||
-                           lowerMessage.contains("calendar") || lowerMessage.contains("today") ||
-                           lowerMessage.contains("tomorrow") || lowerMessage.contains("week")
-        
-        // If no specific mention, include minimal context (today's items only)
-        let includeAll = !includeGoals && !includeTasks && !includeHabits && !includeEvents
+        // ALWAYS include ALL context for proper AI functioning
+        // The AI needs complete context to make smart decisions about scheduling,
+        // task dependencies, and resource allocation
+        let includeGoals = true
+        let includeTasks = true
+        let includeHabits = true
+        let includeEvents = true
+        let includeAll = true
         
         // Add available categories
         let availableCategories = scheduleManager.categories
@@ -1448,59 +1458,97 @@ class ChatViewModel: ObservableObject {
         
         return """
         
-        === USER'S CURRENT CONTEXT (USE THIS DATA - DON'T ASK FOR IT!) ===
+        === USER'S CURRENT CONTEXT (USE THIS DATA FOR ALL OPERATIONS) ===
         \(contextLines.joined(separator: "\n"))
         
-        REMINDER: You have access to all the user's data above. NEVER ask for information that's already provided here.
-        When the user asks about "my goals", "my tasks", etc., use the specific items listed above.
+        🚨 CRITICAL INSTRUCTIONS FOR AI ASSISTANT 🚨
         
-        🚨 CRITICAL: USE ONLY THE UNIFIED MANAGE FUNCTION! 🚨
+        You have access to ALL the user's data above. This includes:
+        - ALL goals with their IDs, progress, categories, and milestones
+        - ALL tasks with their IDs, priorities, due dates, and categories  
+        - ALL habits with their IDs, streaks, frequencies, and completion status
+        - ALL events for today and upcoming week
+        - ALL available categories
         
-        You MUST use the single "manage" function for ALL operations:
+        🎯 SIMPLIFIED FUNCTION SYSTEM - USE THESE 5 FUNCTIONS ONLY:
         
-        FUNCTION: manage(type, action, id, parameters)
-        
-        Examples:
-        - Create event: manage(type: "event", action: "create", parameters: {...})
-        - Update task: manage(type: "task", action: "update", id: "task-id", parameters: {...})
-        - Add milestones: manage(type: "milestone", action: "create", id: "goal-id", parameters: {...})
-        - Delete habit: manage(type: "habit", action: "delete", id: "habit-id")
-        - Complete task: manage(type: "task", action: "complete", id: "task-id")
-        - List goals: manage(type: "goal", action: "list")
-        
-        DO NOT use old functions like create_event, update_task, add_multiple_milestones, etc.
-        ONLY use: manage()
-        
-        When working with goals/milestones, ALWAYS include the goal ID from the context above!
-        
-        IMPORTANT CATEGORY RULES:
-        1. ALWAYS use one of the 10 existing categories listed above when creating events
-        2. NEVER create new categories - map events to the most appropriate existing category
-        3. Category mapping guide:
-           - Work: business, office, project, presentation, meetings
-           - Personal: private time, self-care, errands, me time
-           - Health: medical, doctor, therapy, wellness
-           - Learning: study, education, courses, reading, research
-           - Meeting: calls, conferences, interviews, 1:1s, standups
-           - Fitness: gym, exercise, sports, yoga, workout
-           - Finance: banking, budget, investments, money
-           - Family: home, kids, relatives, spouse
-           - Social: friends, parties, dinners, dates, coffee
-           - Other: anything that doesn't fit above
-        
-        CRITICAL FUNCTION UPDATE - update_multiple_goals:
-        When updating multiple goals with DIFFERENT categories/updates for each goal, you MUST use the NEW format:
+        1. manage_events(action, parameters)
+           Actions: create, update, delete, list
+           
+        2. manage_tasks(action, parameters)  
+           Actions: create, update, delete, list, complete
+           
+        3. manage_habits(action, parameters)
+           Actions: create, update, delete, list, log, complete
+           
+        4. manage_goals(action, parameters)
+           Actions: create, update, delete, list, complete
+           
+        5. manage_categories(action, parameters)
+           Actions: create, update, delete, list
+           
+        📌 BULK OPERATIONS FORMAT (CRITICAL):
+        For updating/creating multiple items with DIFFERENT values, use this EXACT format:
         {
-          "goals": [
-            {"id": "goal-uuid-1", "category": "Health"},
-            {"id": "goal-uuid-2", "category": "Creative"},
-            {"id": "goal-uuid-3", "category": "Finance"},
-            // Each goal can have different updates
-          ]
+            "action": "update",
+            "items": [
+                {"id": "ID1", "name": "New Name 1", ...other fields...},
+                {"id": "ID2", "name": "New Name 2", ...other fields...},
+                {"id": "ID3", "name": "New Name 3", ...other fields...}
+            ]
         }
         
-        DO NOT use the old format with goalIds + single updates object when goals need different values!
-        Old format only works when ALL goals get the SAME updates.
+        DO NOT send multiple concatenated JSON objects like {"action":"update","parameters":{...}}{"action":"update","parameters":{...}}
+        ALWAYS use the items array for bulk operations!
+        
+        For updating ALL items with the SAME value:
+        {
+            "action": "update", 
+            "updateAll": true,
+            "category": "Work"  // This will update ALL items to have category "Work"
+        }
+        
+        CRITICAL: ALWAYS USE THE EXACT IDs FROM THE CONTEXT ABOVE!
+        
+        When user says "update all goal categories" or "add descriptions to all tasks":
+        1. Look at the items listed above with their [ID: xxx] tags
+        2. Use those EXACT IDs in your function calls
+        3. For bulk updates with different values, use items array with the actual IDs
+        
+        EXAMPLES:
+        - Update goal categories (USE REAL IDs FROM ABOVE):
+          manage_goals("update", {items: [
+            {id:"ACTUAL-UUID-FROM-CONTEXT", category:"Health"}, 
+            {id:"ANOTHER-UUID-FROM-CONTEXT", category:"Work"}
+          ]})
+        - Add descriptions to all tasks (for same value):
+          manage_tasks("update", {updateAll:true, description:"Generated description"})
+        - Schedule events based on tasks/goals (USE THE DATA ABOVE):
+          manage_events("create", {items: [/* events created from your actual tasks/goals */]})
+        
+        WHEN USER ASKS TO SCHEDULE:
+        The AI has access to ALL your goals, tasks, and habits above.
+        It will create events based on YOUR specific request.
+        For example: "schedule my day based on my goals" - AI will look at YOUR goals listed above and create appropriate time blocks.
+        
+        BULK OPERATIONS:
+        - For updating multiple items with DIFFERENT values: use items:[] array
+        - For updating ALL items with SAME value: use updateAll:true
+        - Always include the ID when updating specific items
+        
+        CATEGORY RULES:
+        Use existing categories from the list above. Map intelligently:
+        - Work: business, office, projects, meetings
+        - Personal: self-care, errands, personal time
+        - Health: medical, wellness, therapy
+        - Fitness: gym, exercise, sports
+        - Learning: study, courses, reading
+        - Social: friends, parties, networking
+        - Family: home, relatives, kids
+        - Finance: money, budget, investments
+        
+        NEVER ask for information that's already in the context above!
+        When user says "my goals/tasks/habits" use the specific items with IDs from above.
         
         === END CONTEXT ===
         
@@ -1691,7 +1739,7 @@ class ChatViewModel: ObservableObject {
             }
             return false
         }
-        let model = hasImages ? "gpt-4o" : "gpt-4o-mini"
+        _ = hasImages ? "gpt-4o" : "gpt-4o-mini"
         
         // Add system message about new functions if not already present
         if !conversationHistory.contains(where: { msg in
@@ -1726,14 +1774,13 @@ class ChatViewModel: ObservableObject {
         var functionCallName: String?
         var functionCallArguments = ""
         
-        streamingTask = _Concurrency.Task { @MainActor in
+        streamingTask = AsyncTask { @MainActor in
             do {
                 var eventCount = 0
                 
                 for try await event in stream {
-                    guard !_Concurrency.Task.isCancelled else { 
-                        break 
-                    }
+                    // Check for cancellation is handled by the async stream
+                    
                     
                     eventCount += 1
                     
@@ -1985,8 +2032,52 @@ class ChatViewModel: ObservableObject {
     }
     
     private func routeToSimplifiedSystem(functionName: String, parameters: [String: Any]) async -> FunctionCallResult {
+        // Debug logging
+        print("🔍 routeToSimplifiedSystem called")
+        print("   Function: \(functionName)")
+        print("   Raw parameters: \(parameters)")
+        
         let action = parameters["action"] as? String ?? "unknown"
-        let params = parameters["parameters"] as? [String: Any] ?? [:]
+        var params = parameters["parameters"] as? [String: Any] ?? [:]
+        
+        // CRITICAL FIX: Handle malformed parameters where AI puts data at wrong level
+        // Sometimes AI sends: {action: "update", id: "xxx", category: "yyy"} 
+        // Instead of: {action: "update", parameters: {id: "xxx", category: "yyy"}}
+        
+        // If parameters is empty but we have other keys, those are probably the actual parameters
+        if params.isEmpty && parameters.count > 1 {
+            print("   ⚠️ Parameters object is empty but found other keys - restructuring")
+            for (key, value) in parameters {
+                if key != "action" && key != "parameters" {
+                    params[key] = value
+                    print("   ➡️ Moved '\(key)' to parameters")
+                }
+            }
+        }
+        
+        // Also handle specific common mistakes
+        if let id = parameters["id"] as? String, params["id"] == nil {
+            print("   ⚠️ Found 'id' at top level, moving to parameters")
+            params["id"] = id
+        }
+        
+        if let ids = parameters["ids"] as? [String], params["ids"] == nil {
+            print("   ⚠️ Found 'ids' at top level, moving to parameters")
+            params["ids"] = ids
+        }
+        
+        if let items = parameters["items"] as? [[String: Any]], params["items"] == nil {
+            print("   ⚠️ Found 'items' at top level, moving to parameters")
+            params["items"] = items
+        }
+        
+        if let category = parameters["category"], params["category"] == nil {
+            print("   ⚠️ Found 'category' at top level, moving to parameters")
+            params["category"] = category
+        }
+        
+        print("   Extracted action: \(action)")
+        print("   Extracted params: \(params)")
         
         let result: [String: Any]
         
@@ -2005,8 +2096,22 @@ class ChatViewModel: ObservableObject {
             result = ["success": false, "message": "Unknown function: \(functionName)"]
         }
         
+        print("   Result: \(result)")
+        
         let success = result["success"] as? Bool ?? false
         let message = result["message"] as? String ?? "Operation completed"
+        
+        // If failed and action is "unknown", provide more helpful error
+        if !success && action == "unknown" {
+            print("❌ ERROR: Action not found in parameters")
+            print("   Expected format: {\"action\": \"create\", \"parameters\": {...}}")
+            return FunctionCallResult(
+                functionName: functionName,
+                success: false,
+                message: "Missing 'action' parameter. Expected format: {\"action\": \"create\", \"parameters\": {...}}",
+                details: ["debug": "Parameters received: \(parameters)"]
+            )
+        }
         
         var details: [String: String] = [:]
         if let data = result["data"] {
@@ -2030,7 +2135,157 @@ class ChatViewModel: ObservableObject {
     private func processFunctionCall(_ functionCall: ChatResponse.FunctionCall) async -> FunctionCallResult {
         // Processing function call
         
+        // AUTO-CONVERT OLD FUNCTION NAMES TO NEW ONES
+        var convertedFunctionCall = functionCall
+        let oldToNewMapping: [String: (name: String, action: String)] = [
+            // Events
+            "create_event": ("manage_events", "create"),
+            "update_event": ("manage_events", "update"),
+            "delete_event": ("manage_events", "delete"),
+            "list_events": ("manage_events", "list"),
+            "create_multiple_events": ("manage_events", "create"),
+            
+            // Tasks
+            "create_task": ("manage_tasks", "create"),
+            "update_task": ("manage_tasks", "update"),
+            "delete_task": ("manage_tasks", "delete"),
+            "complete_task": ("manage_tasks", "complete"),
+            "list_tasks": ("manage_tasks", "list"),
+            "create_multiple_tasks": ("manage_tasks", "create"),
+            
+            // Habits
+            "create_habit": ("manage_habits", "create"),
+            "update_habit": ("manage_habits", "update"),
+            "delete_habit": ("manage_habits", "delete"),
+            "list_habits": ("manage_habits", "list"),
+            "log_habit": ("manage_habits", "log"),
+            
+            // Goals
+            "create_goal": ("manage_goals", "create"),
+            "update_goal": ("manage_goals", "update"),
+            "delete_goal": ("manage_goals", "delete"),
+            "list_goals": ("manage_goals", "list"),
+            "add_milestone": ("manage_goals", "create_milestone"),
+            "add_goal_milestone": ("manage_goals", "create_milestone"),
+            
+            // Categories
+            "create_category": ("manage_categories", "create"),
+            "update_category": ("manage_categories", "update"),
+            "delete_category": ("manage_categories", "delete"),
+            "list_categories": ("manage_categories", "list")
+        ]
+        
+        // Check if this is an old function name that needs conversion
+        if let mapping = oldToNewMapping[functionCall.name] {
+            print("🔄 AUTO-CONVERTING: \(functionCall.name) → \(mapping.name) with action: \(mapping.action)")
+            
+            // Parse the old arguments
+            if let argumentsData = functionCall.arguments.data(using: .utf8),
+               let oldArgs = try? JSONSerialization.jsonObject(with: argumentsData) as? [String: Any] {
+                
+                // Create new arguments structure
+                let newArgs: [String: Any] = [
+                    "action": mapping.action,
+                    "parameters": oldArgs
+                ]
+                
+                // Convert back to JSON string
+                if let newArgsData = try? JSONSerialization.data(withJSONObject: newArgs),
+                   let newArgsString = String(data: newArgsData, encoding: .utf8) {
+                    convertedFunctionCall = ChatResponse.FunctionCall(
+                        name: mapping.name,
+                        arguments: newArgsString
+                    )
+                    print("✅ Converted arguments: \(newArgsString)")
+                }
+            }
+        }
+        
+        // FIX: Clean up concatenated JSON objects from AI
+        // Sometimes the AI sends multiple JSON objects concatenated like {...}{...}
+        // We need to convert these to proper bulk update format with items array
+        var cleanedArguments = convertedFunctionCall.arguments
+        
+        // Check if we have concatenated JSON (look for }{)
+        if cleanedArguments.contains("}{") {
+            print("⚠️ Detected concatenated JSON objects in arguments")
+            print("   Original: \(cleanedArguments)")
+            
+            // Split the concatenated JSON objects
+            let jsonObjects = cleanedArguments.components(separatedBy: "}{")
+            var allItems: [[String: Any]] = []
+            var commonAction: String? = nil
+            
+            for (index, jsonStr) in jsonObjects.enumerated() {
+                // Add back the braces that were removed by split
+                var fixedJson = jsonStr
+                if index > 0 { fixedJson = "{" + fixedJson }
+                if index < jsonObjects.count - 1 { fixedJson = fixedJson + "}" }
+                
+                // Parse each JSON object
+                if let data = fixedJson.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    
+                    // Extract action (should be same for all)
+                    if let action = json["action"] as? String {
+                        if commonAction == nil {
+                            commonAction = action
+                        }
+                    }
+                    
+                    // Extract parameters and add to items array
+                    if let params = json["parameters"] as? [String: Any] {
+                        allItems.append(params)
+                    } else if let items = json["items"] as? [[String: Any]] {
+                        // In case one of them already has items format
+                        allItems.append(contentsOf: items)
+                    }
+                }
+            }
+            
+            // If we successfully parsed multiple items, create proper bulk format
+            if allItems.count > 1, let action = commonAction {
+                print("   Found \(allItems.count) concatenated operations")
+                
+                // Create proper bulk update format
+                let bulkArgs: [String: Any] = [
+                    "action": action,
+                    "items": allItems
+                ]
+                
+                // Convert to JSON string
+                if let bulkData = try? JSONSerialization.data(withJSONObject: bulkArgs, options: []),
+                   let bulkString = String(data: bulkData, encoding: .utf8) {
+                    cleanedArguments = bulkString
+                    print("   Converted to bulk format: \(bulkString)")
+                    convertedFunctionCall = ChatResponse.FunctionCall(
+                        name: convertedFunctionCall.name,
+                        arguments: cleanedArguments
+                    )
+                }
+            } else if allItems.count == 1 {
+                // Single item, just clean it up
+                let singleArgs: [String: Any] = [
+                    "action": commonAction ?? "update",
+                    "parameters": allItems[0]
+                ]
+                if let singleData = try? JSONSerialization.data(withJSONObject: singleArgs, options: []),
+                   let singleString = String(data: singleData, encoding: .utf8) {
+                    cleanedArguments = singleString
+                    print("   Cleaned single item: \(singleString)")
+                    convertedFunctionCall = ChatResponse.FunctionCall(
+                        name: convertedFunctionCall.name,
+                        arguments: cleanedArguments
+                    )
+                }
+            }
+        }
+        
         // Parse function arguments
+        print("🔍 About to parse function call:")
+        print("   Function name: \(convertedFunctionCall.name)")
+        print("   Arguments string: \(convertedFunctionCall.arguments)")
+        
         guard let parsedFunction = openAIService.parseFunctionCall(
             from: ChatResponse(
                 id: "",
@@ -2042,7 +2297,7 @@ class ChatViewModel: ObservableObject {
                     message: ChatResponse.Message(
                         role: "assistant",
                         content: nil,
-                        functionCall: functionCall
+                        functionCall: convertedFunctionCall
                     ),
                     finishReason: nil
                 )],
@@ -2050,12 +2305,15 @@ class ChatViewModel: ObservableObject {
                 metadata: nil
             )
         ) else {
+            print("❌ Failed to parse function arguments!")
+            print("   Function: \(convertedFunctionCall.name)")
+            print("   Arguments: \(convertedFunctionCall.arguments)")
             
             return FunctionCallResult(
-                functionName: functionCall.name,
+                functionName: convertedFunctionCall.name,
                 success: false,
                 message: "I encountered an error processing that request. Could you please try rephrasing it or breaking it down into smaller parts?",
-                details: ["error": "Failed to parse function arguments", "function": functionCall.name]
+                details: ["error": "Failed to parse function arguments", "function": convertedFunctionCall.name, "arguments": convertedFunctionCall.arguments]
             )
         }
         
@@ -2330,20 +2588,85 @@ class ChatViewModel: ObservableObject {
             return nil
         }
         
-        let title = result.message.components(separatedBy: ": ").last ?? "Event"
+        // Extract actual event data from details
+        var title = "Untitled Event"
+        var timeDescription = "Scheduled"
+        var location: String? = nil
+        var category: String? = nil
+        var isMultiDay = false
+        let dayCount = 1
+        
+        // Check for event data in different possible locations
+        // Since details is [String: String], we work with strings directly
+        if let eventTitle = details["title"] {
+            title = eventTitle
+        }
+        
+        if let eventLocation = details["location"] {
+            location = eventLocation
+        }
+        
+        if let eventCategory = details["category"] {
+            category = eventCategory
+        }
+        
+        // Format time description from start and end times
+        if let startTime = details["startTime"],
+           let endTime = details["endTime"] {
+            timeDescription = "\(startTime) - \(endTime)"
+        } else if let startTime = details["startTime"] {
+            timeDescription = startTime
+        }
+        
+        // Check if multi-day
+        if let startDate = details["startDate"],
+           let endDate = details["endDate"],
+           startDate != endDate {
+            isMultiDay = true
+            // Calculate day count if possible
+            timeDescription = "\(startDate) - \(endDate)"
+        } else {
+            // Fallback: try to extract from message
+            let messageComponents = result.message.components(separatedBy: ": ")
+            if messageComponents.count > 1 {
+                title = messageComponents.last ?? title
+            }
+        }
+        
+        // Determine icon based on category or use default
+        let icon = getIconForCategory(category) ?? "📅"
+        
+        // Determine actions based on function name
+        let actions: [EventAction] = functionName == "update_event" ? 
+            [.edit, .delete] : [.edit, .delete, .complete]
         
         return EventPreview(
             id: UUID().uuidString,
-            icon: "📅",
+            icon: icon,
             title: title,
-            timeDescription: "Scheduled",
-            location: nil,
-            category: nil,
-            isMultiDay: false,
-            dayCount: 1,
+            timeDescription: timeDescription,
+            location: location,
+            category: category,
+            isMultiDay: isMultiDay,
+            dayCount: dayCount,
             dayBreakdown: nil,
-            actions: [.edit, .delete]
+            actions: actions
         )
+    }
+    
+    private func getIconForCategory(_ category: String?) -> String? {
+        guard let category = category else { return nil }
+        
+        switch category.lowercased() {
+        case "work", "meeting": return "💼"
+        case "personal": return "🏠"
+        case "health", "exercise", "fitness": return "💪"
+        case "travel", "vacation": return "✈️"
+        case "education", "learning": return "📚"
+        case "social", "party": return "🎉"
+        case "appointment", "medical": return "🏥"
+        default: return "📅"
+        }
     }
     
     private func createMultipleEventsPreview(from result: FunctionCallResult) -> [EventListItem]? {

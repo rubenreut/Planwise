@@ -69,7 +69,7 @@ class MockPersistenceProvider: ObservableObject, PersistenceProviding {
         }
         let startTime = CFAbsoluteTimeGetCurrent()
         defer {
-            let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+            let _ = CFAbsoluteTimeGetCurrent() - startTime
         }
         return try block()
     }

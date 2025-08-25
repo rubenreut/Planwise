@@ -65,18 +65,18 @@ struct PaywallMockView: View {
         VStack(spacing: baseUnit * 2) {
             // Icon
             Image(systemName: "sparkles")
-                .font(.system(size: 60))
+                .scaledFont(size: 60)
                 .foregroundColor(.accentColor)
                 .padding(.top, baseUnit * 2)
             
             // Title
             Text("Unlock Planwise Pro")
-                .font(.system(size: 28, weight: .bold, design: .default))
+                .scaledFont(size: 28, weight: .bold, design: .default)
                 .multilineTextAlignment(.center)
             
             // Subtitle
             Text("Transform your productivity with AI-powered scheduling")
-                .font(.system(size: 16, weight: .medium))
+                .scaledFont(size: 16, weight: .medium)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, baseUnit * 2)
@@ -128,7 +128,7 @@ struct PaywallMockView: View {
             HStack {
                 Spacer()
                 Text("SAVE 49%")
-                    .font(.system(size: 12, weight: .bold))
+                    .scaledFont(size: 12, weight: .bold)
                     .foregroundColor(.white)
                     .padding(.horizontal, baseUnit * 1.5)
                     .padding(.vertical, baseUnit / 2)
@@ -169,7 +169,7 @@ struct PaywallMockView: View {
             // Purchase button
             Button(action: {}) {
                 Text("Subscribe Now")
-                    .font(.system(size: 18, weight: .semibold))
+                    .scaledFont(size: 18, weight: .semibold)
                     .frame(maxWidth: .infinity)
                     .frame(height: 56)
                     .background(Color.accentColor)
@@ -180,7 +180,7 @@ struct PaywallMockView: View {
             // Restore button
             Button(action: {}) {
                 Text("Restore Purchases")
-                    .font(.system(size: 16, weight: .medium))
+                    .scaledFont(size: 16, weight: .medium)
                     .foregroundColor(.accentColor)
             }
         }
@@ -192,16 +192,16 @@ struct PaywallMockView: View {
     private var termsView: some View {
         VStack(spacing: baseUnit) {
             Text("By subscribing, you agree to our")
-                .font(.system(size: 12))
+                .scaledFont(size: 12)
                 .foregroundColor(.secondary)
             
             HStack(spacing: baseUnit * 2) {
                 Text("Terms of Service")
-                    .font(.system(size: 12, weight: .medium))
+                    .scaledFont(size: 12, weight: .medium)
                     .foregroundColor(.accentColor)
                 
                 Text("Privacy Policy")
-                    .font(.system(size: 12, weight: .medium))
+                    .scaledFont(size: 12, weight: .medium)
                     .foregroundColor(.accentColor)
             }
         }
@@ -226,11 +226,11 @@ struct MockPricingOption: View {
                 VStack(alignment: .leading, spacing: baseUnit / 2) {
                     HStack {
                         Text(title)
-                            .font(.system(size: 18, weight: .semibold))
+                            .scaledFont(size: 18, weight: .semibold)
                         
                         if isBestValue {
                             Text("Best Value")
-                                .font(.system(size: 11, weight: .bold))
+                                .scaledFont(size: 11, weight: .bold)
                                 .foregroundColor(.green)
                                 .padding(.horizontal, baseUnit)
                                 .padding(.vertical, baseUnit / 4)
@@ -240,14 +240,14 @@ struct MockPricingOption: View {
                     }
                     
                     Text("\(price) \(period)")
-                        .font(.system(size: 14))
+                        .scaledFont(size: 14)
                         .foregroundColor(.secondary)
                 }
                 
                 Spacer()
                 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 24))
+                    .scaledFont(size: 24)
                     .foregroundColor(isSelected ? .accentColor : .secondary)
             }
             .padding(baseUnit * 2)

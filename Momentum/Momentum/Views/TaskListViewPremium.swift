@@ -25,36 +25,38 @@ struct TaskListViewPremium: View {
                 // Stack with blue header extending behind content
                 ZStack(alignment: .top) {
                     // Background - either custom image or gradient
-                    if let headerData = SettingsView.loadHeaderImage() {
-                        ZStack {
-                            // Simple image display
-                            GeometryReader { imageGeo in
-                                Image(uiImage: headerData.image)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: imageGeo.size.width)
-                                    .offset(y: CGFloat(UserDefaults.standard.double(forKey: "headerImageVerticalOffset")))
+                    Group {
+                        if let headerData = SettingsView.loadHeaderImage() {
+                            ZStack {
+                                // Simple image display
+                                GeometryReader { imageGeo in
+                                    Image(uiImage: headerData.image)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: imageGeo.size.width)
+                                        .offset(y: CGFloat(UserDefaults.standard.double(forKey: "headerImageVerticalOffset")))
+                                }
+                                .frame(height: 280) // Same as DayView
+                                .clipped()
+                                
+                                // Dark overlay
+                                Color.black.opacity(0.3)
+                                    .frame(height: 280)
                             }
-                            .frame(height: 280) // Same as DayView
-                            .clipped()
-                            
-                            // Dark overlay
-                            Color.black.opacity(0.3)
-                                .frame(height: 280)
+                            .frame(height: 280)
+                            .ignoresSafeArea()
+                        } else {
+                            // Default blue gradient background
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.08, green: 0.15, blue: 0.35),
+                                    Color(red: 0.12, green: 0.25, blue: 0.55)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            .ignoresSafeArea()
                         }
-                        .frame(height: 280)
-                        .ignoresSafeArea()
-                    } else {
-                        // Default blue gradient background
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.08, green: 0.15, blue: 0.35),
-                                Color(red: 0.12, green: 0.25, blue: 0.55)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .ignoresSafeArea()
                     }
                     
                     VStack(spacing: 0) {
@@ -105,25 +107,38 @@ struct TaskListViewPremium: View {
                             Color(UIColor.systemBackground)
                                 .ignoresSafeArea(.all)
                             
-                            if let colors = extractedColors {
-                                VStack(spacing: 0) {
-                                    // Top part - intense color continuation from image bottom
-                                    LinearGradient(
-                                        stops: [
-                                            .init(color: colors.primary.opacity(0.8), location: 0.0),
-                                            .init(color: colors.primary.opacity(0.6), location: 0.1),
-                                            .init(color: colors.secondary.opacity(0.4), location: 0.2),
-                                            .init(color: colors.primary.opacity(0.2), location: 0.35),
-                                            .init(color: colors.secondary.opacity(0.1), location: 0.5),
-                                            .init(color: Color.white.opacity(0.02), location: 0.7),
-                                            .init(color: Color.clear, location: 1.0)
-                                        ],
+                            Group {
+                                if let colors = extractedColors {
+                                    let darkModeColors: [Color] = [
+                                        colors.primary.opacity(0.15),
+                                        colors.primary.opacity(0.1),
+                                        colors.secondary.opacity(0.08),
+                                        colors.primary.opacity(0.05),
+                                        colors.secondary.opacity(0.03),
+                                        Color.white.opacity(0.01),
+                                        Color.clear
+                                    ]
+                                    
+                                    let lightModeColors: [Color] = [
+                                        colors.primary.opacity(0.8),
+                                        colors.primary.opacity(0.6),
+                                        colors.secondary.opacity(0.4),
+                                        colors.primary.opacity(0.2),
+                                        colors.secondary.opacity(0.1),
+                                        Color.white.opacity(0.02),
+                                        Color.clear
+                                    ]
+                                    
+                                    ExtendedGradientBackground(
+                                        colors: colorScheme == .dark ? darkModeColors : lightModeColors,
                                         startPoint: .top,
-                                        endPoint: .bottom
+                                        endPoint: .bottom,
+                                        extendFactor: 3.0
                                     )
-                                    .blur(radius: 2)
+                                    .blur(radius: colorScheme == .dark ? 8 : 2)
+                                    .blendMode(colorScheme == .dark ? .plusLighter : .normal)
+                                    .allowsHitTesting(false) // Don't block touches
                                 }
-                                .ignoresSafeArea(.all)
                             }
                             
                             VStack(spacing: 0) {
@@ -160,18 +175,46 @@ struct TaskListViewPremium: View {
             }
         }
         .navigationBarHidden(true)
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ShowAddTask"))) { _ in
+            showingAddTask = true
+        }
         .onAppear {
-            // Load extracted colors from header image
-            self.extractedColors = UserDefaults.standard.getExtractedColors()
-            print("🎨 TaskListView - Loaded extracted colors: \(extractedColors != nil ? "Found" : "None")")
+            let useAutoGradient = UserDefaults.standard.bool(forKey: "useAutoGradient")
             
-            // If no colors saved but we have an image, extract them
-            if extractedColors == nil, let headerData = SettingsView.loadHeaderImage() {
-                print("🎨 TaskListView - No saved colors, extracting from image...")
-                let colors = ColorExtractor.extractColors(from: headerData.image)
-                UserDefaults.standard.setExtractedColors(colors)
-                self.extractedColors = (colors.primary, colors.secondary)
-                print("🎨 TaskListView - Extracted colors - Primary: \(colors.primary), Secondary: \(colors.secondary)")
+            if useAutoGradient {
+                // Load extracted colors from header image
+                self.extractedColors = UserDefaults.standard.getExtractedColors()
+                print("🎨 TaskListView - Loaded extracted colors: \(extractedColors != nil ? "Found" : "None")")
+                
+                // If no colors saved but we have an image, extract them
+                if extractedColors == nil, let headerData = SettingsView.loadHeaderImage() {
+                    print("🎨 TaskListView - No saved colors, extracting from image...")
+                    let colors = ColorExtractor.extractColors(from: headerData.image)
+                    UserDefaults.standard.setExtractedColors(colors)
+                    self.extractedColors = (colors.primary, colors.secondary)
+                    print("🎨 TaskListView - Extracted colors - Primary: \(colors.primary), Secondary: \(colors.secondary)")
+                }
+            } else {
+                // Use manual gradient color
+                let customHex = UserDefaults.standard.string(forKey: "customGradientColorHex") ?? ""
+                var baseColor: Color
+                if !customHex.isEmpty {
+                    baseColor = Color(hex: customHex) ?? Color.blue
+                    print("🎨 TaskListView - Using custom gradient color: \(customHex)")
+                } else {
+                    let manualColor = UserDefaults.standard.string(forKey: "manualGradientColor") ?? "blue"
+                    baseColor = Color.fromAccentString(manualColor)
+                    print("🎨 TaskListView - Using manual gradient color: \(manualColor)")
+                }
+                
+                // In dark mode, brighten the colors for better visibility
+                if colorScheme == .dark {
+                    // Mix with white to brighten the color
+                    let brightened = UIColor(baseColor).brightened(by: 0.3) ?? UIColor(baseColor)
+                    baseColor = Color(brightened)
+                }
+                
+                self.extractedColors = (baseColor, baseColor.opacity(0.7))
             }
         }
         .sheet(item: $selectedTask) { task in
@@ -237,7 +280,6 @@ struct TaskListViewPremium: View {
                         EnhancedTaskCard(task: task) {
                             selectedTask = task
                         }
-                        .opacity(0.7)
                         .padding(.horizontal)
                         .contextMenu {
                             Button(role: .destructive) {
@@ -262,7 +304,7 @@ struct TaskListViewPremium: View {
     private var emptyStateView: some View {
         VStack(spacing: 24) {
             Image(systemName: emptyStateIcon)
-                .font(.system(size: 48))
+                .scaledFont(size: 48)
                 .foregroundColor(.secondary)
             
             VStack(spacing: 8) {
@@ -271,7 +313,7 @@ struct TaskListViewPremium: View {
                     .fontWeight(.semibold)
                 
                 Text(emptyStateMessage)
-                    .font(.body)
+                    .scaledFont(size: 17)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -280,7 +322,7 @@ struct TaskListViewPremium: View {
                 showingAddTask = true
             } label: {
                 Text("Add Task")
-                    .font(.body)
+                    .scaledFont(size: 17)
                     .foregroundColor(.accentColor)
             }
         }
@@ -289,13 +331,7 @@ struct TaskListViewPremium: View {
     }
     
     private var addTaskButton: some View {
-        FloatingActionButton(
-            icon: "plus",
-            accessibilityLabel: "Add new task"
-        ) {
-            showingAddTask = true
-        }
-        .accessibilityHint("Opens task creation view")
+        EmptyView() // FAB moved to navbar
     }
     
     // MARK: - Computed Properties
@@ -366,9 +402,7 @@ struct TaskListViewPremium: View {
     }
     
     private func formatDateHeader(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d"
-        return formatter.string(from: date)
+        return Date.formatDateWithGreeting(date)
     }
     
     private func formatDayOfWeek(_ date: Date) -> String {

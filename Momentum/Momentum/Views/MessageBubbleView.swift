@@ -13,6 +13,13 @@ struct MessageBubbleView: View {
     var onMultiEventAction: ((MultiEventAction, UUID) -> Void)? = nil
     var onBulkAction: ((UUID, BulkActionPreview.BulkAction) -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("accentColor") private var selectedAccentColor = "blue"
+    @State private var isPressed = false
+    @State private var showActions = false
+    @State private var messageStatus: MessageStatusIndicator.Status = .sent
+    @State private var showReactions = false
+    @State private var selectedReaction: String? = nil
+    @State private var showCopySuccess = false
     
     // MARK: - Mathematical Constants
     
@@ -24,10 +31,10 @@ struct MessageBubbleView: View {
     private var bubbleColor: Color {
         if message.sender.isUser {
             // User messages use accent color
-            return Color.userBubbleBackground
+            return Color.fromAccentString(selectedAccentColor)
         } else {
             // AI messages use adaptive background
-            return Color.aiBubbleBackground
+            return Color(UIColor.secondarySystemBackground)
         }
     }
     
@@ -48,7 +55,7 @@ struct MessageBubbleView: View {
     }
     
     private var maxWidth: Double {
-        return UIScreen.main.bounds.width - (baseUnit * 4) // Full width minus padding for both
+        return max(100, UIScreen.main.bounds.width - (baseUnit * 4)) // Full width minus padding for both
     }
     
     private func documentIcon(for extension: String) -> String {
@@ -85,13 +92,18 @@ struct MessageBubbleView: View {
                 // Show name only for user messages
                 if case .user(let name) = message.sender {
                     Text(name)
-                        .font(.system(size: 11, weight: .medium, design: .default))
+                        .scaledFont(size: 11, weight: .medium, design: .default)
                         .foregroundColor(.secondary)
                         .tracking(-0.2)
                 }
                 
+                // Check for CRUD operations first
+                if let crudOperation = detectCRUDOperation(), !message.sender.isUser {
+                    renderCRUDCard(for: crudOperation)
+                        .frame(maxWidth: maxWidth, alignment: .leading)
+                }
                 // Check if this is a function call card message
-                if message.eventPreview != nil || message.multipleEventsPreview != nil || message.bulkActionPreview != nil {
+                else if message.eventPreview != nil || message.multipleEventsPreview != nil || message.bulkActionPreview != nil {
                     // Render event previews without bubble background
                     Group {
                         // Rich event preview
@@ -143,11 +155,11 @@ struct MessageBubbleView: View {
                             if let fileName = message.attachedFileName {
                                 HStack(spacing: baseUnit / 2) {
                                     Image(systemName: documentIcon(for: message.attachedFileExtension ?? ""))
-                                        .font(.system(size: 14))
+                                        .scaledFont(size: 14)
                                         .foregroundColor(documentColor(for: message.attachedFileExtension ?? ""))
                                     
                                     Text(fileName)
-                                        .font(.system(size: 13, weight: .medium))
+                                        .scaledFont(size: 13, weight: .medium)
                                         .foregroundColor(textColor.opacity(0.9))
                                         .lineLimit(1)
                                         .truncationMode(.middle)
@@ -180,10 +192,10 @@ struct MessageBubbleView: View {
                             // Document icon
                             VStack {
                                 Image(systemName: documentIcon(for: fileExtension))
-                                    .font(.system(size: 28))
+                                    .scaledFont(size: 28)
                                     .foregroundColor(documentColor(for: fileExtension))
                                 Text(fileExtension.uppercased())
-                                    .font(.system(size: 10, weight: .medium))
+                                    .scaledFont(size: 10, weight: .medium)
                                     .foregroundColor(textColor.opacity(0.6))
                             }
                             .frame(width: 60, height: 60)
@@ -198,12 +210,12 @@ struct MessageBubbleView: View {
                             
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(fileName)
-                                    .font(.system(size: 14, weight: .medium))
+                                    .scaledFont(size: 14, weight: .medium)
                                     .foregroundColor(textColor)
                                     .lineLimit(2)
                                     .truncationMode(.middle)
                                 Text("Document")
-                                    .font(.system(size: 12))
+                                    .scaledFont(size: 12)
                                     .foregroundColor(textColor.opacity(0.6))
                             }
                             
@@ -226,11 +238,11 @@ struct MessageBubbleView: View {
                     if let error = message.error {
                         HStack(spacing: baseUnit / 2) {
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.system(size: 14))
+                                .scaledFont(size: 14)
                                 .foregroundColor(.orange)
                             
                             Text(error)
-                                .font(.system(size: 13))
+                                .scaledFont(size: 13)
                                 .foregroundColor(.secondary)
                                 .textSelection(.enabled)
                             
@@ -240,9 +252,9 @@ struct MessageBubbleView: View {
                                 Button(action: onRetry) {
                                     HStack(spacing: baseUnit / 4) {
                                         Image(systemName: "arrow.clockwise")
-                                            .font(.system(size: 12))
+                                            .scaledFont(size: 12)
                                         Text("Retry")
-                                            .font(.system(size: 12, weight: .medium))
+                                            .scaledFont(size: 12, weight: .medium)
                                     }
                                     .foregroundColor(.accentColor)
                                 }
@@ -269,6 +281,87 @@ struct MessageBubbleView: View {
                 if message.isStreaming {
                     StreamingIndicator()
                         .padding(.horizontal, baseUnit)
+                }
+                
+                // Message actions row (reactions, copy, share)
+                if !message.sender.isUser && !message.isStreaming && !message.content.isEmpty {
+                    HStack(spacing: baseUnit) {
+                        // Reaction button
+                        Button(action: {
+                            withAnimation(.spring()) {
+                                showReactions.toggle()
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                if let reaction = selectedReaction {
+                                    Text(reaction)
+                                        .scaledFont(size: 16)
+                                } else {
+                                    Image(systemName: "face.smiling")
+                                        .scaledFont(size: 14)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule()
+                                    .fill(Color.gray.opacity(0.1))
+                            )
+                        }
+                        
+                        // Copy button
+                        Button(action: {
+                            copyToClipboard()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: showCopySuccess ? "checkmark" : "doc.on.doc")
+                                    .scaledFont(size: 14)
+                                    .foregroundColor(showCopySuccess ? .green : .secondary)
+                                    .symbolEffect(.bounce, value: showCopySuccess)
+                                if showCopySuccess {
+                                    Text("Copied")
+                                        .scaledFont(size: 12)
+                                        .foregroundColor(.green)
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule()
+                                    .fill(Color.gray.opacity(0.1))
+                            )
+                        }
+                        
+                        
+                        Spacer()
+                    }
+                    .padding(.top, 4)
+                    .transition(.opacity.combined(with: .scale))
+                }
+                
+                // Reaction picker
+                if showReactions {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(["👍", "❤️", "🎉", "💡", "🔥", "👏", "😊", "🚀"], id: \.self) { emoji in
+                                Button(action: {
+                                    withAnimation(.spring()) {
+                                        selectedReaction = emoji
+                                        showReactions = false
+                                        HapticFeedback.light.trigger()
+                                    }
+                                }) {
+                                    Text(emoji)
+                                        .scaledFont(size: 24)
+                                        .scaleEffect(selectedReaction == emoji ? 1.2 : 1.0)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, baseUnit)
+                    }
+                    .frame(height: 40)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
             
@@ -324,6 +417,23 @@ struct MessageBubbleView: View {
         
         return components.joined(separator: ". ")
     }
+    
+    // MARK: - Helper Functions
+    
+    private func copyToClipboard() {
+        UIPasteboard.general.string = message.content
+        withAnimation(.spring()) {
+            showCopySuccess = true
+        }
+        HapticFeedback.success.trigger()
+        
+        // Reset after 2 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation {
+                showCopySuccess = false
+            }
+        }
+    }
 }
 
 // MARK: - Markdown Text View
@@ -344,7 +454,7 @@ struct MarkdownText: View {
                             if !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                 if let attributedString = try? AttributedString(markdown: line) {
                                     Text(attributedString)
-                                        .font(.system(size: 15, weight: .regular, design: .default))
+                                        .scaledFont(size: 15, weight: .regular, design: .default)
                                         .foregroundColor(textColor)
                                         .tracking(-0.2)
                                         .fixedSize(horizontal: false, vertical: true)
@@ -352,7 +462,7 @@ struct MarkdownText: View {
                                 } else {
                                     // Fallback for each line
                                     Text(processSimpleMarkdown(line))
-                                        .font(.system(size: 15, weight: .regular, design: .default))
+                                        .scaledFont(size: 15, weight: .regular, design: .default)
                                         .foregroundColor(textColor)
                                         .tracking(-0.2)
                                         .fixedSize(horizontal: false, vertical: true)
@@ -446,34 +556,34 @@ struct FunctionCallResultView: View {
         VStack(alignment: .leading, spacing: baseUnit / 2) {
             HStack(spacing: baseUnit / 2) {
                 Image(systemName: iconName)
-                    .font(.system(size: 16))
+                    .scaledFont(size: 16)
                     .foregroundColor(iconColor)
                 
                 Text(result.displayName)
-                    .font(.system(size: 14, weight: .medium))
+                    .scaledFont(size: 14, weight: .medium)
                     .foregroundColor(.primary)
                 
                 Spacer()
                 
                 if result.success {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 12))
+                        .scaledFont(size: 12)
                         .foregroundColor(.green)
                 }
             }
             
             Text(result.message)
-                .font(.system(size: 13))
+                .scaledFont(size: 13)
                 .foregroundColor(.secondary)
             
             if let details = result.details {
                 ForEach(Array(details.keys.sorted()), id: \.self) { key in
                     HStack(spacing: baseUnit / 2) {
                         Text("\(key):")
-                            .font(.system(size: 12))
+                            .scaledFont(size: 12)
                             .foregroundColor(Color.secondary.opacity(0.7))
                         Text(details[key] ?? "")
-                            .font(.system(size: 12))
+                            .scaledFont(size: 12)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -558,6 +668,334 @@ struct FunctionCallResultView: View {
             acceptedMultiEventMessageIds: [],
             completedBulkActionIds: []
         )
+        
+        // Bulk action preview
+        MessageBubbleView(
+            message: ChatMessage(
+                content: "I've completed 5 tasks for you:\n• Review project proposal\n• Send weekly report\n• Update calendar\n• Check emails\n• Prepare presentation",
+                sender: .assistant,
+                timestamp: Date()
+            ),
+            acceptedEventIds: [],
+            deletedEventIds: [],
+            acceptedMultiEventMessageIds: [],
+            completedBulkActionIds: []
+        )
+        
+        MessageBubbleView(
+            message: ChatMessage(
+                content: "I've scheduled the following events:\n1. Team meeting at 10 AM\n2. Lunch with client at 12:30 PM\n3. Project review at 3 PM",
+                sender: .assistant,
+                timestamp: Date()
+            ),
+            acceptedEventIds: [],
+            deletedEventIds: [],
+            acceptedMultiEventMessageIds: [],
+            completedBulkActionIds: []
+        )
     }
     .background(Color(.systemBackground))
+}
+
+// MARK: - CRUD Operation Detection
+extension MessageBubbleView {
+    
+    private func detectCRUDOperation() -> CRUDOperation? {
+        let content = message.content.lowercased()
+        
+        // Check for created operations
+        if content.contains("created") || content.contains("added") || content.contains("scheduled") {
+            if content.contains("task") {
+                return .created(type: "Task", title: extractTitle(from: content))
+            } else if content.contains("event") {
+                return .created(type: "Event", title: extractTitle(from: content))
+            } else if content.contains("habit") {
+                return .created(type: "Habit", title: extractTitle(from: content))
+            } else if content.contains("goal") {
+                return .created(type: "Goal", title: extractTitle(from: content))
+            }
+        }
+        
+        // Check for updated operations
+        if content.contains("updated") || content.contains("modified") || content.contains("changed") {
+            if content.contains("task") {
+                return .updated(type: "Task", title: extractTitle(from: content))
+            } else if content.contains("event") {
+                return .updated(type: "Event", title: extractTitle(from: content))
+            }
+        }
+        
+        // Check for deleted operations
+        if content.contains("deleted") || content.contains("removed") || content.contains("cancelled") {
+            if content.contains("task") {
+                return .deleted(type: "Task", title: extractTitle(from: content))
+            } else if content.contains("event") {
+                return .deleted(type: "Event", title: extractTitle(from: content))
+            }
+        }
+        
+        // Check for bulk operations
+        if content.contains("multiple") || content.contains("all") || content.contains("bulk") || 
+           content.contains("several") || content.contains("batch") {
+            let count = extractCount(from: content)
+            
+            // Detect action type
+            if content.contains("completed") || content.contains("marked as complete") || 
+               content.contains("finished") || content.contains("done") {
+                let itemType = detectBulkItemType(from: content)
+                return .bulk(action: "Completed", count: count, type: itemType)
+            } else if content.contains("deleted") || content.contains("removed") {
+                let itemType = detectBulkItemType(from: content)
+                return .bulk(action: "Deleted", count: count, type: itemType)
+            } else if content.contains("created") || content.contains("added") {
+                let itemType = detectBulkItemType(from: content)
+                return .bulk(action: "Created", count: count, type: itemType)
+            } else if content.contains("updated") || content.contains("modified") {
+                let itemType = detectBulkItemType(from: content)
+                return .bulk(action: "Updated", count: count, type: itemType)
+            } else if content.contains("scheduled") {
+                return .bulk(action: "Scheduled", count: count, type: "events")
+            } else if content.contains("rescheduled") {
+                return .bulk(action: "Rescheduled", count: count, type: "events")
+            }
+        }
+        
+        // Check for list of items with bullet points or numbers
+        let lines = content.components(separatedBy: .newlines)
+        var itemCount = 0
+        for line in lines {
+            if line.trimmingCharacters(in: .whitespaces).starts(with: "•") ||
+               line.trimmingCharacters(in: .whitespaces).starts(with: "-") ||
+               line.trimmingCharacters(in: .whitespaces).starts(with: "*") ||
+               line.range(of: "^\\d+\\.", options: .regularExpression) != nil {
+                itemCount += 1
+            }
+        }
+        
+        if itemCount >= 3 {
+            // We have a list of items
+            if content.contains("created") || content.contains("added") {
+                let itemType = detectBulkItemType(from: content)
+                return .bulk(action: "Created", count: itemCount, type: itemType)
+            } else if content.contains("scheduled") {
+                return .bulk(action: "Scheduled", count: itemCount, type: "events")
+            }
+        }
+        
+        return nil
+    }
+    
+    private func extractTitle(from text: String) -> String {
+        // Try to extract text between quotes
+        if let firstQuote = text.firstIndex(of: "\""),
+           let lastQuote = text.lastIndex(of: "\""),
+           firstQuote < lastQuote {
+            let startIndex = text.index(after: firstQuote)
+            let endIndex = lastQuote
+            return String(text[startIndex..<endIndex])
+        }
+        
+        // Try to extract text between single quotes
+        if let firstQuote = text.firstIndex(of: "'"),
+           let lastQuote = text.lastIndex(of: "'"),
+           firstQuote < lastQuote {
+            let startIndex = text.index(after: firstQuote)
+            let endIndex = lastQuote
+            return String(text[startIndex..<endIndex])
+        }
+        
+        // Default title
+        return "Untitled"
+    }
+    
+    private func extractCount(from text: String) -> Int {
+        // Look for number words first
+        let numberWords = [
+            "two": 2, "three": 3, "four": 4, "five": 5,
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10
+        ]
+        
+        let lowercased = text.lowercased()
+        for (word, value) in numberWords {
+            if lowercased.contains(word) {
+                return value
+            }
+        }
+        
+        // Then look for actual numbers
+        let numbers = text.components(separatedBy: CharacterSet.decimalDigits.inverted)
+            .compactMap { Int($0) }
+            .filter { $0 > 0 && $0 < 100 } // Reasonable range for bulk actions
+        
+        return numbers.first ?? 1
+    }
+    
+    private func detectBulkItemType(from text: String) -> String {
+        let content = text.lowercased()
+        
+        if content.contains("task") {
+            return "tasks"
+        } else if content.contains("event") {
+            return "events"
+        } else if content.contains("habit") {
+            return "habits"
+        } else if content.contains("goal") {
+            return "goals"
+        } else if content.contains("reminder") {
+            return "reminders"
+        } else if content.contains("appointment") || content.contains("meeting") {
+            return "events"
+        } else if content.contains("item") {
+            return "items"
+        }
+        
+        return "items" // Default
+    }
+    
+    private enum CRUDOperation {
+        case created(type: String, title: String)
+        case updated(type: String, title: String)
+        case deleted(type: String, title: String)
+        case bulk(action: String, count: Int, type: String)
+    }
+    
+    @ViewBuilder
+    private func renderCRUDCard(for operation: CRUDOperation) -> some View {
+        switch operation {
+        case .created(let type, let title):
+            CreatedItemCard(
+                itemType: type,
+                itemTitle: title,
+                itemDescription: extractDescription(from: message.content),
+                timestamp: message.timestamp,
+                categoryColor: extractCategoryColor()
+            )
+            
+        case .updated(let type, let title):
+            UpdatedItemCard(
+                itemType: type,
+                itemTitle: title,
+                changes: extractChanges(from: message.content),
+                timestamp: message.timestamp
+            )
+            
+        case .deleted(let type, let title):
+            DeletedItemCard(
+                itemType: type,
+                itemTitle: title,
+                reason: nil,
+                timestamp: message.timestamp
+            )
+            
+        case .bulk(let action, let count, let type):
+            BulkActionCard(
+                action: action,
+                itemCount: count,
+                itemType: type,
+                details: extractBulkDetails(from: message.content)
+            )
+        }
+    }
+    
+    private func extractDescription(from text: String) -> String? {
+        // Extract description after colon or dash
+        if let colonIndex = text.firstIndex(of: ":") {
+            let afterColon = text[text.index(after: colonIndex)...]
+            return String(afterColon).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return nil
+    }
+    
+    private func extractCategoryColor() -> Color? {
+        // Check if message mentions a category
+        if message.content.lowercased().contains("work") {
+            return .blue
+        } else if message.content.lowercased().contains("personal") {
+            return .purple
+        } else if message.content.lowercased().contains("health") {
+            return .green
+        }
+        return nil
+    }
+    
+    private func extractChanges(from text: String) -> [String: (old: String, new: String)] {
+        // Simple extraction - could be enhanced
+        var changes: [String: (old: String, new: String)] = [:]
+        
+        if text.contains("title") {
+            changes["title"] = (old: "Old Title", new: extractTitle(from: text))
+        }
+        if text.contains("date") || text.contains("time") {
+            changes["date"] = (old: "Previous Date", new: "New Date")
+        }
+        if text.contains("priority") {
+            changes["priority"] = (old: "Medium", new: "High")
+        }
+        
+        return changes
+    }
+    
+    private func extractBulkDetails(from text: String) -> [String] {
+        // Extract item titles or descriptions
+        var details: [String] = []
+        let lines = text.components(separatedBy: .newlines)
+        
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            
+            // Check for bullet points
+            if trimmed.starts(with: "•") || trimmed.starts(with: "-") || 
+               trimmed.starts(with: "*") || trimmed.starts(with: "→") {
+                let cleaned = trimmed
+                    .replacingOccurrences(of: "•", with: "")
+                    .replacingOccurrences(of: "-", with: "")
+                    .replacingOccurrences(of: "*", with: "")
+                    .replacingOccurrences(of: "→", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !cleaned.isEmpty && cleaned.count > 2 {
+                    details.append(cleaned)
+                }
+            }
+            // Check for numbered lists
+            else if let range = trimmed.range(of: "^\\d+[\\.\\)]", options: .regularExpression) {
+                let cleaned = trimmed[range.upperBound...]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !cleaned.isEmpty && cleaned.count > 2 {
+                    details.append(String(cleaned))
+                }
+            }
+            // Check for quoted items
+            else if trimmed.contains("\"") {
+                if let firstQuote = trimmed.firstIndex(of: "\""),
+                   let lastQuote = trimmed.lastIndex(of: "\""),
+                   firstQuote < lastQuote {
+                    let startIndex = trimmed.index(after: firstQuote)
+                    let endIndex = lastQuote
+                    let extracted = String(trimmed[startIndex..<endIndex])
+                    if !extracted.isEmpty && extracted.count > 2 {
+                        details.append(extracted)
+                    }
+                }
+            }
+        }
+        
+        // If no details found but we detected bulk action, try to extract from content
+        if details.isEmpty && text.lowercased().contains("follow") {
+            // Look for "the following" pattern
+            if let colonIndex = text.firstIndex(of: ":") {
+                let afterColon = String(text[text.index(after: colonIndex)...])
+                let items = afterColon.components(separatedBy: ",")
+                for item in items {
+                    let cleaned = item.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .replacingOccurrences(of: "and", with: "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !cleaned.isEmpty && cleaned.count > 2 {
+                        details.append(cleaned)
+                    }
+                }
+            }
+        }
+        
+        return details
+    }
 }

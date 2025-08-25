@@ -9,6 +9,7 @@ struct TaskDetailView: View {
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject private var taskManager: TaskManager
     @EnvironmentObject private var scheduleManager: ScheduleManager
+    @AppStorage("accentColor") private var selectedAccentColor = "blue"
     
     @State private var title: String = ""
     @State private var notes: String = ""
@@ -68,16 +69,32 @@ struct TaskDetailView: View {
                             
                             Divider()
                             
-                            ZStack(alignment: .topLeading) {
-                                if notes.isEmpty {
-                                    Text("Add notes...")
-                                        .foregroundColor(.secondary)
-                                        .padding(.top, 8)
+                            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                                Text("NOTES & ATTACHMENTS")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.secondary)
+                                
+                                ZStack(alignment: .topLeading) {
+                                    if notes.isEmpty {
+                                        Text("Add notes, links, or describe attachments...")
+                                            .foregroundColor(.secondary)
+                                            .padding(.top, 8)
+                                    }
+                                    TextEditor(text: $notes)
+                                        .frame(minHeight: 100)
+                                        .scrollContentBackground(.hidden)
+                                        .background(Color.clear)
                                 }
-                                TextEditor(text: $notes)
-                                    .frame(minHeight: 100)
-                                    .scrollContentBackground(.hidden)
-                                    .background(Color.clear)
+                                
+                                HStack(spacing: 4) {
+                                    Image(systemName: "paperclip")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    Text("You can paste links or describe attached documents here")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
                             }
                         }
                         .padding(DesignSystem.Spacing.lg)
@@ -302,7 +319,7 @@ struct TaskDetailView: View {
                                 HStack {
                                     VStack(alignment: .leading) {
                                         Text(event.title ?? "Untitled Event")
-                                            .font(.body)
+                                            .scaledFont(size: 17)
                                         Text(formatEventTime(event))
                                             .font(.caption)
                                             .foregroundColor(.secondary)
@@ -378,7 +395,12 @@ struct TaskDetailView: View {
                             .padding(.horizontal)
                         }
                         
-                        // Photo Attachments
+                        // Unified Attachments Section (Photos and Files)
+                        AttachmentListView(task: task)
+                            .padding(.top, DesignSystem.Spacing.md)
+                        
+                        // Legacy Photo Attachments (keeping temporarily for compatibility)
+                        if false { // Disabled - using new attachment system
                         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                             Button {
                                 showingPhotoOptions = true
@@ -393,7 +415,7 @@ struct TaskDetailView: View {
                                             .foregroundColor(.secondary)
                                     }
                                     Image(systemName: "plus.circle.fill")
-                                        .foregroundColor(.blue)
+                                        .foregroundColor(Color.fromAccentString(selectedAccentColor))
                                 }
                                 .padding(DesignSystem.Spacing.md)
                                 .background(
@@ -443,8 +465,10 @@ struct TaskDetailView: View {
                             }
                         }
                         .padding(.horizontal)
+                        } // End of disabled legacy photo section
                         
-                        // File Attachments
+                        // Legacy File Attachments (keeping temporarily for compatibility)
+                        if false { // Disabled - using new attachment system
                         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                             Button {
                                 showingFilePicker = true
@@ -459,7 +483,7 @@ struct TaskDetailView: View {
                                             .foregroundColor(.secondary)
                                     }
                                     Image(systemName: "plus.circle.fill")
-                                        .foregroundColor(.blue)
+                                        .foregroundColor(Color.fromAccentString(selectedAccentColor))
                                 }
                                 .padding(DesignSystem.Spacing.md)
                                 .background(
@@ -475,7 +499,7 @@ struct TaskDetailView: View {
                                     ForEach(attachedFiles, id: \.self) { fileName in
                                         HStack {
                                             Image(systemName: fileIcon(for: fileName))
-                                                .foregroundColor(.blue)
+                                                .foregroundColor(Color.fromAccentString(selectedAccentColor))
                                             Text(fileName)
                                                 .font(.footnote)
                                                 .lineLimit(1)
@@ -486,8 +510,8 @@ struct TaskDetailView: View {
                                                 openFile(fileName)
                                             } label: {
                                                 Image(systemName: "arrow.up.forward.square")
-                                                    .foregroundColor(.blue)
-                                                    .font(.body)
+                                                    .foregroundColor(Color.fromAccentString(selectedAccentColor))
+                                                    .scaledFont(size: 17)
                                             }
                                             
                                             // Delete button
@@ -516,6 +540,7 @@ struct TaskDetailView: View {
                             }
                         }
                         .padding(.horizontal)
+                        } // End of disabled legacy file section
                         
                         // Actions
                         VStack(spacing: 12) {
@@ -847,7 +872,7 @@ struct EventPickerView: View {
                             HStack {
                                 VStack(alignment: .leading) {
                                     Text(event.title ?? "Untitled")
-                                        .font(.body)
+                                        .scaledFont(size: 17)
                                     if let startTime = event.startTime, let endTime = event.endTime {
                                         Text("\(startTime, style: .time) - \(endTime, style: .time)")
                                             .font(.caption)
@@ -886,6 +911,7 @@ struct SubtasksView: View {
     @EnvironmentObject private var taskManager: TaskManager
     @State private var newSubtaskTitle = ""
     @FocusState private var isAddingSubtask: Bool
+    @AppStorage("accentColor") private var selectedAccentColor = "blue"
     
     var subtasks: [Task] {
         (parentTask.subtasks?.allObjects as? [Task] ?? []).sorted {
@@ -916,8 +942,25 @@ struct SubtasksView: View {
                         Button {
                             toggleSubtask(subtask)
                         } label: {
-                            Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(subtask.isCompleted ? .green : .secondary)
+                            ZStack {
+                                // Simple circle border
+                                Circle()
+                                    .stroke(subtask.isCompleted ? Color.fromAccentString(selectedAccentColor) : Color.gray.opacity(0.3), lineWidth: 2)
+                                    .scaledFrame(width: 20, height: 20)
+                                
+                                // Fill when completed
+                                if subtask.isCompleted {
+                                    Circle()
+                                        .fill(Color.fromAccentString(selectedAccentColor))
+                                        .scaledFrame(width: 20, height: 20)
+                                    
+                                    Image(systemName: "checkmark")
+                                        .scaledFont(size: 12, weight: .bold)
+                                        .scaledIcon()
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            .frame(width: 24, height: 24)
                         }
                         .buttonStyle(PlainButtonStyle())
                         

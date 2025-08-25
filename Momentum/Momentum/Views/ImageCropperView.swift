@@ -95,10 +95,10 @@ struct ImageCropperView: View {
                             // Center text
                             VStack(spacing: 4) {
                                 Text("Position Header")
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .scaledFont(size: 16, weight: .semibold)
                                     .foregroundColor(.white)
                                 Text("Pinch to zoom • Drag to position")
-                                    .font(.system(size: 12))
+                                    .scaledFont(size: 12)
                                     .foregroundColor(.white.opacity(0.8))
                             }
                             .padding(.horizontal, 20)

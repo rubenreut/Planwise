@@ -6,6 +6,10 @@
 	<string>Planwise</string>
 	<key>CFBundleName</key>
 	<string>Momentum</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSApplicationCategoryType</key>
@@ -41,5 +45,9 @@
 			<string>com.rubenreut.momentum</string>
 		</dict>
 	</array>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSFamilyControlsUsageDescription</key>
+	<string>Planwise needs Screen Time access to track your app usage and help you understand how you spend your time</string>
 </dict>
 </plist>

@@ -122,7 +122,7 @@ struct ChatRequestMessage: Codable {
             // Create multimodal content with text and file reference
             // Note: OpenAI doesn't directly support file uploads in chat, so we'll convert certain files to text
             // For now, we'll just include the file info in the text content
-            _ = fileData.base64EncodedString()
+            let _ = fileData.base64EncodedString()
             let fileInfo = "\n\n[File Attachment: \(fileName) (\(mimeType))]\n"
             
             // For supported document types, we could potentially extract text content
@@ -218,6 +218,7 @@ struct UserContext: Codable {
     let todaySchedule: [ScheduleItem]
     let pastWeekSchedule: [ScheduleItem]
     let nextWeekSchedule: [ScheduleItem]
+    let allEvents: [ScheduleItem]?  // ALL events with IDs for direct access
     let completionHistory: [CompletionItem]
     let timezone: String
     let timezoneOffset: String
@@ -319,16 +320,60 @@ struct ChatResponse: Codable {
         let role: String
         let content: String?
         let functionCall: FunctionCall?
+        let toolCalls: [ToolCall]?
         
         enum CodingKeys: String, CodingKey {
             case role, content
             case functionCall = "function_call"
+            case toolCalls = "tool_calls"
+        }
+        
+        // Regular initializer for creating messages manually (used by MockOpenAIService)
+        init(role: String, content: String?, functionCall: FunctionCall? = nil, toolCalls: [ToolCall]? = nil) {
+            self.role = role
+            self.content = content
+            self.functionCall = functionCall
+            self.toolCalls = toolCalls
+        }
+        
+        // Custom decoder to handle both formats
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            role = try container.decode(String.self, forKey: .role)
+            content = try container.decodeIfPresent(String.self, forKey: .content)
+            
+            // Try to decode tool_calls first (new format)
+            if let tools = try container.decodeIfPresent([ToolCall].self, forKey: .toolCalls),
+               !tools.isEmpty,
+               let firstTool = tools.first {
+                // Convert first tool call to function call for backward compatibility
+                functionCall = FunctionCall(
+                    name: firstTool.function.name,
+                    arguments: firstTool.function.arguments
+                )
+                toolCalls = tools
+            } else {
+                // Fall back to old function_call format
+                functionCall = try container.decodeIfPresent(FunctionCall.self, forKey: .functionCall)
+                toolCalls = nil
+            }
         }
     }
     
     struct FunctionCall: Codable {
         let name: String
         let arguments: String
+    }
+    
+    struct ToolCall: Codable {
+        let id: String
+        let type: String
+        let function: ToolFunction
+        
+        struct ToolFunction: Codable {
+            let name: String
+            let arguments: String
+        }
     }
     
     struct Usage: Codable {
@@ -416,7 +461,7 @@ class OpenAIService: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
-        // Build request
+        // Build request - don't send functionCall when using tools (new format)
         let chatRequest = ChatRequest(
             messages: messages,
             model: model,
@@ -424,7 +469,7 @@ class OpenAIService: ObservableObject {
             maxTokens: maxTokens,
             stream: stream,
             userContext: userContext,
-            functionCall: tools != nil ? "auto" : nil,
+            functionCall: nil,  // Don't send function_call with tools
             tools: tools
         )
         
@@ -449,6 +494,18 @@ class OpenAIService: ObservableObject {
         }
         #endif
         request.httpBody = try encoder.encode(chatRequest)
+        
+        // Debug: Log the actual request body
+        if let bodyData = request.httpBody,
+           let bodyString = String(data: bodyData, encoding: .utf8) {
+            print("🔵 Full Request Body being sent:")
+            print(bodyString)
+            // Also check if tools are properly encoded
+            if let bodyJson = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any],
+               let tools = bodyJson["tools"] {
+                print("🔵 Tools in request: \(tools)")
+            }
+        }
         
         do {
             print("🔵 Sending request to OpenAI...")
@@ -494,7 +551,7 @@ class OpenAIService: ObservableObject {
                 )
                 
             default:
-                if let errorString = String(data: data, encoding: .utf8) {
+                if let _ = String(data: data, encoding: .utf8) {
                     // Try to parse error details
                     if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                         
@@ -550,18 +607,18 @@ class OpenAIService: ObservableObject {
                     
         
         // Debug log the actual message content being sent
-        for (index, message) in messages.enumerated() {
+        for (_, message) in messages.enumerated() {
             switch message.content {
-            case .text(let text): break
+            case .text(_): break
             case .array(let array):
-                for (itemIndex, item) in array.enumerated() {
+                for (_, item) in array.enumerated() {
                     if let type = item["type"] as? String {
                         if type == "image_url", 
                            let imageUrl = item["image_url"] as? [String: Any],
                            let url = imageUrl["url"] as? String {
                             let isBase64 = url.hasPrefix("data:image")
                             if isBase64 {
-                                let dataSize = url.count
+                                let _ = url.count
                             }
                         }
                     }
@@ -734,16 +791,62 @@ struct ChatStreamData: Codable {
         let role: String?
         let content: String?
         let functionCall: StreamFunctionCall?
+        let toolCalls: [StreamToolCall]?
         
         enum CodingKeys: String, CodingKey {
             case role, content
             case functionCall = "function_call"
+            case toolCalls = "tool_calls"
+        }
+        
+        // Regular initializer for creating deltas manually (used by MockOpenAIService)
+        init(role: String? = nil, content: String? = nil, functionCall: StreamFunctionCall? = nil, toolCalls: [StreamToolCall]? = nil) {
+            self.role = role
+            self.content = content
+            self.functionCall = functionCall
+            self.toolCalls = toolCalls
+        }
+        
+        // Custom decoder to handle both formats
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            role = try container.decodeIfPresent(String.self, forKey: .role)
+            content = try container.decodeIfPresent(String.self, forKey: .content)
+            
+            // Try to decode tool_calls first (new format)
+            if let tools = try container.decodeIfPresent([StreamToolCall].self, forKey: .toolCalls),
+               !tools.isEmpty,
+               let firstTool = tools.first,
+               let _ = firstTool.function?.name ?? firstTool.function?.arguments {
+                // Convert first tool call to function call for backward compatibility
+                functionCall = StreamFunctionCall(
+                    name: firstTool.function?.name,
+                    arguments: firstTool.function?.arguments
+                )
+                toolCalls = tools
+            } else {
+                // Fall back to old function_call format
+                functionCall = try container.decodeIfPresent(StreamFunctionCall.self, forKey: .functionCall)
+                toolCalls = nil
+            }
         }
     }
     
     struct StreamFunctionCall: Codable {
         let name: String?
         let arguments: String?
+    }
+    
+    struct StreamToolCall: Codable {
+        let index: Int?
+        let id: String?
+        let type: String?
+        let function: StreamToolFunction?
+        
+        struct StreamToolFunction: Codable {
+            let name: String?
+            let arguments: String?
+        }
     }
 }
 
@@ -754,13 +857,77 @@ extension OpenAIService {
     func parseFunctionCall(from response: ChatResponse) -> ParsedFunction? {
         guard let firstChoice = response.choices.first,
               let functionCall = firstChoice.message.functionCall else {
+            print("❌ parseFunctionCall: No function call in response")
             return nil
         }
         
+        print("📋 parseFunctionCall: Parsing \(functionCall.name)")
+        print("   Raw arguments: \(functionCall.arguments)")
+        
+        // Declare cleanedArguments outside the do block so it's accessible in catch
+        var cleanedArguments = functionCall.arguments
+        
+        // SPECIAL CASE: Handle concatenated JSON objects (OpenAI bug)
+        // If we detect multiple JSON objects concatenated, convert to items array
+        if functionCall.name.starts(with: "manage_") && cleanedArguments.contains("}}{") {
+            print("⚠️ Detected concatenated JSON objects - converting to items array")
+            
+            // Split by }}{ pattern and convert to array format
+            let objects = cleanedArguments.components(separatedBy: "}{")
+            var items: [[String: Any]] = []
+            var commonAction = ""
+            
+            for (index, obj) in objects.enumerated() {
+                var jsonStr = obj
+                // Add back the braces we split on
+                if index > 0 { jsonStr = "{" + jsonStr }
+                if index < objects.count - 1 { jsonStr = jsonStr + "}" }
+                
+                if let data = jsonStr.data(using: .utf8),
+                   let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    // Extract the action (should be the same for all)
+                    if let action = parsed["action"] as? String {
+                        commonAction = action
+                    }
+                    // Create item with both ID and parameters
+                    var item: [String: Any] = [:]
+                    
+                    // Add the ID if present
+                    if let id = parsed["id"] as? String {
+                        item["id"] = id
+                    }
+                    
+                    // Add all parameters
+                    if let params = parsed["parameters"] as? [String: Any] {
+                        // Merge parameters into the item
+                        for (key, value) in params {
+                            item[key] = value
+                        }
+                    }
+                    
+                    if !item.isEmpty {
+                        items.append(item)
+                    }
+                }
+            }
+            
+            // Reconstruct as proper bulk operation
+            if !items.isEmpty && !commonAction.isEmpty {
+                let properFormat: [String: Any] = [
+                    "action": commonAction,
+                    "parameters": ["items": items]
+                ]
+                
+                if let newData = try? JSONSerialization.data(withJSONObject: properFormat),
+                   let newJson = String(data: newData, encoding: .utf8) {
+                    cleanedArguments = newJson
+                    print("✅ Converted to proper bulk format with \(items.count) items")
+                }
+            }
+        }
         
         do {
             // First try to clean up common JSON issues
-            var cleanedArguments = functionCall.arguments
             
             // Remove any trailing commas before closing braces/brackets
             cleanedArguments = cleanedArguments.replacingOccurrences(of: ",\\s*}", with: "}", options: .regularExpression)
@@ -806,12 +973,17 @@ extension OpenAIService {
                 arguments: arguments
             )
         } catch {
+            print("❌ Failed to parse JSON arguments!")
+            print("   Error: \(error)")
             
             // Try to provide more specific error information
             if let nsError = error as NSError? {
                 if let debugDescription = nsError.userInfo[NSDebugDescriptionErrorKey] {
+                    print("   Debug: \(debugDescription)")
                 }
             }
+            
+            print("   Cleaned arguments were: \(cleanedArguments)")
             
             return nil
         }
@@ -931,11 +1103,15 @@ extension OpenAIService {
             )
         }
         
+        // ALSO include ALL events in a simple flat list with IDs for easy access
+        let allEventsFlat = events.map(eventToScheduleItem)
+        
         return UserContext(
             currentTime: formatter.string(from: now),
             todaySchedule: todayEvents.map(eventToScheduleItem),
             pastWeekSchedule: pastWeekEvents.map(eventToScheduleItem),
             nextWeekSchedule: nextWeekEvents.map(eventToScheduleItem),
+            allEvents: allEventsFlat,  // Add this new field
             completionHistory: completionHistory,
             timezone: TimeZone.currentIdentifier,
             timezoneOffset: TimeZone.offsetString,

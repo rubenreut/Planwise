@@ -90,14 +90,16 @@ struct AddEventView: View {
                                 HStack {
                                     if let category = selectedCategory {
                                         Image(systemName: category.iconName ?? "folder")
-                                            .font(.system(size: 17))
+                        .scaledIcon()
+                    .scaledFont(size: 17)
                                             .foregroundColor(Color(hex: category.colorHex ?? "#007AFF"))
                                         Text(category.name ?? "")
                                             .font(.system(size: 17))
                                             .foregroundColor(.primary)
                                     } else {
                                         Image(systemName: "folder")
-                                            .font(.system(size: 17))
+                        .scaledIcon()
+                    .scaledFont(size: 17)
                                             .foregroundColor(.secondary)
                                         Text("No category")
                                             .font(.system(size: 17))
@@ -107,7 +109,8 @@ struct AddEventView: View {
                                     Spacer()
                                     
                                     Image(systemName: "chevron.right")
-                                        .font(.system(size: 14, weight: .semibold))
+                        .scaledIcon()
+                    .scaledFont(size: 14, weight: .semibold)
                                         .foregroundColor(Color(UIColor.tertiaryLabel))
                                 }
                                 .padding(.horizontal, 16)
@@ -137,7 +140,8 @@ struct AddEventView: View {
                                         .font(.system(size: 17))
                                 } icon: {
                                     Image(systemName: "sun.max.fill")
-                                        .font(.system(size: 17))
+                        .scaledIcon()
+                    .scaledFont(size: 17)
                                         .foregroundColor(.orange)
                                 }
                                 
@@ -162,7 +166,8 @@ struct AddEventView: View {
                                             .font(.system(size: 17))
                                     } icon: {
                                         Image(systemName: "clock")
-                                            .font(.system(size: 17))
+                        .scaledIcon()
+                    .scaledFont(size: 17)
                                             .foregroundColor(.green)
                                     }
                                     
@@ -185,7 +190,8 @@ struct AddEventView: View {
                                             .font(.system(size: 17))
                                     } icon: {
                                         Image(systemName: "clock.badge.checkmark")
-                                            .font(.system(size: 17))
+                        .scaledIcon()
+                    .scaledFont(size: 17)
                                             .foregroundColor(.red)
                                     }
                                     
@@ -220,7 +226,8 @@ struct AddEventView: View {
                         
                         HStack {
                             Image(systemName: "mappin.circle.fill")
-                                .font(.system(size: 17))
+                        .scaledIcon()
+                    .scaledFont(size: 17)
                                 .foregroundColor(.red)
                             
                             TextField("Add location", text: $location)
@@ -333,7 +340,7 @@ struct AddEventView: View {
     }
     
     private func createNewCategory(name: String, color: Color, icon: String) {
-        let colorHex = color.toHex()
+        let colorHex = color.hexString
         let result = scheduleManager.createCategory(
             name: name,
             icon: icon,
@@ -401,7 +408,8 @@ struct CreateCategorySheet: View {
                                 )
                                 .overlay(
                                     Image(systemName: "checkmark")
-                                        .font(.system(size: 16, weight: .bold))
+                        .scaledIcon()
+                    .scaledFont(size: 16, weight: .bold)
                                         .foregroundColor(.white)
                                         .opacity(selectedColor == color ? 1 : 0)
                                 )
@@ -422,7 +430,8 @@ struct CreateCategorySheet: View {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 16) {
                         ForEach(icons, id: \.self) { icon in
                             Image(systemName: icon)
-                                .font(.system(size: 24))
+                        .scaledIcon()
+                    .scaledFont(size: 24)
                                 .foregroundColor(selectedIcon == icon ? selectedColor : .secondary)
                                 .frame(width: 44, height: 44)
                                 .background(

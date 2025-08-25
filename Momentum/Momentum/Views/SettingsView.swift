@@ -6,6 +6,41 @@ import UserNotifications
 import LocalAuthentication
 import PhotosUI
 
+// MARK: - Font Size Enum
+enum AppFontSize: String, CaseIterable {
+    case verySmall = "verySmall"
+    case small = "small"
+    case regular = "regular"
+    case large = "large"
+    
+    var displayName: String {
+        switch self {
+        case .verySmall: return "Very Small"
+        case .small: return "Small"
+        case .regular: return "Regular"
+        case .large: return "Large"
+        }
+    }
+    
+    var scale: CGFloat {
+        switch self {
+        case .verySmall: return 0.85
+        case .small: return 0.92
+        case .regular: return 1.0
+        case .large: return 1.15
+        }
+    }
+    
+    var iconScale: CGFloat {
+        switch self {
+        case .verySmall: return 0.8
+        case .small: return 0.9
+        case .regular: return 1.0
+        case .large: return 1.2
+        }
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject var scheduleManager: ScheduleManager
     @StateObject private var notificationManager = NotificationManager.shared
@@ -14,6 +49,8 @@ struct SettingsView: View {
     @State private var showingCalendarIntegration = false
     @AppStorage("aiContextInfo") private var aiContextInfo = ""
     @State private var showingAIContext = false
+    @State private var showingScreenTimeSettings = false
+    @StateObject private var screenTimeManager = ScreenTimeManager.shared
     @State private var isRestoringPurchases = false
     @StateObject private var subscriptionManager = SubscriptionManager.shared
     @State private var showingExportOptions = false
@@ -35,9 +72,15 @@ struct SettingsView: View {
     @AppStorage("appIcon") private var selectedAppIcon = "AppIcon"
     @AppStorage("accentColor") private var selectedAccentColor = "blue"
     @AppStorage("customAccentColorHex") private var customAccentColorHex = ""
+    @AppStorage("useAutoGradient") private var useAutoGradient = true
+    @AppStorage("manualGradientColor") private var manualGradientColor = "blue"
+    @AppStorage("customGradientColorHex") private var customGradientColorHex = ""
+    @State private var showingGradientColorPicker = false
+    @State private var tempGradientColor = Color.blue
     @State private var showingColorPicker = false
     @State private var tempCustomColor = Color.blue
     @AppStorage("useSystemFont") private var useSystemFont = true
+    @AppStorage("appFontSize") private var appFontSizeRaw = "regular"
     @AppStorage("headerImageName") private var headerImageName = ""
     @AppStorage("headerImageRectX") private var headerImageRectX: Double = 0.0
     @AppStorage("headerImageRectY") private var headerImageRectY: Double = 0.0
@@ -66,18 +109,17 @@ struct SettingsView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     
     var body: some View {
-        NavigationView {
-            ScrollView {
+        ScrollView {
+            VStack(spacing: 0) {
+                // Modern header with gradient
+                headerView
+                
                 Group {
                     if horizontalSizeClass == .regular {
                         // iPad/Mac Layout
                         HStack(alignment: .top, spacing: DesignSystem.Spacing.xl) {
                             // Left Column
-                            VStack(spacing: DesignSystem.Spacing.md + 4) {
-                                profileHeader
-                                    .frame(maxWidth: 400)
-                                
-                                VStack(spacing: DesignSystem.Spacing.lg) {
+                            VStack(spacing: DesignSystem.Spacing.lg) {
                                     // Personalization
                                     VStack(spacing: DesignSystem.Spacing.md) {
                                         SettingsSection(
@@ -117,7 +159,6 @@ struct SettingsView: View {
                                     }
                                 }
                                 .frame(maxWidth: 500)
-                            }
                             
                             // Right Column
                             VStack(spacing: DesignSystem.Spacing.lg) {
@@ -180,14 +221,10 @@ struct SettingsView: View {
                             }
                             .frame(maxWidth: 500)
                         }
-                        .padding()
-                    } else {
-                        // iPhone Layout
-                        VStack(spacing: DesignSystem.Spacing.md + 4) {
-                            // Profile Header
-                            profileHeader
-                            
-                            // Main Settings Sections - Grouped for better organization
+                        .padding(.horizontal, 40)
+                        .padding(.vertical, 20)
+                        } else {
+                            // iPhone Layout
                             VStack(spacing: DesignSystem.Spacing.lg) {
                                 // Group 1: Personalization
                                 VStack(spacing: DesignSystem.Spacing.md) {
@@ -232,6 +269,14 @@ struct SettingsView: View {
                                         color: .orange
                                     ) {
                                         notificationSettings
+                                    }
+                                    
+                                    SettingsSection(
+                                        title: "Screen Time",
+                                        icon: "hourglass",
+                                        color: .purple
+                                    ) {
+                                        screenTimeSettings
                                     }
                                     
                                     SettingsSection(
@@ -282,16 +327,13 @@ struct SettingsView: View {
                                 }
                                 #endif
                             }
-                            .padding(.horizontal)
+                            .padding(.horizontal, DesignSystem.Spacing.md)
+                            .padding(.bottom, DesignSystem.Spacing.xl)
                         }
-                        .padding(.vertical)
                     }
                 }
-            }
-            .background(Color(UIColor.systemGroupedBackground))
-            .standardNavigationTitle("Settings")
         }
-        .navigationViewStyle(.automatic)
+        .background(Color(UIColor.systemGroupedBackground))
         .sheet(isPresented: $showingCategoryManagement) {
             CategoryManagementView()
                 .environmentObject(scheduleManager)
@@ -346,7 +388,7 @@ struct SettingsView: View {
             }
         }
         .photosPicker(isPresented: $showingImagePicker, selection: $selectedPhotoItem, matching: .images)
-        .onChange(of: selectedPhotoItem) { _ in
+        .onChange(of: selectedPhotoItem) {
             if let item = selectedPhotoItem {
                 loadImageDirectly(from: item)
             }
@@ -370,9 +412,149 @@ struct SettingsView: View {
         .sheet(isPresented: $showingFontSelector) {
             FontSelectorView()
         }
+        .sheet(isPresented: $showingGradientColorPicker) {
+            ColorPickerSheet(
+                selectedColor: $tempGradientColor,
+                onSave: { color in
+                    // Convert Color to hex string
+                    if let components = UIColor(color).cgColor.components, components.count >= 3 {
+                        let hex = String(format: "#%02X%02X%02X",
+                                       Int(components[0] * 255),
+                                       Int(components[1] * 255),
+                                       Int(components[2] * 255))
+                        customGradientColorHex = hex
+                        manualGradientColor = "custom"
+                        updateGradientColors()
+                    }
+                    showingGradientColorPicker = false
+                }
+            )
+        }
     }
     
-    // MARK: - Profile Header
+    // MARK: - Modern Header View
+    
+    private var headerView: some View {
+        ZStack(alignment: .top) {
+            // Gradient background
+            LinearGradient(
+                colors: [
+                    Color.fromAccentString(selectedAccentColor),
+                    Color.fromAccentString(selectedAccentColor).opacity(0.8)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .frame(height: 280)
+            .overlay(
+                // Pattern overlay for depth
+                GeometryReader { geometry in
+                    Path { path in
+                        let width = geometry.size.width
+                        let height = geometry.size.height
+                        path.move(to: CGPoint(x: 0, y: height * 0.7))
+                        path.addCurve(
+                            to: CGPoint(x: width, y: height * 0.5),
+                            control1: CGPoint(x: width * 0.3, y: height * 0.6),
+                            control2: CGPoint(x: width * 0.7, y: height * 0.4)
+                        )
+                        path.addLine(to: CGPoint(x: width, y: height))
+                        path.addLine(to: CGPoint(x: 0, y: height))
+                        path.closeSubpath()
+                    }
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.1),
+                                Color.white.opacity(0.05)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                }
+            )
+            
+            VStack(spacing: DesignSystem.Spacing.md) {
+                // Top bar with title and close button
+                HStack {
+                    Text("Settings")
+                        .scaledFont(size: 28, weight: .bold)
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .scaledFont(size: 24)
+                            .foregroundColor(.white.opacity(0.9))
+                            .background(
+                                Circle()
+                                    .fill(Color.white.opacity(0.2))
+                                    .frame(width: 32, height: 32)
+                            )
+                    }
+                }
+                .padding(.horizontal, DesignSystem.Spacing.lg)
+                .padding(.top, 50)
+                
+                // Profile section
+                profileSection
+                    .padding(.top, DesignSystem.Spacing.sm)
+            }
+        }
+        .frame(height: 280)
+    }
+    
+    private var profileSection: some View {
+        VStack(spacing: DesignSystem.Spacing.md) {
+            // Profile button
+            Button(action: { showingProfileEditor = true }) {
+                VStack(spacing: DesignSystem.Spacing.sm) {
+                    // Avatar with edit indicator
+                    ZStack(alignment: .bottomTrailing) {
+                        // Avatar circle
+                        ZStack {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 88, height: 88)
+                            
+                            Image(systemName: userAvatar)
+                                .scaledFont(size: 42, weight: .medium)
+                                .foregroundColor(Color.fromAccentString(selectedAccentColor))
+                        }
+                        .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
+                        
+                        // Edit badge
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 28, height: 28)
+                            .overlay(
+                                Image(systemName: "pencil")
+                                    .scaledFont(size: 14, weight: .semibold)
+                                    .foregroundColor(Color.fromAccentString(selectedAccentColor))
+                            )
+                            .offset(x: 4, y: 4)
+                    }
+                    
+                    // Name and subtitle
+                    VStack(spacing: 4) {
+                        Text(userName)
+                            .scaledFont(size: 20, weight: .semibold)
+                            .foregroundColor(.white)
+                        
+                        Text("Tap to edit profile")
+                            .scaledFont(size: 13)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                }
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+        }
+    }
+    
+    // MARK: - Profile Header (Legacy - kept for compatibility)
     
     private var profileHeader: some View {
         Button(action: {
@@ -383,14 +565,14 @@ struct SettingsView: View {
                 ZStack {
                     Circle()
                         .fill(LinearGradient(
-                            colors: [Color(selectedAccentColor), Color(selectedAccentColor).opacity(0.7)],
+                            colors: [Color.fromAccentString(selectedAccentColor), Color.fromAccentString(selectedAccentColor).opacity(0.7)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ))
                         .frame(width: 80, height: 80)
                     
                     Image(systemName: userAvatar)
-                        .font(.system(size: 36, weight: .bold))
+                        .scaledFont(size: 36, weight: .bold)
                         .foregroundColor(.white)
                 }
                 .overlay(
@@ -401,7 +583,7 @@ struct SettingsView: View {
                     Image(systemName: "pencil.circle.fill")
                         .font(.title2)
                         .foregroundColor(.white)
-                        .background(Circle().fill(Color(selectedAccentColor)))
+                        .background(Circle().fill(Color.fromAccentString(selectedAccentColor)))
                         .offset(x: 30, y: 30)
                 )
                 
@@ -475,9 +657,121 @@ struct SettingsView: View {
                     }
                     .pickerStyle(SegmentedPickerStyle())
                     .padding(.top, DesignSystem.Spacing.xs)
-                    .onChange(of: selectedTheme) { _, _ in
+                    .onChange(of: selectedTheme) {
                         updateAppearance()
                     }
+                }
+            )
+            
+            Divider()
+                .padding(.leading, 44)
+            
+            SettingsRow(
+                icon: "wand.and.rays",
+                title: "Background Gradient",
+                value: useAutoGradient ? "Automatic" : "Manual",
+                showChevron: false,
+                expandedContent: {
+                    VStack(spacing: DesignSystem.Spacing.md) {
+                        // Toggle for auto vs manual
+                        Toggle(isOn: $useAutoGradient) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Automatic Gradient")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Text("Extract colors from header image")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .toggleStyle(SwitchToggleStyle(tint: Color.fromAccentString(selectedAccentColor)))
+                        .onChange(of: useAutoGradient) { _, newValue in
+                            if newValue {
+                                // Switching to automatic - extract colors from header image
+                                if let headerData = SettingsView.loadHeaderImage() {
+                                    let colors = ColorExtractor.extractColors(from: headerData.image)
+                                    UserDefaults.standard.setExtractedColors(colors)
+                                }
+                            } else {
+                                // Switching to manual - update gradient colors
+                                updateGradientColors()
+                            }
+                        }
+                        
+                        if !useAutoGradient {
+                            // Manual gradient color selection
+                            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                                Text("Choose Gradient Color")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .padding(.top, 8)
+                                
+                                HStack(spacing: DesignSystem.Spacing.sm) {
+                                    ForEach(["blue", "purple", "pink", "red", "orange", "green", "indigo"], id: \.self) { color in
+                                        Circle()
+                                            .fill(Color.fromAccentString(color))
+                                            .frame(width: 30, height: 30)
+                                            .overlay(
+                                                Circle()
+                                                    .stroke(Color.white, lineWidth: manualGradientColor == color && customGradientColorHex.isEmpty ? 3 : 0)
+                                            )
+                                            .overlay(
+                                                Circle()
+                                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                            )
+                                            .scaleEffect(manualGradientColor == color && customGradientColorHex.isEmpty ? 1.1 : 1.0)
+                                            .onTapGesture {
+                                                manualGradientColor = color
+                                                customGradientColorHex = ""
+                                                updateGradientColors()
+                                            }
+                                    }
+                                    
+                                    // Custom color picker button
+                                    Button(action: {
+                                        if !customGradientColorHex.isEmpty {
+                                            tempGradientColor = Color(hex: customGradientColorHex)
+                                        } else {
+                                            tempGradientColor = Color.fromAccentString(manualGradientColor)
+                                        }
+                                        showingGradientColorPicker = true
+                                    }) {
+                                        ZStack {
+                                            Circle()
+                                                .fill(
+                                                    customGradientColorHex.isEmpty 
+                                                    ? LinearGradient(
+                                                        colors: [Color.red, Color.orange, Color.yellow, Color.green, Color.blue, Color.purple],
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    )
+                                                    : LinearGradient(
+                                                        colors: [Color(hex: customGradientColorHex)],
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    )
+                                                )
+                                                .frame(width: 30, height: 30)
+                                            
+                                            Image(systemName: "plus")
+                                                .font(.system(size: 14, weight: .bold))
+                                                .foregroundColor(.white)
+                                        }
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.white, lineWidth: !customGradientColorHex.isEmpty ? 3 : 0)
+                                        )
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                        )
+                                        .scaleEffect(!customGradientColorHex.isEmpty ? 1.1 : 1.0)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.top, DesignSystem.Spacing.xs)
                 }
             )
             
@@ -508,7 +802,7 @@ struct SettingsView: View {
                             // Predefined colors
                             ForEach(["blue", "purple", "pink", "red", "orange", "green", "indigo"], id: \.self) { color in
                                 Circle()
-                                    .fill(Color(color))
+                                    .fill(Color.fromAccentString(color))
                                     .frame(width: 30, height: 30)
                                     .overlay(
                                         Circle()
@@ -564,6 +858,25 @@ struct SettingsView: View {
                 value: UserDefaults.standard.string(forKey: "selectedFontFamily") ?? "System",
                 action: {
                     showingFontSelector = true
+                }
+            )
+            
+            Divider()
+                .padding(.leading, 44)
+            
+            SettingsRow(
+                icon: "textformat.size",
+                title: "Text & Icon Size",
+                value: AppFontSize(rawValue: appFontSizeRaw)?.displayName ?? "Regular",
+                showChevron: false,
+                expandedContent: {
+                    Picker("Size", selection: $appFontSizeRaw) {
+                        ForEach(AppFontSize.allCases, id: \.rawValue) { size in
+                            Text(size.displayName).tag(size.rawValue)
+                        }
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                    .padding(.top, DesignSystem.Spacing.xs)
                 }
             )
             
@@ -708,13 +1021,11 @@ struct SettingsView: View {
                     }
                     .pickerStyle(SegmentedPickerStyle())
                     .padding(.top, DesignSystem.Spacing.xs)
-                    .onChange(of: defaultReminderMinutes) { oldValue, newValue in
-                        if oldValue != newValue {
-                            if newValue == 0 {
-                                NotificationManager.shared.setDefaultReminderMinutes([])
-                            } else {
-                                NotificationManager.shared.setDefaultReminderMinutes([newValue])
-                            }
+                    .onChange(of: defaultReminderMinutes) {
+                        if defaultReminderMinutes == 0 {
+                            NotificationManager.shared.setDefaultReminderMinutes([])
+                        } else {
+                            NotificationManager.shared.setDefaultReminderMinutes([defaultReminderMinutes])
                         }
                     }
                 }
@@ -764,6 +1075,83 @@ struct SettingsView: View {
                     }
                 )
             }
+        }
+    }
+    
+    private var screenTimeSettings: some View {
+        VStack(spacing: 0) {
+            // Main toggle for Screen Time tracking
+            SettingsRow(
+                icon: "hourglass",
+                title: "Track Screen Time",
+                value: screenTimeManager.isAuthorized ? (screenTimeManager.isMonitoring ? "Active" : "Paused") : "Tap to Enable",
+                valueColor: screenTimeManager.isMonitoring ? .green : .secondary,
+                action: screenTimeManager.isAuthorized ? nil : {
+                    AsyncTask {
+                        _ = await screenTimeManager.requestAuthorization()
+                    }
+                }
+            ) {
+                if screenTimeManager.isAuthorized {
+                    Toggle("", isOn: Binding(
+                        get: { screenTimeManager.isMonitoring },
+                        set: { _ in
+                            AsyncTask {
+                                await screenTimeManager.toggleTracking()
+                            }
+                        }
+                    ))
+                    .labelsHidden()
+                }
+            }
+            
+            if screenTimeManager.isAuthorized {
+                Divider()
+                    .padding(.leading, 44)
+                
+                // Threshold setting
+                SettingsRow(
+                    icon: "timer",
+                    title: "Minimum Duration",
+                    value: "\(UserDefaults.standard.integer(forKey: "screenTimeMinThreshold")) min",
+                    action: {
+                        showingScreenTimeSettings = true
+                    }
+                )
+                
+                Divider()
+                    .padding(.leading, 44)
+                
+                // Today's usage summary
+                SettingsRow(
+                    icon: "chart.bar.fill",
+                    title: "Today's Screen Time",
+                    value: formatScreenTime(screenTimeManager.todayUsage),
+                    showChevron: false
+                )
+            }
+            
+            Divider()
+                .padding(.leading, 44)
+            
+            // Information row
+            SettingsRow(
+                icon: "info.circle",
+                title: "About Screen Time",
+                value: "Tracks app usage thresholds",
+                showChevron: false
+            )
+        }
+    }
+    
+    private func formatScreenTime(_ usage: [ScreenTimeManager.AppUsage]) -> String {
+        let totalMinutes = usage.reduce(0) { $0 + Int($1.duration / 60) }
+        if totalMinutes < 60 {
+            return "\(totalMinutes) min"
+        } else {
+            let hours = totalMinutes / 60
+            let mins = totalMinutes % 60
+            return "\(hours)h \(mins)m"
         }
     }
     
@@ -1160,6 +1548,24 @@ struct SettingsView: View {
         }
     }
     
+    private func updateGradientColors() {
+        // If using manual gradient, save the color as extracted colors
+        if !useAutoGradient {
+            let baseColor: Color
+            if !customGradientColorHex.isEmpty {
+                baseColor = Color(hex: customGradientColorHex)
+            } else {
+                baseColor = Color.fromAccentString(manualGradientColor)
+            }
+            let colors = DominantColors(
+                primary: baseColor, 
+                secondary: baseColor.opacity(0.7),
+                accent: baseColor.opacity(0.5)
+            )
+            UserDefaults.standard.setExtractedColors(colors)
+        }
+    }
+    
     private func exportData(format: ExportFormat) {
         let events = scheduleManager.events
         let exportService = DataExportService.shared
@@ -1327,7 +1733,7 @@ struct SettingsView: View {
                     // Find navigation state in view hierarchy
                     if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                        let window = windowScene.windows.first(where: { $0.isKeyWindow }),
-                       let rootView = window.rootViewController {
+                       let _ = window.rootViewController {
                         // Dismiss settings first
                         self.dismiss()
                         
@@ -1379,6 +1785,41 @@ struct SettingsView: View {
     }
 }
 
+// MARK: - Stat Card Component
+
+struct StatCard: View {
+    let value: String
+    let label: String
+    let icon: String
+    var isHighlighted: Bool = false
+    
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .scaledFont(size: 16)
+                .foregroundColor(isHighlighted ? .yellow : .white.opacity(0.9))
+            
+            Text(value)
+                .scaledFont(size: 18, weight: .bold)
+                .foregroundColor(.white)
+            
+            Text(label)
+                .scaledFont(size: 11)
+                .foregroundColor(.white.opacity(0.8))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(isHighlighted ? 0.25 : 0.15))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.white.opacity(isHighlighted ? 0.4 : 0.2), lineWidth: 1)
+        )
+    }
+}
+
 // MARK: - Settings Section Component
 
 struct SettingsSection<Content: View>: View {
@@ -1389,27 +1830,41 @@ struct SettingsSection<Content: View>: View {
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            // Section Header
-            HStack(spacing: DesignSystem.Spacing.xs) {
-                Image(systemName: icon)
-                    .font(.system(size: DesignSystem.IconSize.sm, weight: .semibold))
-                    .foregroundColor(color)
-                    .frame(width: DesignSystem.IconSize.lg)
+        VStack(alignment: .leading, spacing: 0) {
+            // Section Header - More subtle
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(color.opacity(0.15))
+                    .frame(width: 28, height: 28)
+                    .overlay(
+                        Image(systemName: icon)
+                            .scaledFont(size: 14, weight: .semibold)
+                            .foregroundColor(color)
+                    )
                 
                 Text(title)
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                    .scaledFont(size: 14, weight: .semibold)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                
+                Spacer()
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, DesignSystem.Spacing.md)
+            .padding(.bottom, DesignSystem.Spacing.xs)
             
-            // Section Content
+            // Section Content with better styling
             VStack(spacing: 0) {
                 content
             }
             .background(
-                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
+                RoundedRectangle(cornerRadius: 12)
                     .fill(Color(UIColor.secondarySystemBackground))
+                    .shadow(
+                        color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.06),
+                        radius: 8,
+                        x: 0,
+                        y: 2
+                    )
             )
         }
     }
@@ -1429,6 +1884,8 @@ struct SettingsRow: View {
     var expandedContent: AnyView? = nil
     
     @State private var isExpanded = false
+    @State private var isPressed = false
+    @AppStorage("accentColor") private var selectedAccentColor = "blue"
     
     init(icon: String, title: String, value: String? = nil, valueColor: Color = .secondary, textColor: Color = .primary, showChevron: Bool = true, isLoading: Bool = false, action: (() -> Void)? = nil) {
         self.icon = icon
@@ -1465,42 +1922,71 @@ struct SettingsRow: View {
                     }
                 }
             }) {
-                HStack(spacing: DesignSystem.Spacing.sm) {
-                    Image(systemName: icon)
-                        .font(.system(size: DesignSystem.IconSize.md))
-                        .foregroundColor(textColor == .primary ? .blue : textColor)
-                        .frame(width: DesignSystem.IconSize.lg)
+                HStack(spacing: 12) {
+                    // Icon with background
+                    Circle()
+                        .fill(textColor == .red ? Color.red.opacity(0.1) : Color.gray.opacity(0.08))
+                        .frame(width: 32, height: 32)
+                        .overlay(
+                            Image(systemName: icon)
+                                .scaledFont(size: 16)
+                                .foregroundColor(textColor == .primary ? Color.fromAccentString(selectedAccentColor) : textColor)
+                        )
                     
-                    Text(title)
-                        .foregroundColor(textColor)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .scaledFont(size: 15, weight: .regular)
+                            .foregroundColor(textColor)
+                        
+                        if let value = value, !isExpanded {
+                            Text(value)
+                                .scaledFont(size: 13)
+                                .foregroundColor(valueColor)
+                        }
+                    }
                     
                     Spacer()
                     
                     if isLoading {
                         ProgressView()
                             .scaleEffect(0.8)
-                    } else if let value = value {
-                        Text(value)
-                            .foregroundColor(valueColor)
-                            .font(.subheadline)
                     }
                     
                     if showChevron && action != nil {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: DesignSystem.Spacing.sm, weight: .semibold))
-                            .foregroundColor(.secondary)
+                            .scaledFont(size: 12, weight: .medium)
+                            .foregroundColor(Color(UIColor.tertiaryLabel))
+                    } else if expandedContent != nil {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .scaledFont(size: 12, weight: .medium)
+                            .foregroundColor(Color(UIColor.tertiaryLabel))
                     }
                 }
                 .padding(.horizontal, DesignSystem.Spacing.md)
-                .padding(.vertical, DesignSystem.Spacing.sm)
+                .padding(.vertical, 14)
                 .contentShape(Rectangle())
+                .background(
+                    Color.primary.opacity(isPressed ? 0.05 : 0)
+                )
             }
             .buttonStyle(PlainButtonStyle())
+            .onLongPressGesture(
+                minimumDuration: 0,
+                maximumDistance: .infinity,
+                pressing: { pressing in
+                    withAnimation(.easeInOut(duration: 0.1)) {
+                        isPressed = pressing
+                    }
+                },
+                perform: {}
+            )
             
             if isExpanded, let expandedContent = expandedContent {
                 expandedContent
                     .padding(.horizontal, DesignSystem.Spacing.md)
-                    .padding(.bottom, DesignSystem.Spacing.sm)
+                    .padding(.vertical, DesignSystem.Spacing.sm)
+                    .background(Color.gray.opacity(0.05))
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
@@ -1694,7 +2180,7 @@ struct ColorPickerSheet: View {
                     
                     VStack(spacing: 8) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 40))
+                            .scaledFont(size: 40)
                             .foregroundColor(tempColor)
                         Text("Preview")
                             .font(.caption)

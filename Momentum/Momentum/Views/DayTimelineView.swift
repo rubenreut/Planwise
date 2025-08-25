@@ -4,10 +4,11 @@ struct DayTimelineView: View {
     let selectedDate: Date
     var showCurrentTime: Bool = true
     var extractedColors: (primary: Color, secondary: Color)? = nil
+    var hourHeight: CGFloat = DeviceType.isIPad ? 80 : 136 // Now passed from parent
+    var bottomPadding: CGFloat = 70 // Now can be passed from parent
     
     // Mathematical constants
     private let φ: CGFloat = 1.618033988749895 // Golden ratio
-    private let hourHeight: CGFloat = DeviceType.isIPad ? 80 : 68 // Device-specific height
     private let timeColumnWidth: CGFloat = DeviceType.isIPad ? 70 : 58 // Device-specific width
     private let baseUnit: CGFloat = 8
     private let timeGridUnit: CGFloat = 4
@@ -61,7 +62,7 @@ struct DayTimelineView: View {
             
         }
         .frame(maxWidth: .infinity)
-        .frame(height: CGFloat(hours.count) * hourHeight + 100) // Add extra height to match scroll content
+        .frame(height: CGFloat(hours.count) * hourHeight + bottomPadding) // Use dynamic padding from parent
         .onAppear {
             // Removed fade-in animation
         }
@@ -77,24 +78,22 @@ struct DayTimelineView: View {
         Group {
             if let colors = extractedColors {
                 // Gradient that continues from bottom of image with blur effect
-                VStack(spacing: 0) {
-                    // Top part - intense color continuation from image bottom
-                    LinearGradient(
-                        stops: [
-                            .init(color: colors.primary.opacity(0.8), location: 0.0),
-                            .init(color: colors.primary.opacity(0.6), location: 0.1),
-                            .init(color: colors.secondary.opacity(0.4), location: 0.2),
-                            .init(color: colors.primary.opacity(0.2), location: 0.35),
-                            .init(color: colors.secondary.opacity(0.1), location: 0.5),
-                            .init(color: Color.white.opacity(0.02), location: 0.7),
-                            .init(color: Color.clear, location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .blur(radius: 2) // Add blur for smooth transition
-                }
-                .ignoresSafeArea()
+                ExtendedGradientBackground(
+                    colors: [
+                        colors.primary.opacity(0.8),
+                        colors.primary.opacity(0.6),
+                        colors.secondary.opacity(0.4),
+                        colors.primary.opacity(0.2),
+                        colors.secondary.opacity(0.1),
+                        Color.white.opacity(0.02),
+                        Color.clear
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom,
+                    extendFactor: 3.0
+                )
+                .blur(radius: 2) // Add blur for smooth transition
+                .allowsHitTesting(false)
             } else {
                 // Use clear background so parent view's background shows through
                 Color.clear

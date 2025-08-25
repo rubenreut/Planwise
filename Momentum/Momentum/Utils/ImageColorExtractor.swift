@@ -10,7 +10,7 @@ class ImageColorExtractor {
     ///   - maxColors: Maximum number of colors to extract (default: 3)
     /// - Returns: Array of dominant colors sorted by prominence
     static func extractDominantColors(from image: UIImage, maxColors: Int = 3) -> [Color] {
-        guard let cgImage = image.cgImage else { return [] }
+        guard image.cgImage != nil else { return [] }
         
         // Resize image for faster processing
         let targetSize = CGSize(width: 100, height: 100)

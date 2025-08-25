@@ -59,8 +59,9 @@ struct MomentumApp: App {
                 .environmentObject(dependencyContainer.habitManager as! HabitManager)
                 .environmentObject(GoalManager.shared)
                 .injectDependencies(dependencyContainer)
+                .modifier(FontScalingEnvironment())
                 .fullScreenCover(isPresented: $showOnboarding) {
-                    OnboardingViewPremium(showOnboarding: $showOnboarding)
+                    PremiumOnboardingView()
                         .environmentObject(dependencyContainer.scheduleManager as! ScheduleManager)
                 }
                 .onAppear {
@@ -144,6 +145,27 @@ struct MomentumApp: App {
             NotificationCenter.default.post(name: .navigateToHabits, object: nil)
         case "schedule":
             NotificationCenter.default.post(name: .navigateToSchedule, object: nil)
+        case "timer":
+            // Handle timer actions: momentum://timer/pause, momentum://timer/stop, momentum://timer/{habitName}
+            if let pathComponent = url.pathComponents.last {
+                switch pathComponent {
+                case "pause":
+                    // Toggle pause/resume the timer through LiveActivityManager
+                    AsyncTask {
+                        await LiveActivityManager.shared.togglePauseResume()
+                    }
+                    NotificationCenter.default.post(name: .pauseTimer, object: nil)
+                case "stop":
+                    // Directly stop the timer through LiveActivityManager
+                    AsyncTask {
+                        await LiveActivityManager.shared.endCurrentActivity()
+                    }
+                    NotificationCenter.default.post(name: .stopTimer, object: nil)
+                default:
+                    // It's a habit name - navigate to that habit
+                    NotificationCenter.default.post(name: .showHabitTimer, object: pathComponent)
+                }
+            }
         default:
             break
         }
@@ -160,4 +182,7 @@ extension Notification.Name {
     static let showQuickCapture = Notification.Name("showQuickCapture")
     static let navigateToHabits = Notification.Name("navigateToHabits")
     static let navigateToSchedule = Notification.Name("navigateToSchedule")
+    static let pauseTimer = Notification.Name("pauseTimer")
+    static let stopTimer = Notification.Name("stopTimer")
+    static let showHabitTimer = Notification.Name("showHabitTimer")
 }

@@ -2,9 +2,9 @@ import SwiftUI
 
 struct CurrentTimeIndicator: View {
     @State private var currentTime = Date()
+    var hourHeight: CGFloat = DeviceType.isIPad ? 80 : 136 // Now can be passed from parent
     
     // Constants - MUST match device type
-    private let hourHeight: CGFloat = DeviceType.isIPad ? 80 : 68
     private let timeColumnWidth: CGFloat = DeviceType.isIPad ? 70 : 58
     private let ballSize: CGFloat = 8
     

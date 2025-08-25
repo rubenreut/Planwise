@@ -16,7 +16,7 @@ struct PrivacyPolicyView: View {
                 // Introduction
                 Section {
                     Text("Your privacy is important to us. Planwise is designed with privacy at its core.")
-                        .font(.body)
+                        .scaledFont(size: 17)
                 }
                 
                 // Data Collection
@@ -30,7 +30,7 @@ struct PrivacyPolicyView: View {
                     • **Event Data**: Your calendar events, tasks, and notes are stored locally on your device
                     • **Usage Logs**: Optional local logs to help debug issues (never sent anywhere)
                     """)
-                    .font(.body)
+                    .scaledFont(size: 17)
                 }
                 
                 // iCloud Sync
@@ -47,7 +47,7 @@ struct PrivacyPolicyView: View {
                     • You can disable iCloud sync in your device settings
                     • All data remains under your control via your Apple ID
                     """)
-                    .font(.body)
+                    .scaledFont(size: 17)
                 }
                 
                 // Data Storage
@@ -62,7 +62,7 @@ struct PrivacyPolicyView: View {
                     • Your AI conversation context is stored locally
                     • Crash logs and analytics (if enabled) stay on your device
                     """)
-                    .font(.body)
+                    .scaledFont(size: 17)
                 }
                 
                 // Third Party Services
@@ -76,7 +76,7 @@ struct PrivacyPolicyView: View {
                     • **OpenAI**: For AI assistant features (conversations are not stored)
                     • **StoreKit**: For premium subscriptions (managed by Apple)
                     """)
-                    .font(.body)
+                    .scaledFont(size: 17)
                 }
                 
                 // User Rights
@@ -93,7 +93,7 @@ struct PrivacyPolicyView: View {
                     • Disable iCloud sync
                     • Request information about data we collect
                     """)
-                    .font(.body)
+                    .scaledFont(size: 17)
                 }
                 
                 // Contact
@@ -102,7 +102,7 @@ struct PrivacyPolicyView: View {
                         .font(.headline)
                     
                     Text("If you have questions about this privacy policy, please contact us at rubenreut19@gmail.com")
-                        .font(.body)
+                        .scaledFont(size: 17)
                 }
                 
                 // Changes
@@ -111,7 +111,7 @@ struct PrivacyPolicyView: View {
                         .font(.headline)
                     
                     Text("We may update this privacy policy from time to time. We will notify you of any changes by updating the 'Last Updated' date.")
-                        .font(.body)
+                        .scaledFont(size: 17)
                 }
             }
             .padding()

@@ -152,7 +152,7 @@ final class GoalAIService: BaseAIService<Goal> {
                     "description": goal.desc ?? "",
                     "progress": 0.0,
                     "isCompleted": goal.isCompleted,
-                    "targetDate": goal.targetDate != nil ? ISO8601DateFormatter().string(from: goal.targetDate!) : nil,
+                    "targetDate": goal.targetDate != nil ? ISO8601DateFormatter().string(from: goal.targetDate!) : "" as Any,
                     "subgoalCount": goal.milestones?.count ?? 0
                 ]
             }

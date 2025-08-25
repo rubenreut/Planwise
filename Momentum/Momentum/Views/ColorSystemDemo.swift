@@ -307,7 +307,7 @@ struct StatusBadge: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.title2)
+                        .scaledIcon()                .font(.title2)
                 .foregroundColor(color)
             
             Text(text)

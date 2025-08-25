@@ -22,7 +22,7 @@ struct QuickActionsWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: kind, intent: ConfigurationAppIntent.self, provider: QuickActionsProvider()) { entry in
             QuickActionsWidgetView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                .containerBackground(Color(UIColor.systemBackground), for: .widget)
         }
         .configurationDisplayName("Quick Actions")
         .description("Quickly add tasks, events, and habits")

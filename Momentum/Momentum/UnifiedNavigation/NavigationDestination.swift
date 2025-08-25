@@ -58,12 +58,12 @@ enum NavigationDestination: Int, CaseIterable, Identifiable {
     
     var iconColor: Color {
         switch self {
-        case .day: return .adaptiveBlue
-        case .week: return .adaptivePurple
-        case .tasks: return .adaptiveGreen
-        case .habits: return .adaptiveOrange
-        case .goals: return .adaptiveRed
-        case .assistant: return .adaptivePurple
+        case .day: return .blue
+        case .week: return .purple
+        case .tasks: return .green
+        case .habits: return .orange
+        case .goals: return .red
+        case .assistant: return .purple
         case .settings: return Color(UIColor.secondaryLabel)
         }
     }
@@ -97,9 +97,9 @@ enum NavigationDestination: Int, CaseIterable, Identifiable {
     
     var showsInTabBar: Bool {
         switch self {
-        case .day, .tasks, .habits, .goals, .assistant:
+        case .day, .tasks, .habits, .goals:
             return true
-        case .week, .settings:
+        case .week, .settings, .assistant:
             return false
         }
     }
@@ -199,6 +199,15 @@ class NavigationState: ObservableObject {
     func toggleSidebar() {
         withAnimation(.easeInOut(duration: 0.25)) {
             columnVisibility = columnVisibility == .all ? .detailOnly : .all
+        }
+    }
+    
+    func refreshNavigation() {
+        // Force a refresh by triggering objectWillChange
+        objectWillChange.send()
+        // Double trigger to ensure UI updates
+        DispatchQueue.main.async { [weak self] in
+            self?.objectWillChange.send()
         }
     }
 }

@@ -57,7 +57,7 @@ struct ErrorView: View {
                         .multilineTextAlignment(.center)
                     
                     Text(errorMessage)
-                        .font(.body)
+                        .scaledFont(size: 17)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)

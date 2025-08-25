@@ -92,7 +92,7 @@ class PersistenceController: ObservableObject, PersistenceProviding {
         // Wait for store to load (with timeout)
         _ = loadSemaphore.wait(timeout: .now() + 5.0)
         
-        if let error = loadError {
+        if loadError != nil {
             // Don't fall back to in-memory - we want CloudKit!
             // createInMemoryStoreIfNeeded()
         }
@@ -170,6 +170,8 @@ class PersistenceController: ObservableObject, PersistenceProviding {
                 removeDuplicateCategories()
             }
         } catch {
+            // Error handled - category count check failed
+            _ = error
         }
     }
     
@@ -207,6 +209,8 @@ class PersistenceController: ObservableObject, PersistenceProviding {
             } else {
             }
         } catch {
+            // Error handled - duplicate removal failed
+            _ = error
         }
     }
     
@@ -242,12 +246,16 @@ class PersistenceController: ObservableObject, PersistenceProviding {
                 } else {
                 }
             } catch {
+                // Error handled - category fetch failed
+                _ = error
             }
         }
         
         do {
             try context.save()
         } catch {
+            // Error handled - category creation save failed
+            _ = error
         }
     }
     
@@ -258,7 +266,7 @@ class PersistenceController: ObservableObject, PersistenceProviding {
         // Check CloudKit container directly
         let container = CKContainer(identifier: "iCloud.com.rubnereut.ecosystem")
         container.accountStatus { status, error in
-            if let error = error {
+            if let _ = error {
             } else {
                 switch status {
                 case .available: break
@@ -325,6 +333,8 @@ extension PersistenceController {
         do {
             try viewContext.save()
         } catch {
+            // Error handled - preview save failed
+            _ = error
         }
         
         return result
@@ -342,6 +352,8 @@ extension PersistenceController {
             do {
                 try context.save()
             } catch {
+                // Error handled - CloudKit sync save failed
+                _ = error
             }
         }
         

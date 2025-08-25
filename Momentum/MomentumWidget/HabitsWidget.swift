@@ -44,7 +44,7 @@ struct HabitsWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: kind, intent: ConfigurationAppIntent.self, provider: HabitsProvider()) { entry in
             HabitsWidgetView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                .containerBackground(Color(UIColor.systemBackground), for: .widget)
         }
         .configurationDisplayName("Habits")
         .description("Track your daily habits")

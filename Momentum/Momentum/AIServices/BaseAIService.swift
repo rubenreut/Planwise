@@ -97,7 +97,7 @@ class BaseAIService<Entity: NSManagedObject>: CRUDServiceProtocol, BulkOperation
     }
     
     func update(id: String?, parameters: [String: Any]) async -> AIResult {
-        guard let id = id, let uuid = UUID(uuidString: id) else {
+        guard let id = id, UUID(uuidString: id) != nil else {
             return AIResult.failure("Invalid or missing ID")
         }
         
@@ -244,7 +244,7 @@ class BaseAIService<Entity: NSManagedObject>: CRUDServiceProtocol, BulkOperation
     
     /// Build NSPredicate from filter parameters
     private func buildPredicate(from parameters: [String: Any]) -> NSPredicate? {
-        var predicates: [NSPredicate] = []
+        let predicates: [NSPredicate] = []
         
         // Add common filters here
         // Override in subclasses for entity-specific filters

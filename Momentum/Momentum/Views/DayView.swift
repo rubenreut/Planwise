@@ -32,7 +32,12 @@ struct DayView: View {
     @State private var extractedColors: (primary: Color, secondary: Color)? = nil
     
     // Layout constants
-    private let hourHeight: CGFloat = DeviceType.isIPad ? 80 : 68
+    @State private var zoomScale: CGFloat = 1.0
+    @State private var lastZoomScale: CGFloat = 1.0
+    private let baseHourHeight: CGFloat = DeviceType.isIPad ? 80 : 136  // Base height, will be scaled
+    private var hourHeight: CGFloat {
+        baseHourHeight * zoomScale
+    }
     private let timeColumnWidth: CGFloat = DeviceType.isIPad ? 70 : 58
     private let headerHeight: CGFloat = 0
     private let rightPadding: CGFloat = 16
@@ -40,6 +45,8 @@ struct DayView: View {
     private let velocityThreshold: CGFloat = 150
     private let swipeAnimationDuration: Double = 0.3
     private let gapBetweenColumns: CGFloat = 4
+    private let minZoomScale: CGFloat = 0.5  // Can zoom out to see twice as much
+    private let maxZoomScale: CGFloat = 3.0  // Can zoom in 3x for detail
     
     private var todayDate: Date {
         Calendar.current.startOfDay(for: Date())
@@ -104,6 +111,7 @@ struct DayView: View {
                             endPoint: .bottomTrailing,
                             extendFactor: 3.0
                         )
+                        .ignoresSafeArea()
                     }
                     
                     VStack(spacing: 0) {
@@ -167,21 +175,11 @@ struct DayView: View {
                 }
             }
             
-            // Floating Action Button
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    FloatingActionButton(icon: "plus", accessibilityLabel: "Add new event") {
-                        viewModel.showingAddEvent = true
-                    }
-                    .accessibilityHint("Opens event creation view")
-                    .padding(.trailing, 24)
-                    .padding(.bottom, 82)
-                }
-            }
         }
         .navigationBarHidden(true)
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ShowAddEvent"))) { _ in
+            viewModel.showingAddEvent = true
+        }
         .onAppear {
             setupInitialDates()
             viewModel.selectedDate = Calendar.current.date(
@@ -192,17 +190,42 @@ struct DayView: View {
             headerImageOffset = CGFloat(UserDefaults.standard.double(forKey: "headerImageVerticalOffset"))
             lastHeaderImageOffset = headerImageOffset
             
-            // Load extracted colors from header image
-            self.extractedColors = UserDefaults.standard.getExtractedColors()
-            print("🎨 Loaded extracted colors: \(extractedColors != nil ? "Found" : "None")")
+            // Load saved zoom scale
+            let savedZoom = CGFloat(UserDefaults.standard.double(forKey: "timelineZoomScale"))
+            if savedZoom > 0 {
+                zoomScale = savedZoom
+                lastZoomScale = savedZoom
+            }
             
-            // If no colors saved but we have an image, extract them
-            if extractedColors == nil, let headerData = SettingsView.loadHeaderImage() {
-                print("🎨 No saved colors, extracting from image...")
-                let colors = ColorExtractor.extractColors(from: headerData.image)
-                UserDefaults.standard.setExtractedColors(colors)
-                self.extractedColors = (colors.primary, colors.secondary)
-                print("🎨 Extracted colors - Primary: \(colors.primary), Secondary: \(colors.secondary)")
+            // Load gradient colors based on settings
+            let useAutoGradient = UserDefaults.standard.bool(forKey: "useAutoGradient")
+            
+            if useAutoGradient {
+                // Load extracted colors from header image
+                self.extractedColors = UserDefaults.standard.getExtractedColors()
+                print("🎨 Loaded extracted colors: \(extractedColors != nil ? "Found" : "None")")
+                
+                // If no colors saved but we have an image, extract them
+                if extractedColors == nil, let headerData = SettingsView.loadHeaderImage() {
+                    print("🎨 No saved colors, extracting from image...")
+                    let colors = ColorExtractor.extractColors(from: headerData.image)
+                    UserDefaults.standard.setExtractedColors(colors)
+                    self.extractedColors = (colors.primary, colors.secondary)
+                    print("🎨 Extracted colors - Primary: \(colors.primary), Secondary: \(colors.secondary)")
+                }
+            } else {
+                // Use manual gradient color
+                let customHex = UserDefaults.standard.string(forKey: "customGradientColorHex") ?? ""
+                var baseColor: Color
+                
+                if !customHex.isEmpty {
+                    baseColor = Color(hex: customHex)
+                } else {
+                    let manualColor = UserDefaults.standard.string(forKey: "manualGradientColor") ?? "blue"
+                    baseColor = Color.fromAccentString(manualColor)
+                }
+                
+                self.extractedColors = (baseColor, baseColor.opacity(0.7))
             }
             
             // Check if we should start editing
@@ -262,8 +285,7 @@ struct DayView: View {
                             }
                         }) {
                             Text("Done")
-                                .font(.title3)
-                                .fontWeight(.semibold)
+                                .scaledFont(size: 20, weight: .semibold)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 50)
                                 .padding(.vertical, 16)
@@ -355,7 +377,8 @@ struct DayView: View {
                 onAddEvent: {
                     viewModel.showingAddEvent = true
                 },
-                onDateSelected: navigateToDate
+                onDateSelected: navigateToDate,
+                showViewToggle: true // Enable view toggle for iPad
             )
             .opacity(isEditingHeaderImage ? 0 : 1) // Hide content but maintain size
             
@@ -370,7 +393,7 @@ struct DayView: View {
                             colors.secondary.opacity(0.4),
                             colors.primary.opacity(0.2),
                             colors.secondary.opacity(0.1),
-                            Color(UIColor.systemBackground).opacity(0.02),
+                            Color.white.opacity(0.02),
                             Color.clear
                         ],
                         startPoint: .top,
@@ -378,13 +401,19 @@ struct DayView: View {
                         extendFactor: 3.0
                     )
                     .blur(radius: 2)
-                    .allowsHitTesting(false) // Critical: don't block touches
+                    .allowsHitTesting(false)
                 }
                 
                 VStack(spacing: 0) {
                     let isCurrentDay = Calendar.current.isDate(date, inSameDayAs: viewModel.selectedDate)
                     let scrollBinding = Binding<CGFloat>(
-                        get: { dependencyContainer.scrollPositionManager.offset(for: 0, default: 612) },
+                        get: { 
+                            // Adjust default scroll position based on zoom level
+                            // Default to 7am position, scaled by zoom
+                            let baseOffset: CGFloat = DeviceType.isIPad ? 560 : 952  // 7 hours * base hour height
+                            let scaledOffset = baseOffset * zoomScale
+                            return dependencyContainer.scrollPositionManager.offset(for: 0, default: scaledOffset) 
+                        },
                         set: { newValue in
                             if isCurrentDay {
                                 dependencyContainer.scrollPositionManager.update(dayOffset: 0, to: newValue)
@@ -397,30 +426,71 @@ struct DayView: View {
                         ForEach(0..<24, id: \.self) { _ in
                             Color.clear.frame(height: hourHeight)
                         }
-                        // Add extra space at bottom to ensure we can scroll to see 11pm
-                        Color.clear.frame(height: 100)
+                        // Scale padding based on 59% zoom being perfect with 70px
+                        Color.clear.frame(height: 70 * (zoomScale / 0.59))
+                    }
+                    .overlay(alignment: .bottomTrailing) {
+                        // Zoom indicator
+                        if zoomScale != 1.0 {
+                            Button {
+                                withAnimation(.spring(response: 0.3)) {
+                                    zoomScale = 1.0
+                                    lastZoomScale = 1.0
+                                    UserDefaults.standard.set(1.0, forKey: "timelineZoomScale")
+                                }
+                                HapticFeedback.light.trigger()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "magnifyingglass")
+                                        .font(.system(size: 11, weight: .medium))
+                                    Text("\(Int(zoomScale * 100))%")
+                                        .scaledFont(size: 11, weight: .semibold)
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.black.opacity(0.5))
+                                        .background(
+                                            Capsule()
+                                                .fill(.ultraThinMaterial)
+                                        )
+                                )
+                            }
+                            .padding(.trailing, 20)
+                            .padding(.bottom, 20)
+                            .transition(.scale.combined(with: .opacity))
+                        }
                     }
                     .background(
-                        DayTimelineView(selectedDate: date, showCurrentTime: false, extractedColors: extractedColors)
+                        DayTimelineView(
+                            selectedDate: date, 
+                            showCurrentTime: false, 
+                            extractedColors: extractedColors, 
+                            hourHeight: hourHeight,
+                            bottomPadding: 70 * (zoomScale / 0.59)
+                        )
                             .overlay(alignment: .topLeading) {
                                 GeometryReader { geo in
                                     let events = dependencyContainer.scheduleManager.events(for: date)
                                     let isToday = Calendar.current.isDate(date, inSameDayAs: viewModel.selectedDate)
-                                    let layouts = viewModel.calculateEventLayout(for: events)
+                                    let layouts = viewModel.calculateEventLayout(for: events, hourHeight: hourHeight)
                                     let availableWidth = geo.size.width - timeColumnWidth - rightPadding
                                     
                                     ForEach(layouts, id: \.event.id) { layout in
                                         TimeBlockView(
                                             event: layout.event,
+                                            hourHeight: hourHeight,
                                             onTap: {
                                                 if isToday { viewModel.handleEventTap(layout.event) }
                                             },
                                             isDraggingAnyBlock: $isDraggingTimeBlock
                                         )
                                         .frame(
-                                            width: (availableWidth - CGFloat(layout.totalColumns - 1) * gapBetweenColumns)
-                                                / CGFloat(layout.totalColumns),
-                                            height: layout.height
+                                            width: max(10, (availableWidth - CGFloat(max(1, layout.totalColumns - 1)) * gapBetweenColumns)
+                                                / CGFloat(max(1, layout.totalColumns))),
+                                            height: layout.height  // Use exact height, no minimum
                                         )
                                         .offset(
                                             x: timeColumnWidth +
@@ -436,7 +506,7 @@ struct DayView: View {
                             }
                             .overlay(alignment: .topLeading) {
                                 if Calendar.current.isDateInToday(date) {
-                                    CurrentTimeIndicator()
+                                    CurrentTimeIndicator(hourHeight: hourHeight)
                                 }
                             }
                             .frame(maxWidth: .infinity)
@@ -444,6 +514,31 @@ struct DayView: View {
                     }
                 }
             }
+            .gesture(
+                MagnificationGesture()
+                    .onChanged { value in
+                        // Store the current scroll position before scaling
+                        let currentOffset = dependencyContainer.scrollPositionManager.offset(for: 0, default: 0)
+                        let oldScale = zoomScale
+                        
+                        // Update the scale
+                        let newScale = lastZoomScale * value
+                        zoomScale = min(max(newScale, minZoomScale), maxZoomScale)
+                        
+                        // Adjust scroll position to keep the same content in view
+                        if oldScale != zoomScale {
+                            let scaleFactor = zoomScale / oldScale
+                            let newOffset = currentOffset * scaleFactor
+                            dependencyContainer.scrollPositionManager.update(dayOffset: 0, to: newOffset)
+                        }
+                    }
+                    .onEnded { value in
+                        lastZoomScale = zoomScale
+                        // Save zoom preference
+                        UserDefaults.standard.set(zoomScale, forKey: "timelineZoomScale")
+                        HapticFeedback.light.trigger()
+                    }
+            )
             .frame(maxHeight: .infinity)
             .background(Color(UIColor.systemGroupedBackground))
             .clipShape(
@@ -459,9 +554,7 @@ struct DayView: View {
     // MARK: - Helpers
     
     private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d"
-        return formatter.string(from: date)
+        return Date.formatDateWithGreeting(date)
     }
     
     private func navigateToDate(_ target: Date) {

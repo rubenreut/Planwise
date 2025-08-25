@@ -129,11 +129,12 @@ struct CalendarIntegrationView: View {
         GlassCard(cornerRadius: DesignSystem.CornerRadius.lg, padding: DesignSystem.Spacing.lg) {
             VStack(spacing: DesignSystem.Spacing.md) {
                 Image(systemName: "calendar.badge.exclamationmark")
-                    .font(.system(size: 48))
+                        .scaledIcon()
+                    .scaledFont(size: 48)
                     .foregroundColor(.orange)
                 
                 Text("Calendar Access Required")
-                    .font(.headline)
+                    .scaledFont(size: 17, weight: .semibold)
                 
                 Text("Grant calendar access to import and sync your events")
                     .font(.subheadline)
@@ -162,11 +163,12 @@ struct CalendarIntegrationView: View {
         GlassCard(cornerRadius: DesignSystem.CornerRadius.lg, padding: DesignSystem.Spacing.lg) {
             VStack(spacing: DesignSystem.Spacing.md) {
                 Image(systemName: "calendar.badge.plus")
-                    .font(.system(size: 48))
+                        .scaledIcon()
+                    .scaledFont(size: 48)
                     .foregroundColor(.secondary)
                 
                 Text("No Calendars Found")
-                    .font(.headline)
+                    .scaledFont(size: 17, weight: .semibold)
                 
                 Text("Add calendars in your device settings or connect your accounts")
                     .font(.subheadline)
@@ -189,7 +191,7 @@ struct CalendarIntegrationView: View {
     private var calendarListSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             Text("Available Calendars")
-                .font(.headline)
+                .scaledFont(size: 17, weight: .semibold)
                 .foregroundColor(.white)
                 .padding(.horizontal)
             
@@ -230,7 +232,7 @@ struct CalendarIntegrationView: View {
             } label: {
                 HStack {
                     Image(systemName: isSyncing ? "arrow.triangle.2.circlepath" : "arrow.clockwise")
-                        .rotationEffect(.degrees(isSyncing ? 360 : 0))
+                        .scaledIcon()                        .rotationEffect(.degrees(isSyncing ? 360 : 0))
                         .animation(isSyncing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isSyncing)
                     
                     Text(isSyncing ? "Syncing..." : "Sync Calendars")
@@ -243,7 +245,7 @@ struct CalendarIntegrationView: View {
             if showingSyncSuccess {
                 HStack {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                        .scaledIcon()                        .foregroundColor(.green)
                     Text("\(calendarManager.syncedEvents.count) events synced")
                         .font(.subheadline)
                 }
@@ -258,7 +260,7 @@ struct CalendarIntegrationView: View {
     private func lastSyncCard(date: Date) -> some View {
         HStack {
             Image(systemName: "clock.arrow.circlepath")
-                .foregroundColor(.white.opacity(0.8))
+                        .scaledIcon()                .foregroundColor(.white.opacity(0.8))
             
             VStack(alignment: .leading, spacing: 2) {
                 Text("Last Sync")
@@ -321,14 +323,15 @@ struct CalendarRowView: View {
                         .frame(width: 40, height: 40)
                     
                     Image(systemName: calendar.type.icon)
-                        .font(.system(size: 20))
+                        .scaledIcon()
+                    .scaledFont(size: 20)
                         .foregroundColor(calendar.color)
                 }
                 
                 // Calendar info
                 VStack(alignment: .leading, spacing: 2) {
                     Text(calendar.title)
-                        .font(.body)
+                        .scaledFont(size: 17)
                         .foregroundColor(.primary)
                     
                     Text(calendar.type.rawValue)
@@ -340,7 +343,8 @@ struct CalendarRowView: View {
                 
                 // Selection indicator
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 24))
+                        .scaledIcon()
+                    .scaledFont(size: 24)
                     .foregroundColor(isSelected ? .accentColor : .secondary)
             }
             .padding()

@@ -37,7 +37,7 @@ struct EventsTimelineWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: kind, intent: ConfigurationAppIntent.self, provider: EventsTimelineProvider()) { entry in
             EventsTimelineWidgetView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                .containerBackground(Color(UIColor.systemBackground), for: .widget)
         }
         .configurationDisplayName("Events Timeline")
         .description("View your schedule at a glance")

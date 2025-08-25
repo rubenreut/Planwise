@@ -395,7 +395,8 @@ struct FloatingActionButtonStyle: ButtonStyle {
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 24, weight: .semibold))
+            .scaledFont(size: 24, weight: .semibold)
+            .scaledIcon()
             .foregroundColor(.white)
             .frame(width: 56, height: 56)
             .background(
@@ -603,6 +604,7 @@ struct FloatingActionButton: View {
     let icon: String
     let action: () -> Void
     let accessibilityLabel: String
+    @State private var isTabBarCollapsed = false
     
     init(
         icon: String,
@@ -615,12 +617,31 @@ struct FloatingActionButton: View {
     }
     
     var body: some View {
-        Button(action: action) {
-            Image(systemName: icon)
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                
+                Button(action: action) {
+                    Image(systemName: icon)
+                }
+                .buttonStyle(FloatingActionButtonStyle())
+                .buttonHaptic(.medium)
+                .buttonAccessibility(accessibilityLabel)
+            }
+            .padding(.trailing, 16)
+            .padding(.bottom, isTabBarCollapsed ? -65 : 8) // Move down more when collapsed to match smaller navbar
         }
-        .buttonStyle(FloatingActionButtonStyle())
-        .buttonHaptic(.medium)
-        .buttonAccessibility(accessibilityLabel)
+        .frame(maxHeight: isTabBarCollapsed ? 50 : .infinity) // Shrink container when collapsed
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isTabBarCollapsed)
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("TabBarCollapseChanged"))) { notification in
+            if let userInfo = notification.userInfo,
+               let collapsed = userInfo["isCollapsed"] as? Bool {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    isTabBarCollapsed = collapsed
+                }
+            }
+        }
     }
 }
 
@@ -635,7 +656,7 @@ struct ButtonSystemPreview: View {
                 // Primary Buttons
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Primary Buttons")
-                        .font(.headline)
+                        .scaledFont(size: 17, weight: .semibold)
                     
                     MomentumButton("Get Started", style: .primary, size: .large) {
                         print("Primary large tapped")
@@ -664,7 +685,7 @@ struct ButtonSystemPreview: View {
                 // Secondary Buttons
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Secondary Buttons")
-                        .font(.headline)
+                        .scaledFont(size: 17, weight: .semibold)
                     
                     MomentumButton("Learn More", style: .secondary, size: .large) {
                         print("Secondary large tapped")
@@ -684,7 +705,7 @@ struct ButtonSystemPreview: View {
                 // Tertiary Buttons
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Tertiary Buttons")
-                        .font(.headline)
+                        .scaledFont(size: 17, weight: .semibold)
                     
                     MomentumButton("Skip", style: .tertiary) {
                         print("Tertiary tapped")
@@ -700,7 +721,7 @@ struct ButtonSystemPreview: View {
                 // Destructive Buttons
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Destructive Buttons")
-                        .font(.headline)
+                        .scaledFont(size: 17, weight: .semibold)
                     
                     MomentumButton("Delete", icon: "trash", style: .destructive) {
                         print("Delete tapped")
@@ -716,7 +737,7 @@ struct ButtonSystemPreview: View {
                 // Icon Buttons
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Icon Buttons")
-                        .font(.headline)
+                        .scaledFont(size: 17, weight: .semibold)
                     
                     HStack(spacing: 16) {
                         IconButton(icon: "plus", style: .primary, accessibilityLabel: "Add") {
@@ -756,7 +777,7 @@ struct ButtonSystemPreview: View {
                 // Floating Action Button
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Floating Action Button")
-                        .font(.headline)
+                        .scaledFont(size: 17, weight: .semibold)
                     
                     HStack {
                         Spacer()
@@ -771,7 +792,7 @@ struct ButtonSystemPreview: View {
                 // Loading Button Demo
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Loading State Demo")
-                        .font(.headline)
+                        .scaledFont(size: 17, weight: .semibold)
                     
                     LoadingButton(action: {
                         isLoading = true

@@ -14,14 +14,14 @@ struct SubscriptionStatusBadge: View {
         }) {
             HStack(spacing: baseUnit) {
                 Image(systemName: subscriptionManager.isPremium ? "crown.fill" : "sparkles")
-                    .font(.system(size: 14, weight: .medium))
+                    .scaledFont(size: 14, weight: .medium)
                 
                 Text(subscriptionManager.isPremium ? "Pro" : "Free")
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(size: 14, weight: .semibold)
                 
                 if !subscriptionManager.isPremium {
                     Text("\(subscriptionManager.messageCount)/\(10)")
-                        .font(.system(size: 12, weight: .medium))
+                        .scaledFont(size: 12, weight: .medium)
                         .foregroundColor(.secondary)
                 }
             }

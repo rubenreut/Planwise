@@ -14,7 +14,6 @@ struct GoalsView: View {
     @StateObject private var areaManager = GoalAreaManager.shared
     @State private var selectedGoal: Goal?
     @State private var showingAddGoal = false
-    @State private var selectedFilter: GoalFilter = .active
     @State private var groupByArea = false
     @Environment(\.colorScheme) var colorScheme
     @State private var extractedColors: (primary: Color, secondary: Color)? = nil
@@ -34,29 +33,9 @@ struct GoalsView: View {
         let goals: [Goal]
     }
     
-    enum GoalFilter: String, CaseIterable {
-        case active = "Active"
-        case completed = "Completed" 
-        case all = "All"
-        
-        var icon: String {
-            switch self {
-            case .active: return "target"
-            case .completed: return "checkmark.circle.fill"
-            case .all: return "list.bullet"
-            }
-        }
-    }
     
     var filteredGoals: [Goal] {
-        switch selectedFilter {
-        case .active:
-            return goalManager.activeGoals
-        case .completed:
-            return goalManager.completedGoals
-        case .all:
-            return goalManager.goals
-        }
+        return goalManager.goals
     }
     
     var body: some View {
@@ -83,6 +62,7 @@ struct GoalsView: View {
                             onDateSelected: nil
                         )
                         .opacity(isEditingHeaderImage ? 0 : 1)
+                        .zIndex(2) // Ensure header is on top for gestures
                         
                         // White content container with rounded corners
                         ZStack {
@@ -109,7 +89,7 @@ struct GoalsView: View {
                         }
                         .opacity(isEditingHeaderImage ? 0 : 1)
                         .frame(maxHeight: .infinity)
-                        .background(Color(UIColor.systemBackground))
+                        .background(Color(UIColor.systemGroupedBackground))
                         .clipShape(
                             .rect(
                                 topLeadingRadius: 40,
@@ -123,24 +103,11 @@ struct GoalsView: View {
             }
             
             // Floating Action Button
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    
-                    FloatingActionButton(
-                        icon: "plus",
-                        accessibilityLabel: "Add new goal"
-                    ) {
-                        showingAddGoal = true
-                    }
-                    .accessibilityHint("Opens goal creation view")
-                    .padding(.trailing, DesignSystem.Spacing.lg)
-                    .padding(.bottom, 82)
-                }
-            }
         }
-        .navigationBarHidden(DeviceType.isIPad ? false : true) // Show nav bar on iPad for sidebar toggle
+        .navigationBarHidden(true) // Hide nav bar on all devices
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ShowAddGoal"))) { _ in
+            showingAddGoal = true
+        }
         .sheet(isPresented: $showingAddGoal) {
             AddGoalView()
                 .presentationDetents([.large])
@@ -168,14 +135,32 @@ struct GoalsView: View {
             headerImageOffset = CGFloat(UserDefaults.standard.double(forKey: "headerImageVerticalOffset"))
             lastHeaderImageOffset = headerImageOffset
             
-            // Load extracted colors from header image
-            self.extractedColors = UserDefaults.standard.getExtractedColors()
+            // Load gradient colors based on settings
+            let useAutoGradient = UserDefaults.standard.bool(forKey: "useAutoGradient")
             
-            // If no colors saved but we have an image, extract them
-            if extractedColors == nil, let headerData = SettingsView.loadHeaderImage() {
-                let colors = ColorExtractor.extractColors(from: headerData.image)
-                UserDefaults.standard.setExtractedColors(colors)
-                self.extractedColors = (colors.primary, colors.secondary)
+            if useAutoGradient {
+                // Load extracted colors from header image
+                self.extractedColors = UserDefaults.standard.getExtractedColors()
+                
+                // If no colors saved but we have an image, extract them
+                if extractedColors == nil, let headerData = SettingsView.loadHeaderImage() {
+                    let colors = ColorExtractor.extractColors(from: headerData.image)
+                    UserDefaults.standard.setExtractedColors(colors)
+                    self.extractedColors = (colors.primary, colors.secondary)
+                }
+            } else {
+                // Use manual gradient color
+                let customHex = UserDefaults.standard.string(forKey: "customGradientColorHex") ?? ""
+                var baseColor: Color
+                
+                if !customHex.isEmpty {
+                    baseColor = Color(hex: customHex)
+                } else {
+                    let manualColor = UserDefaults.standard.string(forKey: "manualGradientColor") ?? "blue"
+                    baseColor = Color.fromAccentString(manualColor)
+                }
+                
+                self.extractedColors = (baseColor, baseColor.opacity(0.7))
             }
             
             // Check if we should start editing
@@ -216,8 +201,7 @@ struct GoalsView: View {
                             }
                         }) {
                             Text("Done")
-                                .font(.title3)
-                                .fontWeight(.semibold)
+                                .scaledFont(size: 20, weight: .semibold)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 50)
                                 .padding(.vertical, 16)
@@ -298,13 +282,11 @@ struct GoalsView: View {
             // Use ScrollView for grouped view
             ScrollView {
                 VStack(spacing: 24) {
-                    // Filter Picker inside the gradient area
-                    filterSection
+                    // Group by Area Toggle
+                    groupByAreaToggle
                     
                     // Upcoming Deadlines
-                    if selectedFilter == .active {
-                        upcomingDeadlinesSection
-                    }
+                    upcomingDeadlinesSection
                     
                     // Goals List
                     if filteredGoals.isEmpty {
@@ -320,27 +302,74 @@ struct GoalsView: View {
                 }
             }
         } else {
-            // Use VStack with List for non-grouped view (for swipe actions)
-            VStack(spacing: 0) {
-                // Filter section at top
-                filterSection
-                    .padding(.bottom, 16)
-                
-                // Upcoming Deadlines
-                if selectedFilter == .active {
+            // Use List for non-grouped view (for swipe actions)
+            if DeviceType.isIPhone {
+                // On iPhone, make everything scroll together
+                List {
+                    // Group by Area Toggle as first item
+                    groupByAreaToggle
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    
+                    // Upcoming Deadlines
+                    if !goalManager.upcomingDeadlines().isEmpty {
+                        upcomingDeadlinesSection
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    }
+                    
+                    // Goals
+                    ForEach(filteredGoals) { goal in
+                        GoalCard(goal: goal)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedGoal = goal
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    deleteGoal(goal)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                    }
+                    
+                    // Add bottom padding for floating button inside the List
+                    Color.clear
+                        .frame(height: 100)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .scrollIndicators(.hidden)
+            } else {
+                // On iPad, keep the original layout
+                VStack(spacing: 0) {
+                    // Group by Area Toggle at top
+                    groupByAreaToggle
+                        .padding(.bottom, 16)
+                    
+                    // Upcoming Deadlines
                     upcomingDeadlinesSection
                         .padding(.bottom, 16)
-                }
-                
-                // Goals List or empty state
-                if filteredGoals.isEmpty {
-                    ScrollView {
-                        emptyStateView
-                            .padding(.vertical, 60)
-                            .padding(.horizontal, 20)
+                    
+                    // Goals List or empty state
+                    if filteredGoals.isEmpty {
+                        ScrollView {
+                            emptyStateView
+                                .padding(.vertical, 60)
+                                .padding(.horizontal, 20)
+                        }
+                    } else {
+                        goalsListView
                     }
-                } else {
-                    goalsListView
                 }
             }
         }
@@ -348,23 +377,27 @@ struct GoalsView: View {
     
     @ViewBuilder
     var upcomingDeadlinesSection: some View {
-        let upcoming = goalManager.upcomingDeadlines()
-        if !upcoming.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Upcoming Deadlines")
-                    .sectionHeader()
-                    .padding(.horizontal, 20)
-                
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(upcoming) { goal in
-                            DeadlineCard(goal: goal)
-                                .onTapGesture {
-                                    selectedGoal = goal
-                                }
+        // Hide upcoming deadlines on iPad
+        if !DeviceType.isIPad {
+            let upcoming = goalManager.upcomingDeadlines()
+            if !upcoming.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Upcoming Deadlines")
+                        .scaledFont(size: 20, weight: .semibold)
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 20)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(upcoming) { goal in
+                                DeadlineCard(goal: goal)
+                                    .onTapGesture {
+                                        selectedGoal = goal
+                                    }
+                            }
                         }
+                        .padding(.horizontal, 20)
                     }
-                    .padding(.horizontal, 20)
                 }
             }
         }
@@ -459,67 +492,25 @@ struct GoalsView: View {
         }
     }
     
-    var filterSection: some View {
-        VStack(spacing: 16) {
-            // Filter Picker
-            Picker("Filter", selection: $selectedFilter) {
-                ForEach(GoalFilter.allCases, id: \.self) { filter in
-                    Label(filter.rawValue, systemImage: filter.icon)
-                        .tag(filter)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            
-            // Group by Area Toggle
-            HStack {
-                Label("Group by Area", systemImage: "folder")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Toggle("", isOn: $groupByArea)
-                    .labelsHidden()
-            }
-            .padding(.horizontal, 40)
+    var groupByAreaToggle: some View {
+        HStack {
+            Label("Group by Area", systemImage: "folder")
+                .scaledFont(size: DeviceType.isIPhone ? 13 : 15)
+                .foregroundColor(.secondary)
+            Spacer()
+            Toggle("", isOn: $groupByArea)
+                .labelsHidden()
+                .scaleEffect(DeviceType.isIPhone ? 0.85 : 1.0)
         }
+        .padding(.horizontal, DeviceType.isIPhone ? 20 : 40)
+        .padding(.top, DeviceType.isIPhone ? 12 : 20)
+        .padding(.bottom, DeviceType.isIPhone ? 8 : 0)
     }
     
     var emptyStateView: some View {
-        Group {
-            switch selectedFilter {
-            case .all:
-                EmptyStateView(config: .noGoals {
-                    showingAddGoal = true
-                })
-            case .active:
-                EmptyStateView(config: .noActiveGoals(
-                    action: { showingAddGoal = true },
-                    viewCompleted: { selectedFilter = .completed }
-                ))
-            case .completed:
-                EmptyStateView(config: EmptyStateConfig(
-                    illustration: AnyView(CelebrationIllustration()),
-                    title: "No Completed Goals Yet",
-                    subtitle: "Your journey to achievement starts with setting meaningful goals. Each completed goal is a victory worth celebrating.",
-                    tip: "Set SMART goals: Specific, Measurable, Achievable, Relevant, Time-bound",
-                    accentColor: .adaptiveGreen,
-                    actions: [
-                        EmptyStateAction(
-                            title: "Set Your First Goal",
-                            icon: "flag.fill",
-                            handler: { showingAddGoal = true }
-                        ),
-                        EmptyStateAction(
-                            title: "View Active Goals",
-                            icon: "target",
-                            isPrimary: false,
-                            handler: { selectedFilter = .active }
-                        )
-                    ]
-                ))
-            }
-        }
+        EmptyStateView(config: .noGoals {
+            showingAddGoal = true
+        })
     }
     
     func showQuickUpdate(for goal: Goal) {
@@ -531,9 +522,7 @@ struct GoalsView: View {
     }
     
     func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMMM d"
-        return formatter.string(from: date)
+        return Date.formatDateWithGreeting(date)
     }
     
     // This function is no longer needed as we've moved the logic inline
@@ -555,7 +544,7 @@ struct GoalCard: View {
     @Environment(\.colorScheme) var colorScheme
     
     private var goalColor: Color {
-        Color(hex: goal.colorHex ?? "#007AFF")
+        Color(hex: goal.category?.colorHex ?? "#007AFF")
     }
     
     var body: some View {
@@ -566,18 +555,21 @@ struct GoalCard: View {
                 // Icon with colored background
                 ZStack {
                     ColoredIconBackground(color: goalColor, size: DesignSystem.IconSize.xxl + 6)
-                    Image(systemName: goal.iconName ?? "target")
-                        .font(.system(size: DesignSystem.IconSize.lg))
+                    Image(systemName: goal.category?.iconName ?? "target")
+                        .scaledFont(size: DesignSystem.IconSize.lg)
+                        .scaledIcon()
                         .foregroundColor(goalColor)
                 }
                     
                     VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs) {
                         Text(goal.title ?? "")
-                            .cardTitle()
+                            .scaledFont(size: 17, weight: .semibold)
+                            .foregroundColor(.primary)
                         
                         if let desc = goal.desc {
                             Text(desc)
-                                .caption()
+                                .scaledFont(size: 13)
+                                .foregroundColor(.secondary)
                                 .lineLimit(1)
                         }
                     }
@@ -593,17 +585,17 @@ struct GoalCard: View {
                     HStack {
                         VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs / 2) {
                             Text("\(Int(goal.progress * 100))%")
-                                .titleLarge()
+                                .scaledFont(size: 28, weight: .bold)
                                 .fontWeight(.bold)
                             if goal.typeEnum == .milestone || goal.typeEnum == .project {
                                 let milestones = goal.sortedMilestones
                                 let completedCount = milestones.filter { $0.isCompleted }.count
                                 Text("\(completedCount)/\(milestones.count) milestones")
-                                    .font(.caption)
+                                    .scaledFont(size: 12)
                                     .foregroundColor(.secondary)
                             } else {
                                 Text("Progress")
-                                    .font(.caption)
+                                    .scaledFont(size: 12)
                                     .foregroundColor(.secondary)
                             }
                         }
@@ -613,9 +605,10 @@ struct GoalCard: View {
                         if let targetDate = goal.targetDate {
                             HStack(spacing: DesignSystem.Spacing.xxs) {
                                 Image(systemName: "calendar")
-                                    .font(.caption)
+                                    .scaledFont(size: 12)
+                                    .scaledIcon()
                                 Text(targetDate, style: .date)
-                                    .font(.caption)
+                                    .scaledFont(size: 12)
                             }
                             .foregroundColor(goal.isOverdue ? .red : .secondary)
                             .padding(.horizontal, DesignSystem.Spacing.sm)
@@ -642,7 +635,7 @@ struct GoalCard: View {
                                         endPoint: .trailing
                                     )
                                 )
-                                .frame(width: geometry.size.width * goal.progress, height: DesignSystem.Spacing.sm)
+                                .frame(width: max(0, geometry.size.width * goal.progress), height: DesignSystem.Spacing.sm)
                                 // Removed animation for faster response
                         }
                     }
@@ -655,18 +648,20 @@ struct GoalCard: View {
                         VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs / 2) {
                             HStack(spacing: DesignSystem.Spacing.xxs) {
                                 Text("\(Int(goal.currentValue))")
-                                    .fontWeight(.semibold)
+                                    .scaledFont(size: 17, weight: .semibold)
                                 Text("/")
+                                    .scaledFont(size: 17)
                                     .foregroundColor(.secondary)
                                 Text("\(Int(goal.targetValue))")
+                                    .scaledFont(size: 17)
                                 if let unit = goal.unit {
                                     Text(unit)
                                         .foregroundColor(.secondary)
                                 }
                             }
-                            .font(.callout)
+                            .scaledFont(size: 16)
                             Text("Current")
-                                .font(.caption2)
+                                .scaledFont(size: 11)
                                 .foregroundColor(.secondary)
                         }
                     }
@@ -674,11 +669,10 @@ struct GoalCard: View {
                     if let daysRemaining = goal.daysRemaining, !goal.isCompleted {
                         VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs / 2) {
                             Text("\(daysRemaining)")
-                                .font(.callout)
-                                .fontWeight(.semibold)
+                                .scaledFont(size: 16, weight: .semibold)
                                 .foregroundColor(daysRemaining <= 7 ? .orange : .primary)
                             Text("Days left")
-                                .font(.caption2)
+                                .scaledFont(size: 11)
                                 .foregroundColor(.secondary)
                         }
                     }
@@ -690,9 +684,8 @@ struct GoalCard: View {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.green)
                             Text("Completed")
-                                .fontWeight(.medium)
+                                .scaledFont(size: 12, weight: .medium)
                         }
-                        .font(.caption)
                         .foregroundColor(.green)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
@@ -750,31 +743,30 @@ struct DeadlineCard: View {
     let goal: Goal
     
     private var goalColor: Color {
-        Color(hex: goal.colorHex ?? "#007AFF")
+        Color(hex: goal.category?.colorHex ?? "#007AFF")
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             ZStack {
                 ColoredIconBackground(color: goalColor, size: DesignSystem.Spacing.xl + DesignSystem.Spacing.xs, iconOpacity: DesignSystem.Opacity.light + 0.05)
-                Image(systemName: goal.iconName ?? "target")
+                Image(systemName: goal.category?.iconName ?? "target")
                     .font(.system(size: DesignSystem.IconSize.md))
                     .foregroundColor(goalColor)
             }
             
             Text(goal.title ?? "")
-                .font(.subheadline)
-                .fontWeight(.medium)
+                .scaledFont(size: 15, weight: .medium)
                 .lineLimit(2)
             
             if let days = goal.daysRemaining {
                 HStack(spacing: DesignSystem.Spacing.xxs) {
                     Image(systemName: "clock.fill")
-                        .font(.caption)
+                        .scaledFont(size: 12)
+                        .scaledIcon()
                     Text("\(days) days")
-                        .fontWeight(.bold)
+                        .scaledFont(size: 12, weight: .bold)
                 }
-                .font(.caption)
                 .foregroundColor(days <= 3 ? .red : .orange)
                 .padding(.horizontal, DesignSystem.Spacing.xs)
                 .padding(.vertical, DesignSystem.Spacing.xxs)
@@ -832,16 +824,10 @@ struct PriorityBadge: View {
     let priority: GoalPriority
     
     var body: some View {
-        Text(priority.displayName)
-            .font(.caption2)
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Capsule()
-                    .fill(Color(hex: priority.color))
-            )
+        // Small colored dot like in tasks
+        Circle()
+            .fill(Color(hex: priority.color))
+            .frame(width: 8, height: 8)
     }
 }
 
@@ -856,17 +842,17 @@ struct GoalStatCard: View {
     var body: some View {
         VStack(spacing: DesignSystem.Spacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: DesignSystem.IconSize.lg))
+                .scaledFont(size: DesignSystem.IconSize.lg)
+                .scaledIcon()
                 .foregroundColor(color)
             
             VStack(spacing: DesignSystem.Spacing.xxs) {
                 Text(value)
-                    .font(.system(.title2, design: .rounded))
-                    .fontWeight(.bold)
+                    .scaledFont(size: 22, weight: .bold, design: .rounded)
                     .foregroundColor(color)
                 
                 Text(label)
-                    .font(.caption)
+                    .scaledFont(size: 12)
                     .foregroundColor(color.opacity(0.8))
             }
         }
@@ -909,16 +895,17 @@ struct AreaCard: View {
                 ZStack {
                     ColoredIconBackground(color: categoryColor, size: DesignSystem.IconSize.xxl + 8)
                     Image(systemName: iconName)
-                        .font(.system(size: DesignSystem.IconSize.lg))
+                        .scaledFont(size: DesignSystem.IconSize.lg)
+                        .scaledIcon()
                         .foregroundColor(categoryColor)
                 }
                 
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs) {
                     Text(categoryName)
-                        .font(.headline)
+                        .scaledFont(size: 17, weight: .semibold)
                         .foregroundColor(.primary)
                     Text("\(goalCount) goal\(goalCount == 1 ? "" : "s")")
-                        .font(.caption)
+                        .scaledFont(size: 12)
                         .foregroundColor(.secondary)
                 }
                 
@@ -926,7 +913,8 @@ struct AreaCard: View {
                 
                 // Chevron indicator
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
+                    .scaledFont(size: 14, weight: .semibold)
+                    .scaledIcon()
                     .foregroundColor(.secondary)
             }
             .padding(DesignSystem.Spacing.lg)
@@ -994,16 +982,16 @@ struct CategoryGoalsView: View {
                                 ZStack {
                                     ColoredIconBackground(color: categoryColor, size: DesignSystem.IconSize.xxxl)
                                     Image(systemName: categoryIcon)
-                                        .font(.system(size: DesignSystem.IconSize.xl))
+                                        .scaledFont(size: DesignSystem.IconSize.xl)
+                                        .scaledIcon()
                                         .foregroundColor(categoryColor)
                                 }
                                 
                                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                                     Text(categoryName)
-                                        .font(.title2)
-                                        .fontWeight(.bold)
+                                        .scaledFont(size: 22, weight: .bold)
                                     Text("\(goals.count) goal\(goals.count == 1 ? "" : "s")")
-                                        .font(.subheadline)
+                                        .scaledFont(size: 15)
                                         .foregroundColor(.secondary)
                                 }
                                 
@@ -1016,7 +1004,7 @@ struct CategoryGoalsView: View {
                         // Goals list
                         VStack(spacing: 12) {
                             Text("Showing \(goals.count) goals")
-                                .font(.caption)
+                                .scaledFont(size: 12)
                                 .foregroundColor(.secondary)
                             
                             if goals.isEmpty {
@@ -1049,7 +1037,7 @@ struct CategoryGoalsView: View {
                     Button("Done") {
                         dismiss()
                     }
-                    .fontWeight(.semibold)
+                    .scaledFont(size: 17, weight: .semibold)
                 }
             }
         }

@@ -157,6 +157,8 @@ class HabitManager: NSObject, ObservableObject, @preconcurrency HabitManaging {
             NSSortDescriptor(keyPath: \Habit.name, ascending: true)
         ]
         request.predicate = NSPredicate(format: "isActive == YES")
+        // Prefetch relationships to avoid faulting
+        request.relationshipKeyPathsForPrefetching = ["category", "entries"]
         
         fetchedResultsController = NSFetchedResultsController(
             fetchRequest: request,
@@ -317,7 +319,7 @@ class HabitManager: NSObject, ObservableObject, @preconcurrency HabitManaging {
         
         // Check if entry already exists for this date
         let calendar = Calendar.current
-        let startOfDay = calendar.startOfDay(for: date)
+        let _ = calendar.startOfDay(for: date)
         
         let existingEntry = habit.entries?.first { entry in
             guard let entry = entry as? HabitEntry,
@@ -368,6 +370,9 @@ class HabitManager: NSObject, ObservableObject, @preconcurrency HabitManaging {
             _Concurrency.Task {
                 calculateCorrelations(for: habit)
             }
+            
+            // Update linked goals progress
+            updateLinkedGoalsProgress(for: habit)
             
             return .success(entry)
         } catch {
@@ -607,7 +612,7 @@ class HabitManager: NSObject, ObservableObject, @preconcurrency HabitManaging {
         }
         
         // Time-based insights
-        if let lastCompleted = habit.lastCompletedDate {
+        if let _ = habit.lastCompletedDate {
             let hourFormatter = DateFormatter()
             hourFormatter.dateFormat = "ha"
             
@@ -646,6 +651,48 @@ class HabitManager: NSObject, ObservableObject, @preconcurrency HabitManaging {
         cacheLock.unlock()
     }
     
+    private func updateLinkedGoalsProgress(for habit: Habit) {
+        // Get all goals linked to this habit
+        guard let linkedGoals = habit.linkedGoals?.allObjects as? [Goal] else { return }
+        
+        for goal in linkedGoals where goal.typeEnum == .habit && !goal.isCompleted {
+            // Calculate habit progress
+            let calendar = Calendar.current
+            let daysSinceStart = calendar.dateComponents([.day], from: goal.startDate ?? Date(), to: Date()).day ?? 1
+            let completionCount = habit.entries?.count ?? 0
+            
+            // Calculate completion rate (0-1)
+            let completionRate = Double(completionCount) / max(Double(daysSinceStart), 1.0)
+            
+            // Update goal progress based on habit completion rate
+            let progressValue = min(completionRate * (goal.targetValue), goal.targetValue)
+            
+            // Update the goal's current value
+            goal.currentValue = progressValue
+            goal.modifiedAt = Date()
+            
+            // Check if goal is completed
+            if progressValue >= goal.targetValue {
+                goal.isCompleted = true
+                goal.completedDate = Date()
+            }
+            
+            // Save changes
+            do {
+                try persistence.save()
+                
+                // Post notification for UI updates
+                NotificationCenter.default.post(
+                    name: Notification.Name("GoalProgressUpdated"),
+                    object: nil,
+                    userInfo: ["goalId": goal.id ?? UUID()]
+                )
+            } catch {
+                print("Failed to update linked goal progress: \(error)")
+            }
+        }
+    }
+    
     private func shouldHaveEntry(for habit: Habit, on date: Date) -> Bool {
         // Check if habit should have been completed on this date
         let habitsForDate = self.habitsForDate(date)
@@ -672,9 +719,14 @@ class HabitManager: NSObject, ObservableObject, @preconcurrency HabitManaging {
 // MARK: - NSFetchedResultsControllerDelegate
 
 extension HabitManager: NSFetchedResultsControllerDelegate {
-    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        habits = fetchedResultsController?.fetchedObjects ?? []
-        objectWillChange.send()
+    nonisolated func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        _Concurrency.Task { 
+            await MainActor.run { [weak self] in
+                guard let self = self else { return }
+                self.habits = self.fetchedResultsController?.fetchedObjects ?? []
+                self.objectWillChange.send()
+            }
+        }
     }
 }
 

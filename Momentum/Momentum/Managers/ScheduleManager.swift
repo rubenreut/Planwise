@@ -690,14 +690,15 @@ extension ScheduleManager: NSFetchedResultsControllerDelegate {
     nonisolated func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
         AsyncTask { @MainActor in
             if controller == fetchedResultsController {
-                let oldCount = events.count
+                let _ = events.count
                 events = fetchedResultsController?.fetchedObjects ?? []
                 clearEventCache()
                 
                 // Debug: Show all events after update
                 let formatter = DateFormatter()
                 formatter.dateFormat = "yyyy-MM-dd HH:mm"
-                for event in events {
+                for _ in events {
+                    // Debug logging removed
                 }
             } else if controller == categoriesFetchedResultsController {
                 categories = categoriesFetchedResultsController?.fetchedObjects ?? []

@@ -145,31 +145,51 @@ main() {
         exit 1
     fi
     
-    # Build with retry logic
+    # Build with optimizations for faster compilation
     local build_start=$(date +%s)
-    print_status "🔨 Building with parallel compilation..."
-    if build_with_retry; then
+    print_status "🔨 Building with optimizations..."
+    
+    # Use incremental compilation and limit concurrent tasks to avoid thrashing
+    xcodebuild build \
+        -project "$PROJECT_PATH" \
+        -scheme "$SCHEME_NAME" \
+        -destination "id=$DEVICE_ID" \
+        -configuration Debug \
+        -parallelizeTargets \
+        -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+        -IDEBuildOperationMaxNumberOfConcurrentCompileTasks=8 \
+        OTHER_SWIFT_FLAGS="-Xfrontend -warn-long-function-bodies=500 -Xfrontend -warn-long-expression-type-checking=500" \
+        COMPILER_INDEX_STORE_ENABLE=NO \
+        SWIFT_COMPILATION_MODE=incremental \
+        DEBUG_INFORMATION_FORMAT=dwarf \
+        ONLY_ACTIVE_ARCH=YES \
+        -quiet 2>&1
+    
+    if [ $? -eq 0 ]; then
         print_success "Build completed ($(measure_time $build_start))"
     else
-        exit 1
+        print_error "Build failed - retrying with standard settings..."
+        if build_with_retry; then
+            print_success "Build completed ($(measure_time $build_start))"
+        else
+            exit 1
+        fi
     fi
     
     # Install
     local install_start=$(date +%s)
     print_status "📱 Installing on simulator..."
     
-    # Check which directory exists - simulator builds
-    if [ -d "$BUILD_DIR/Debug-iphonesimulator/$APP_NAME.app" ]; then
-        APP_PATH="$BUILD_DIR/Debug-iphonesimulator/$APP_NAME.app"
-    elif [ -d "$BUILD_DIR/Release-iphonesimulator/$APP_NAME.app" ]; then
-        APP_PATH="$BUILD_DIR/Release-iphonesimulator/$APP_NAME.app"
-    else
-        print_error "App not found in either Debug or Release directory"
-        print_status "Checked:"
-        print_status "  - $BUILD_DIR/Debug-iphonesimulator/$APP_NAME.app"
-        print_status "  - $BUILD_DIR/Release-iphonesimulator/$APP_NAME.app"
+    # Find the app in the build directory - search more thoroughly
+    APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "$APP_NAME.app" -type d 2>/dev/null | grep -v "\.xcarchive" | grep -E "Debug-iphonesimulator|Release-iphonesimulator" | head -1)
+    
+    if [ -z "$APP_PATH" ]; then
+        print_error "App not found in DerivedData"
+        print_status "Searched for: $APP_NAME.app"
         exit 1
     fi
+    
+    print_status "Found app at: $APP_PATH"
     
     # Install on simulator
     xcrun simctl install "$DEVICE_ID" "$APP_PATH"

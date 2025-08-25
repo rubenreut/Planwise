@@ -80,18 +80,18 @@ struct PaywallView: View {
         VStack(spacing: baseUnit * 2) {
             // Icon
             Image(systemName: "sparkles")
-                .font(.system(size: 60))
+                .scaledFont(size: 60)
                 .foregroundColor(.accentColor)
                 .padding(.top, baseUnit * 2)
             
             // Title
             Text("Unlock Planwise Pro")
-                .font(.system(size: 28, weight: .bold, design: .default))
+                .scaledFont(size: 28, weight: .bold, design: .default)
                 .multilineTextAlignment(.center)
             
             // Subtitle
             Text("Transform your productivity with AI-powered scheduling")
-                .font(.system(size: 16, weight: .medium))
+                .scaledFont(size: 16, weight: .medium)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, baseUnit * 2)
@@ -145,7 +145,7 @@ struct PaywallView: View {
                 HStack {
                     Spacer()
                     Text("SAVE 49%")
-                        .font(.system(size: 12, weight: .bold))
+                        .scaledFont(size: 12, weight: .bold)
                         .foregroundColor(.white)
                         .padding(.horizontal, baseUnit * 1.5)
                         .padding(.vertical, baseUnit / 2)
@@ -161,16 +161,16 @@ struct PaywallView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: baseUnit / 2) {
                             Text("Monthly")
-                                .font(.system(size: 18, weight: .semibold))
+                                .scaledFont(size: 18, weight: .semibold)
                             Text("€12.99 / month")
-                                .font(.system(size: 14))
+                                .scaledFont(size: 14)
                                 .foregroundColor(.secondary)
                         }
                         
                         Spacer()
                         
                         Image(systemName: selectedPlanIndex == 0 ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 24))
+                            .scaledFont(size: 24)
                             .foregroundColor(selectedPlanIndex == 0 ? .accentColor : .secondary)
                     }
                     .padding(baseUnit * 2)
@@ -186,16 +186,16 @@ struct PaywallView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: baseUnit / 2) {
                             Text("Annual")
-                                .font(.system(size: 18, weight: .semibold))
+                                .scaledFont(size: 18, weight: .semibold)
                             Text("€79.99 / year")
-                                .font(.system(size: 14))
+                                .scaledFont(size: 14)
                                 .foregroundColor(.secondary)
                         }
                         
                         Spacer()
                         
                         Image(systemName: selectedPlanIndex == 1 ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 24))
+                            .scaledFont(size: 24)
                             .foregroundColor(selectedPlanIndex == 1 ? .accentColor : .secondary)
                     }
                     .padding(baseUnit * 2)
@@ -217,7 +217,7 @@ struct PaywallView: View {
             } else if subscriptionManager.products.isEmpty {
                 VStack(spacing: baseUnit) {
                     Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 40))
+                        .scaledFont(size: 40)
                         .foregroundColor(.orange)
                     
                     Text("Products not available")
@@ -247,7 +247,7 @@ struct PaywallView: View {
                 HStack {
                     Spacer()
                     Text("SAVE \(subscriptionManager.annualSavingsPercentage)%")
-                        .font(.system(size: 12, weight: .bold))
+                        .scaledFont(size: 12, weight: .bold)
                         .foregroundColor(.white)
                         .padding(.horizontal, baseUnit * 1.5)
                         .padding(.vertical, baseUnit / 2)
@@ -306,14 +306,14 @@ struct PaywallView: View {
             HStack(spacing: baseUnit * 3) {
                 Link(destination: URL(string: "https://rubenreut.github.io/Planwise-legal/terms-of-service.html")!) {
                     Text("Terms of Service")
-                        .font(.system(size: 14, weight: .semibold))
+                        .scaledFont(size: 14, weight: .semibold)
                         .foregroundColor(.accentColor)
                         .underline()
                 }
                 
                 Link(destination: URL(string: "https://rubenreut.github.io/Planwise-legal/privacy-policy.html")!) {
                     Text("Privacy Policy")
-                        .font(.system(size: 14, weight: .semibold))
+                        .scaledFont(size: 14, weight: .semibold)
                         .foregroundColor(.accentColor)
                         .underline()
                 }
@@ -326,7 +326,7 @@ struct PaywallView: View {
             )
             
             Text("Subscriptions automatically renew unless cancelled")
-                .font(.system(size: 12))
+                .scaledFont(size: 12)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
             
@@ -336,7 +336,7 @@ struct PaywallView: View {
                 }
             }) {
                 Text("Manage Subscriptions")
-                    .font(.system(size: 12, weight: .medium))
+                    .scaledFont(size: 12, weight: .medium)
                     .foregroundColor(.accentColor)
             }
         }
@@ -404,16 +404,16 @@ struct FeatureRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: baseUnit * 2) {
             Image(systemName: icon)
-                .font(.system(size: 24))
+                .scaledFont(size: 24)
                 .foregroundColor(.accentColor)
                 .frame(width: 32)
             
             VStack(alignment: .leading, spacing: baseUnit / 2) {
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .scaledFont(size: 16, weight: .semibold)
                 
                 Text(description)
-                    .font(.system(size: 14))
+                    .scaledFont(size: 14)
                     .foregroundColor(.secondary)
             }
             
@@ -437,11 +437,11 @@ struct PricingOption: View {
                 VStack(alignment: .leading, spacing: baseUnit / 2) {
                     HStack {
                         Text(product.displayName)
-                            .font(.system(size: 18, weight: .semibold))
+                            .scaledFont(size: 18, weight: .semibold)
                         
                         if isBestValue {
                             Text("Best Value")
-                                .font(.system(size: 11, weight: .bold))
+                                .scaledFont(size: 11, weight: .bold)
                                 .foregroundColor(.green)
                                 .padding(.horizontal, baseUnit)
                                 .padding(.vertical, baseUnit / 4)
@@ -452,14 +452,14 @@ struct PricingOption: View {
                     }
                     
                     Text(priceDescription)
-                        .font(.system(size: 14))
+                        .scaledFont(size: 14)
                         .foregroundColor(.secondary)
                 }
                 
                 Spacer()
                 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 24))
+                    .scaledFont(size: 24)
                     .foregroundColor(isSelected ? .accentColor : .secondary)
             }
             .padding(baseUnit * 2)

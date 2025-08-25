@@ -3,7 +3,7 @@ import UIKit
 
 struct TimeBlockView: View {
     let event: Event
-    let hourHeight: CGFloat = DeviceType.isIPad ? 80 : 68 // Use same as DayView
+    var hourHeight: CGFloat = DeviceType.isIPad ? 80 : 136 // Now can be passed from parent
     let onTap: () -> Void
     @Binding var isDraggingAnyBlock: Bool
     
@@ -54,15 +54,8 @@ struct TimeBlockView: View {
         return end.timeIntervalSince(start)
     }
     
-    private var blockHeight: CGFloat {
-        let minutes = duration / 60
-        let pixelsPerMinute = hourHeight / 60
-        let exactHeight = CGFloat(minutes) * pixelsPerMinute
-        
-        // Return exact height - no minimum for accurate representation
-        // This ensures 30min = exactly half hour block, 15min = exactly quarter, etc.
-        return exactHeight
-    }
+    // Height is now managed by parent view for accurate positioning
+    // The parent view (DayView) calculates and passes the exact height
     
     var body: some View {
         ZStack {
@@ -96,7 +89,7 @@ struct TimeBlockView: View {
                     .padding(.vertical, DesignSystem.Spacing.sm)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(height: blockHeight)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .background(backgroundLayer)
                 .overlay(overlayEffects)
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
@@ -206,7 +199,7 @@ struct TimeBlockView: View {
                 }
             }
         }
-        .frame(height: blockHeight) // Match the block height
+        .frame(maxHeight: .infinity) // Fill available height
         .allowsHitTesting(false) // Don't interfere with gestures
     }
     
@@ -222,12 +215,12 @@ struct TimeBlockView: View {
                 ForEach(Array(timeString.enumerated()), id: \.offset) { index, char in
                     if char == ":" {
                         Text(":")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .scaledFont(size: 11, weight: .semibold, design: .monospaced)
                             .foregroundColor(.white)
                     } else {
                         // Simple digit without animation
                         Text(String(char))
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .scaledFont(size: 11, weight: .bold, design: .monospaced)
                             .foregroundColor(.white)
                     }
                 }
@@ -295,13 +288,13 @@ struct TimeBlockView: View {
     
     private var accentBar: some View {
         ZStack {
-            // Glow effect behind bar
+            // Glow effect behind bar - more visible with transparent background
             Rectangle()
                 .fill(
                     LinearGradient(
                         gradient: Gradient(colors: [
-                            categoryColor.opacity(0.6),
-                            categoryColor.opacity(0.3)
+                            categoryColor.opacity(0.8),
+                            categoryColor.opacity(0.4)
                         ]),
                         startPoint: .leading,
                         endPoint: .trailing
@@ -344,7 +337,7 @@ struct TimeBlockView: View {
     private var titleSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.xxs / 2) {
             Text(event.title ?? "Untitled")
-                .font(.system(size: 15, weight: titleWeight, design: .default))
+                .scaledFont(size: 15, weight: titleWeight, design: .default)
                 .foregroundColor(colorScheme == .dark ? .white : Color(UIColor.label))
                 .tracking(-0.4)
         }
@@ -364,7 +357,7 @@ struct TimeBlockView: View {
                         start: dragState.isDragging ? adjustTimeForDrag(startTime) : startTime,
                         end: dragState.isDragging ? adjustTimeForDrag(endTime) : endTime
                     ))
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .scaledFont(size: 12, weight: .medium, design: .monospaced)
                         .foregroundColor(colorScheme == .dark ? .white.opacity(0.9) : Color(UIColor.secondaryLabel))
                         .tracking(0.2)
                         .opacity(dragState.showTimePills ? 0 : 1) // Hide only time range when showing pills
@@ -381,14 +374,14 @@ struct TimeBlockView: View {
                     // Duration with bullet separator - always visible
                     HStack(spacing: DesignSystem.Spacing.xxs) {
                         Text("•")
-                            .font(.system(size: 10, weight: .regular))
+                            .scaledFont(size: 10, weight: .regular)
                             .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : Color(UIColor.tertiaryLabel))
                         
                         Text(formatDuration(
                             start: dragState.isDragging ? adjustTimeForDrag(startTime) : startTime,
                             end: dragState.isDragging ? adjustTimeForDrag(endTime) : endTime
                         ))
-                            .font(.system(size: 11, weight: .regular, design: .monospaced))
+                            .scaledFont(size: 11, weight: .regular, design: .monospaced)
                             .foregroundColor(colorScheme == .dark ? .white.opacity(0.85) : Color(UIColor.secondaryLabel))
                             .tracking(0.1)
                     }
@@ -399,11 +392,11 @@ struct TimeBlockView: View {
                    let location = event.location, !location.isEmpty {
                     HStack(spacing: DesignSystem.Spacing.xxs) {
                         Image(systemName: "location.fill")
-                            .font(.system(size: 9, weight: .medium))
+                            .scaledFont(size: 9, weight: .medium)
                             .foregroundColor(colorScheme == .dark ? .white.opacity(0.85) : Color(UIColor.secondaryLabel))
                         
                         Text(location)
-                            .font(.system(size: 11, weight: .regular, design: .default))
+                            .scaledFont(size: 11, weight: .regular, design: .default)
                             .foregroundColor(colorScheme == .dark ? .white.opacity(0.9) : Color(UIColor.secondaryLabel))
                             .tracking(-0.2)
                             .lineLimit(1)
@@ -416,15 +409,35 @@ struct TimeBlockView: View {
     // MARK: - Visual Effects
     
     private var backgroundLayer: some View {
-        // Background matches the sidebar accent color
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(
-                colorScheme == .dark ?
-                // Dark mode: lighter version of category color
-                categoryColor.mix(with: Color(white: 0.2), ratio: 0.7) :
-                // Light mode: extremely light to match sidebar (98% white + 2% color)
-                categoryColor.mix(with: .white, ratio: 0.98)
-            )
+        ZStack {
+            // Base semi-transparent color layer
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(
+                    colorScheme == .dark ?
+                    // Dark mode: semi-transparent category color
+                    categoryColor.opacity(0.15) :
+                    // Light mode: very light semi-transparent
+                    categoryColor.opacity(0.08)
+                )
+            
+            // Blur material overlay for glass effect
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .opacity(colorScheme == .dark ? 0.3 : 0.5)
+            
+            // Subtle gradient overlay for depth
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            categoryColor.opacity(0.05),
+                            Color.clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+        }
     }
     
     private var overlayEffects: some View {
@@ -489,13 +502,13 @@ struct TimeBlockView: View {
     }
     
     private var shouldShowTimeInfo: Bool {
-        // Show time if height >= φ² × baseUnit × 2 = 41.89 ≈ 44pt
-        blockHeight >= 44
+        // Show time info for events longer than 15 minutes
+        duration >= 900
     }
     
     private var shouldShowLocation: Bool {
-        // Show location if height >= φ³ × baseUnit = 68pt
-        blockHeight >= hourHeight
+        // Show location for events longer than 30 minutes
+        duration >= 1800
     }
     
     

@@ -13,13 +13,13 @@ extension Color {
     /// Convert accent color string to SwiftUI Color
     static func fromAccentString(_ colorString: String) -> Color {
         switch colorString {
-        case "blue": return .blue
-        case "purple": return .purple
-        case "pink": return .pink
-        case "red": return .red
-        case "orange": return .orange
-        case "green": return .green
-        case "indigo": return .indigo
+        case "blue": return Color(UIColor(red: 0.0, green: 0.478, blue: 1.0, alpha: 1.0))
+        case "purple": return Color(UIColor(red: 0.686, green: 0.321, blue: 0.871, alpha: 1.0))
+        case "pink": return Color(UIColor(red: 1.0, green: 0.176, blue: 0.333, alpha: 1.0))
+        case "red": return Color(UIColor(red: 1.0, green: 0.231, blue: 0.188, alpha: 1.0))
+        case "orange": return Color(UIColor(red: 1.0, green: 0.584, blue: 0.0, alpha: 1.0))
+        case "green": return Color(UIColor(red: 0.204, green: 0.78, blue: 0.349, alpha: 1.0))
+        case "indigo": return Color(UIColor(red: 0.345, green: 0.337, blue: 0.839, alpha: 1.0))
         case "custom":
             // Load custom color from hex
             let hexString = UserDefaults.standard.string(forKey: "customAccentColorHex") ?? ""

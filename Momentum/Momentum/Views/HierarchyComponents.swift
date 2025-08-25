@@ -22,18 +22,17 @@ struct EnhancedFilterPill: View {
             HStack(spacing: DesignSystem.Spacing.xs) {
                 // Icon with proper size
                 Image(systemName: icon)
-                    .font(.system(size: DesignSystem.IconSize.sm, weight: .medium))
+                    .scaledFont(size: DesignSystem.IconSize.sm, weight: .medium)
+                    .scaledIcon()
                 
                 // Title with proper typography
                 Text(title)
-                    .font(DesignSystem.Typography.subheadline)
-                    .fontWeight(isSelected ? .semibold : .medium)
+                    .scaledFont(size: 15, weight: isSelected ? .semibold : .medium)
                 
                 // Count badge with improved visibility
                 if count > 0 {
                     Text("\(count)")
-                        .font(DesignSystem.Typography.caption1)
-                        .fontWeight(.bold)
+                        .scaledFont(size: 12, weight: .bold)
                         .foregroundColor(badgeTextColor)
                         .padding(.horizontal, DesignSystem.Spacing.xs)
                         .padding(.vertical, 2)
@@ -239,134 +238,93 @@ struct EnhancedTaskCard: View {
     
     @EnvironmentObject private var taskManager: TaskManager
     @State private var isCompleted: Bool = false
-    @AppStorage("accentColor") private var accentColorHex: String = "#007AFF"
+    @AppStorage("accentColor") private var selectedAccentColor = "blue"
+    
+    private var accentColor: Color {
+        Color.fromAccentString(selectedAccentColor)
+    }
     
     var body: some View {
-        HStack(spacing: DesignSystem.Spacing.md) {
-            // Completion button - simple design
-            Button {
-                HapticFeedback.success.trigger()
-                toggleCompletion()
-            } label: {
-                ZStack {
-                    // Simple circle border
-                    Circle()
-                        .stroke(isCompleted ? Color(hex: accentColorHex) : Color.gray.opacity(0.3), lineWidth: 2)
-                        .frame(width: 24, height: 24)
-                    
-                    // Fill when completed
-                    if isCompleted {
-                        Circle()
-                            .fill(Color(hex: accentColorHex))
-                            .frame(width: 24, height: 24)
-                        
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                }
-                .animation(.none, value: isCompleted)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            
-            // Task content
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                    // Title row
-                    HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
-                            Text(task.title ?? "Untitled Task")
-                                .font(DesignSystem.Typography.body)
-                                .fontWeight(task.priority == TaskPriority.high.rawValue ? .semibold : .regular)
-                                .strikethrough(isCompleted)
-                                .foregroundColor(isCompleted ? .secondary : .primary)
-                                .lineLimit(2)
-                                .fixedSize(horizontal: false, vertical: true)
-                            
-                            Spacer(minLength: 0)
-                            
-                            // Priority dot indicator
+        Button(action: onTap) {
+            VStack(spacing: 0) {
+                // Main content
+                HStack(spacing: DesignSystem.Spacing.md) {
+                    // Completion button - EXACT COPY FROM CLEANHABITROW
+                    Button {
+                        HapticFeedback.success.trigger()
+                        toggleCompletion()
+                    } label: {
+                        ZStack {
+                            // Simple circle border
                             Circle()
-                                .fill(priorityColor(for: task.priority))
-                                .frame(width: 8, height: 8)
-                                .padding(.trailing, 4)
+                                .stroke(isCompleted ? accentColor : Color.gray.opacity(0.3), lineWidth: 2)
+                                .scaledFrame(width: 24, height: 24)
+                            
+                            // Fill when completed
+                            if isCompleted {
+                                Circle()
+                                    .fill(accentColor)
+                                    .scaledFrame(width: 24, height: 24)
+                                
+                                Image(systemName: "checkmark")
+                                    .scaledFont(size: 14, weight: .bold)
+                                    .scaledIcon()
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .animation(.none, value: isCompleted)
+                        .scaledFrame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                
+                // Task content - SIMPLIFIED LIKE HABITS
+                HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
+                    // Task name
+                    Text(task.title ?? "Untitled Task")
+                        .scaledFont(size: 17, weight: .regular)
+                        .strikethrough(isCompleted)
+                        .foregroundColor(isCompleted ? .secondary : .primary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    
+                    Spacer(minLength: 0)
+                    
+                    // Compact metadata on the right
+                    HStack(spacing: 8) {
+                        // Category if exists - smaller
+                        if let category = task.category, let categoryName = category.name {
+                            Text(categoryName)
+                                .scaledFont(size: 10, weight: .medium)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .frame(maxWidth: 60)
+                                .foregroundColor(.secondary)
                         }
                         
-                        // Metadata row
-                        HStack(spacing: DesignSystem.Spacing.md) {
-                            // Due date with emphasis
-                            if let dueDate = task.dueDate {
-                                HStack(spacing: 4) {
-                                    Image(systemName: isOverdue(task.dueDate) && !isCompleted ? "exclamationmark.circle.fill" : "calendar")
-                                        .font(.system(size: 14, weight: .medium))
-                                    Text(formatDueDate(dueDate))
-                                        .font(DesignSystem.Typography.footnote)
-                                        .fontWeight(.medium)
-                                }
-                                .foregroundColor(isOverdue(task.dueDate) && !isCompleted ? .red : .secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(
-                                    Capsule()
-                                        .fill(Color(UIColor.systemGray6))
-                                        .overlay(
-                                            Capsule()
-                                                .stroke(Color(UIColor.systemGray5), lineWidth: 0.5)
-                                        )
-                                )
+                        // Due date indicator - minimal
+                        if let dueDate = task.dueDate {
+                            if isOverdue(dueDate) && !isCompleted {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .scaledFont(size: 12)
+                                    .foregroundColor(.red.opacity(0.9))
                             }
-                            
-                            // Category badge
-                            if let category = task.category, let categoryName = category.name {
-                                HStack(spacing: 4) {
-                                    Image(systemName: category.iconName ?? "folder.fill")
-                                        .font(.system(size: 12))
-                                    Text(categoryName)
-                                        .font(DesignSystem.Typography.caption1)
-                                        .fontWeight(.medium)
-                                }
-                                .foregroundColor(Color(hex: category.colorHex ?? "#007AFF"))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(
-                                    Capsule()
-                                        .fill(Color(UIColor.systemGray6))
-                                        .overlay(
-                                            Capsule()
-                                                .stroke(Color(UIColor.systemGray5), lineWidth: 0.5)
-                                        )
-                                )
-                            }
-                            
-                            // Subtasks progress
-                            if (task.subtasks?.count ?? 0) > 0 {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "checklist")
-                                        .font(.system(size: 12))
-                                    Text("\((task.subtasks as? Set<Task>)?.filter { $0.isCompleted }.count ?? 0)/\(task.subtasks?.count ?? 0)")
-                                        .font(DesignSystem.Typography.caption1)
-                                        .fontWeight(.semibold)
-                                }
-                                .foregroundColor(.secondary)
-                            }
-                            
-                    Spacer()
+                        }
+                    }
                 }
+                
+                // Chevron
+                Image(systemName: "chevron.right")
+                    .scaledFont(size: 14, weight: .medium)
+                    .scaledIcon()
+                    .foregroundColor(DesignSystem.Colors.tertiary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                onTap()
-            }
-            
-            // Chevron
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(DesignSystem.Colors.tertiary)
+            .padding(DesignSystem.Spacing.md)
         }
-        .padding(DesignSystem.Spacing.md)
+        }
+        .buttonStyle(.plain)
         .background(
-            // Same style as navbar - frosted glass blur effect
+            // EXACT same style as CleanHabitRow - frosted glass blur effect
             ZStack {
                 // Base blur layer
                 RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
@@ -378,29 +336,27 @@ struct EnhancedTaskCard: View {
             }
         )
         .overlay(
-            // Subtle border for definition - same as navbar
+            // Subtle border for definition - same as habit cards
             RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
                 .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
         )
         .overlay(
-            // Top edge highlight
-            VStack {
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.6),
-                        Color.white.opacity(0.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 1)
-                .blur(radius: 0.5)
-                .padding(.horizontal, DesignSystem.CornerRadius.md)
-                
-                Spacer()
-            }
+            // Top edge highlight for depth
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.1),
+                    Color.clear
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 1)
+            .clipShape(
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.md)
+            )
+            .padding(1),
+            alignment: .top
         )
-        // Single shadow like navbar
         .shadow(color: Color.black.opacity(0.15), radius: 15, x: 0, y: 8)
         .onAppear {
             isCompleted = task.isCompleted
@@ -530,7 +486,7 @@ struct InfoBadge: View {
         HStack(spacing: 4) {
             if let icon = icon {
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .medium))
+                    .scaledFont(size: 12, weight: .medium)
             }
             Text(text)
                 .font(DesignSystem.Typography.caption1)

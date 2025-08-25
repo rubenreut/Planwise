@@ -83,7 +83,7 @@ struct NetworkErrorAlert: ViewModifier {
     
     func body(content: Content) -> some View {
         content
-            .onChange(of: networkMonitor.isConnected) { isConnected in
+            .onChange(of: networkMonitor.isConnected) { _, isConnected in
                 if !isConnected && !showingOfflineAlert {
                     showingOfflineAlert = true
                 }

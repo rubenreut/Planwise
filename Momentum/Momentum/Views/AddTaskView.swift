@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
 
 struct AddTaskView: View {
     @Environment(\.dismiss) private var dismiss
@@ -13,6 +15,7 @@ struct AddTaskView: View {
     @EnvironmentObject private var taskManager: TaskManager
     @EnvironmentObject private var scheduleManager: ScheduleManager
     @StateObject private var subscriptionManager = SubscriptionManager.shared
+    @AppStorage("accentColor") private var selectedAccentColor = "blue"
     
     // Form fields
     @State private var title = ""
@@ -31,73 +34,150 @@ struct AddTaskView: View {
     @State private var showingCategoryPicker = false
     @State private var showingPaywall = false
     
+    // Attachment State
+    @State private var selectedPhotos: [PhotosPickerItem] = []
+    @State private var attachedImages: [UIImage] = []
+    @State private var showingDocumentPicker = false
+    @State private var attachedFileNames: [String] = []
+    
     // Haptic generators
     private let selectionFeedback = UISelectionFeedbackGenerator()
     private let impactFeedback = UIImpactFeedbackGenerator(style: .light)
     private let notificationFeedback = UINotificationFeedbackGenerator()
     
+    @ViewBuilder
+    private var titleSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TextField("Task", text: $title)
+                .scaledFont(size: 34, weight: .bold, design: .default)
+                .focused($isTitleFocused)
+                .padding(.horizontal, 20)
+                .padding(.top, 24)
+                .padding(.bottom, 8)
+            
+            Divider()
+                .padding(.horizontal, 20)
+        }
+    }
+    
+    @ViewBuilder
+    private var prioritySection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("PRIORITY")
+                .scaledFont(size: 13, weight: .semibold, design: .default)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 20)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(TaskPriority.allCases, id: \.self) { prio in
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                priority = prio
+                                selectionFeedback.selectionChanged()
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "flag.fill")
+                                    .scaledFont(size: 14)
+                                    .scaledIcon()
+                                Text(prio.displayName)
+                                    .scaledFont(size: 15, weight: .medium)
+                            }
+                            .foregroundColor(priority == prio ? prio.color : .secondary)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(priority == prio ? prio.color.opacity(0.15) : Color(UIColor.secondarySystemFill))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .strokeBorder(priority == prio ? prio.color.opacity(0.3) : Color.clear, lineWidth: 1.5)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var attachmentsList: some View {
+        if !attachedImages.isEmpty || !attachedFileNames.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Attached")
+                    .scaledFont(size: 12, weight: .semibold)
+                    .foregroundColor(.secondary)
+                
+                // Images
+                if !attachedImages.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(Array(attachedImages.enumerated()), id: \.offset) { index, image in
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 60, height: 60)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .overlay(alignment: .topTrailing) {
+                                        Button {
+                                            attachedImages.remove(at: index)
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundColor(.white)
+                                                .background(Circle().fill(Color.black.opacity(0.5)))
+                                        }
+                                        .offset(x: 4, y: -4)
+                                    }
+                            }
+                        }
+                    }
+                }
+                
+                // Files
+                ForEach(attachedFileNames, id: \.self) { fileName in
+                    HStack {
+                        Image(systemName: "doc.fill")
+                            .foregroundColor(.purple)
+                            .scaledFont(size: 14)
+                        Text(fileName)
+                            .scaledFont(size: 14)
+                            .lineLimit(1)
+                        Spacer()
+                        Button {
+                            attachedFileNames.removeAll { $0 == fileName }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                                .scaledFont(size: 16)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(UIColor.tertiarySystemFill))
+                    )
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+    
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    // Title - Structured style
-                    VStack(alignment: .leading, spacing: 0) {
-                        TextField("Task", text: $title)
-                            .font(.system(size: 34, weight: .bold, design: .default))
-                            .focused($isTitleFocused)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 24)
-                            .padding(.bottom, 8)
-                        
-                        Divider()
-                            .padding(.horizontal, 20)
-                    }
-                    
-                    // Priority - Structured style
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("PRIORITY")
-                            .font(.system(size: 13, weight: .semibold, design: .default))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 20)
-                        
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(TaskPriority.allCases, id: \.self) { prio in
-                                    Button {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                            priority = prio
-                                            selectionFeedback.selectionChanged()
-                                        }
-                                    } label: {
-                                        HStack(spacing: 6) {
-                                            Image(systemName: "flag.fill")
-                                                .font(.system(size: 14))
-                                            Text(prio.displayName)
-                                                .font(.system(size: 15, weight: .medium))
-                                        }
-                                        .foregroundColor(priority == prio ? prio.color : .secondary)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 10)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .fill(priority == prio ? prio.color.opacity(0.15) : Color(UIColor.secondarySystemFill))
-                                        )
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .strokeBorder(priority == prio ? prio.color.opacity(0.3) : Color.clear, lineWidth: 1.5)
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.horizontal, 20)
-                        }
-                    }
+                    titleSection
+                    prioritySection
                     
                     // Due Date - Structured style
                     VStack(alignment: .leading, spacing: 16) {
                         Text("DUE DATE")
-                            .font(.system(size: 13, weight: .semibold, design: .default))
+                            .scaledFont(size: 13, weight: .semibold, design: .default)
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 20)
                         
@@ -106,19 +186,23 @@ struct AddTaskView: View {
                             HStack {
                                 Label {
                                     Text(hasDueDate ? formatDate(dueDate) : "No due date")
-                                        .font(.system(size: 17))
+                                        .scaledFont(size: 17)
                                         .foregroundColor(hasDueDate ? .primary : .secondary)
                                 } icon: {
                                     Image(systemName: "calendar")
-                                        .font(.system(size: 17))
-                                        .foregroundColor(hasDueDate ? .blue : .secondary)
+                                        .scaledFont(size: 17)
+                                        .scaledIcon()
+                                        .foregroundColor(hasDueDate ? Color.fromAccentString(selectedAccentColor) : .secondary)
                                 }
                                 
                                 Spacer()
                                 
                                 Toggle("", isOn: $hasDueDate.animation(.easeInOut(duration: 0.2)))
+                                    .onChange(of: hasDueDate) { _, _ in
+                                        HapticFeedback.selection.trigger()
+                                    }
                                     .labelsHidden()
-                                    .tint(.blue)
+                                    .tint(Color.fromAccentString(selectedAccentColor))
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 14)
@@ -132,11 +216,12 @@ struct AddTaskView: View {
                                 HStack {
                                     Label {
                                         Text(hasTime ? formatTime(dueDate) : "No time set")
-                                            .font(.system(size: 17))
+                                            .scaledFont(size: 17)
                                             .foregroundColor(hasTime ? .primary : .secondary)
                                     } icon: {
                                         Image(systemName: "clock")
-                                            .font(.system(size: 17))
+                                            .scaledFont(size: 17)
+                                            .scaledIcon()
                                             .foregroundColor(hasTime ? .orange : .secondary)
                                     }
                                     
@@ -171,7 +256,7 @@ struct AddTaskView: View {
                     if !scheduleManager.categories.isEmpty {
                         VStack(alignment: .leading, spacing: 16) {
                             Text("CATEGORY")
-                                .font(.system(size: 13, weight: .semibold, design: .default))
+                                .scaledFont(size: 13, weight: .semibold, design: .default)
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal, 20)
                             
@@ -181,24 +266,25 @@ struct AddTaskView: View {
                                 HStack {
                                     if let category = selectedCategory {
                                         Image(systemName: category.iconName ?? "folder")
-                                            .font(.system(size: 17))
+                                            .scaledFont(size: 17)
+                                            .scaledIcon()
                                             .foregroundColor(Color(hex: category.colorHex ?? "#007AFF"))
                                         Text(category.name ?? "")
-                                            .font(.system(size: 17))
+                                            .scaledFont(size: 17)
                                             .foregroundColor(.primary)
                                     } else {
                                         Image(systemName: "folder")
-                                            .font(.system(size: 17))
+                                            .scaledFont(size: 17)
                                             .foregroundColor(.secondary)
                                         Text("No category")
-                                            .font(.system(size: 17))
+                                            .scaledFont(size: 17)
                                             .foregroundColor(.secondary)
                                     }
                                     
                                     Spacer()
                                     
                                     Image(systemName: "chevron.right")
-                                        .font(.system(size: 14, weight: .semibold))
+                                        .scaledFont(size: 14, weight: .semibold)
                                         .foregroundColor(Color(UIColor.tertiaryLabel))
                                 }
                                 .padding(.horizontal, 16)
@@ -216,7 +302,7 @@ struct AddTaskView: View {
                     // Duration - Structured style
                     VStack(alignment: .leading, spacing: 16) {
                         Text("DURATION")
-                            .font(.system(size: 13, weight: .semibold, design: .default))
+                            .scaledFont(size: 13, weight: .semibold, design: .default)
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 20)
                         
@@ -228,7 +314,7 @@ struct AddTaskView: View {
                                         selectionFeedback.selectionChanged()
                                     } label: {
                                         Text(formatDuration(minutes))
-                                            .font(.system(size: 15, weight: .medium))
+                                            .scaledFont(size: 15, weight: .medium)
                                             .foregroundColor(estimatedDuration == minutes ? .white : .primary)
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 10)
@@ -245,7 +331,7 @@ struct AddTaskView: View {
                                     // Show custom picker
                                 } label: {
                                     Text("Custom")
-                                        .font(.system(size: 15, weight: .medium))
+                                        .scaledFont(size: 15, weight: .medium)
                                         .foregroundColor(.secondary)
                                         .padding(.horizontal, 16)
                                         .padding(.vertical, 10)
@@ -260,33 +346,87 @@ struct AddTaskView: View {
                         }
                     }
                     
-                    // Notes - Structured style
+                    // Notes & Attachments - Structured style
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("NOTES")
-                            .font(.system(size: 13, weight: .semibold, design: .default))
+                        Text("NOTES & ATTACHMENTS")
+                            .scaledFont(size: 13, weight: .semibold, design: .default)
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 20)
                         
-                        TextField("Add notes", text: $notes, axis: .vertical)
-                            .font(.system(size: 17))
-                            .lineLimit(3...8)
-                            .padding(16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color(UIColor.secondarySystemFill))
-                            )
+                        VStack(spacing: 12) {
+                            // Notes field
+                            TextField("Add notes...", text: $notes, axis: .vertical)
+                                .scaledFont(size: 17)
+                                .lineLimit(3...8)
+                                .padding(16)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color(UIColor.secondarySystemFill))
+                                )
+                                .padding(.horizontal, 20)
+                            
+                            // Attachment buttons
+                            HStack(spacing: 12) {
+                                // Photo picker
+                                PhotosPicker(selection: $selectedPhotos, maxSelectionCount: 5, matching: .images) {
+                                    Label {
+                                        Text("Add Photos")
+                                            .scaledFont(size: 15, weight: .medium)
+                                    } icon: {
+                                        Image(systemName: "photo")
+                                            .scaledIcon()
+                                            .scaledFont(size: 15)
+                                    }
+                                    .foregroundColor(Color.fromAccentString(selectedAccentColor))
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(Color.fromAccentString(selectedAccentColor).opacity(0.1))
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                
+                                // Document picker
+                                Button {
+                                    showingDocumentPicker = true
+                                } label: {
+                                    Label {
+                                        Text("Add Files")
+                                            .scaledFont(size: 15, weight: .medium)
+                                    } icon: {
+                                        Image(systemName: "doc")
+                                            .scaledIcon()
+                                            .scaledFont(size: 15)
+                                    }
+                                    .foregroundColor(.purple)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(Color.purple.opacity(0.1))
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                
+                                Spacer()
+                            }
                             .padding(.horizontal, 20)
+                            
+                            // Show attached items
+                            attachmentsList
+                        }
                     }
                     
                     // Tags - Structured style
                     VStack(alignment: .leading, spacing: 16) {
                         Text("TAGS")
-                            .font(.system(size: 13, weight: .semibold, design: .default))
+                            .scaledFont(size: 13, weight: .semibold, design: .default)
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 20)
                         
                         TextField("Add tags", text: $tags)
-                            .font(.system(size: 17))
+                            .scaledFont(size: 17)
                             .padding(16)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
@@ -305,21 +445,23 @@ struct AddTaskView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
+                        HapticFeedback.light.trigger()
                         dismiss()
                     }
-                    .font(.system(size: 17))
+                    .scaledFont(size: 17)
                 }
                 
                 ToolbarItem(placement: .principal) {
                     Text("New Task")
-                        .font(.system(size: 17, weight: .semibold))
+                        .scaledFont(size: 17, weight: .semibold)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
+                        HapticFeedback.success.trigger()
                         createTask()
                     }
-                    .font(.system(size: 17, weight: .semibold))
+                    .scaledFont(size: 17, weight: .semibold)
                     .disabled(title.isEmpty)
                 }
             }
@@ -328,6 +470,18 @@ struct AddTaskView: View {
             }
             .sheet(isPresented: $showingPaywall) {
                 PaywallViewPremium()
+            }
+            .sheet(isPresented: $showingDocumentPicker) {
+                AddTaskDocumentPicker(fileNames: $attachedFileNames)
+            }
+        }
+        .task(id: selectedPhotos) {
+            attachedImages = []
+            for item in selectedPhotos {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    attachedImages.append(image)
+                }
             }
         }
         .onAppear {
@@ -429,18 +583,18 @@ struct OptionRow<Content: View>: View {
     var body: some View {
         HStack(spacing: 16) {
             Image(systemName: icon)
-                .font(.system(size: 16))
+                .scaledFont(size: 16)
                 .foregroundColor(iconColor)
                 .frame(width: 24)
             
             Text(title)
-                .font(.body)
+                .scaledFont(size: 17)
                 .foregroundColor(.primary)
             
             Spacer()
             
             Text(value)
-                .font(.body)
+                .scaledFont(size: 17)
                 .foregroundColor(.secondary)
             
             accessory()
@@ -528,7 +682,7 @@ struct HorizontalPillSelector<T: Hashable>: View {
                     selectionFeedback.selectionChanged()
                 } label: {
                     Text(label(item))
-                        .font(.subheadline)
+                        .scaledFont(size: 15)
                         .fontWeight(selection == item ? .semibold : .medium)
                         .foregroundColor(selection == item ? .white : .primary)
                         .padding(.horizontal, 16)
@@ -568,7 +722,7 @@ struct DurationPillSelector: View {
                     selectionFeedback.selectionChanged()
                 } label: {
                     Text("\(minutes)m")
-                        .font(.subheadline)
+                        .scaledFont(size: 15)
                         .fontWeight(selection == minutes && !isCustomDuration ? .semibold : .medium)
                         .foregroundColor(selection == minutes && !isCustomDuration ? .white : .primary)
                         .padding(.horizontal, 16)
@@ -591,7 +745,7 @@ struct DurationPillSelector: View {
                 selectionFeedback.selectionChanged()
             } label: {
                 Text(isCustomDuration ? "\(selection)m" : "Custom")
-                    .font(.subheadline)
+                    .scaledFont(size: 15)
                     .fontWeight(isCustomDuration ? .semibold : .medium)
                     .foregroundColor(isCustomDuration ? .white : .primary)
                     .padding(.horizontal, 16)
@@ -640,7 +794,7 @@ struct CustomDurationPicker: View {
                     Spacer()
                     
                     Text("Duration")
-                        .font(.headline)
+                        .scaledFont(size: 17, weight: .semibold)
                     
                     Spacer()
                     
@@ -657,7 +811,8 @@ struct CustomDurationPicker: View {
                 // Duration picker
                 Picker("Duration", selection: $tempSelection) {
                     ForEach(commonDurations, id: \.self) { minutes in
-                        Text(formatDurationText(minutes)).tag(minutes)
+                        Text(formatDurationText(minutes))
+                            .tag(minutes)
                     }
                 }
                 .pickerStyle(.wheel)
@@ -682,6 +837,39 @@ struct CustomDurationPicker: View {
             let hours = minutes / 60
             let mins = minutes % 60
             return "\(hours)h \(mins)m"
+        }
+    }
+}
+
+// MARK: - Task Document Picker
+
+struct AddTaskDocumentPicker: UIViewControllerRepresentable {
+    @Binding var fileNames: [String]
+    
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.pdf, .text, .plainText, .image, .spreadsheet, .presentation], asCopy: true)
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = true
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: AddTaskDocumentPicker
+        
+        init(_ parent: AddTaskDocumentPicker) {
+            self.parent = parent
+        }
+        
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            for url in urls {
+                parent.fileNames.append(url.lastPathComponent)
+            }
         }
     }
 }

@@ -20,7 +20,7 @@ struct NavigationSidebar: View {
                         .font(.system(size: DesignSystem.IconSize.xl))
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [.adaptiveBlue, .adaptivePurple],
+                                colors: [.blue, .purple],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -46,7 +46,7 @@ struct NavigationSidebar: View {
             ForEach(NavigationSection.allCases, id: \.self) { section in
                 if section.showsHeader {
                     Section {
-                        ForEach(section.destinations) { destination in
+                        ForEach(section.destinations.filter { $0 != .settings }) { destination in
                             NavigationSidebarRow(
                                 destination: destination,
                                 isSelected: navigationState.selectedDestination == destination,
@@ -61,24 +61,6 @@ struct NavigationSidebar: View {
                             .fontWeight(.semibold)
                             .foregroundColor(Color(UIColor.tertiaryLabel))
                             .padding(.top, DesignSystem.Spacing.sm)
-                    }
-                    .listRowInsets(EdgeInsets(
-                        top: DesignSystem.Spacing.xs,
-                        leading: DesignSystem.Spacing.sm,
-                        bottom: DesignSystem.Spacing.xs,
-                        trailing: DesignSystem.Spacing.sm
-                    ))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                } else {
-                    // System section (no header)
-                    ForEach(section.destinations) { destination in
-                        NavigationSidebarRow(
-                            destination: destination,
-                            isSelected: navigationState.selectedDestination == destination
-                        ) {
-                            navigationState.navigate(to: destination)
-                        }
                     }
                     .listRowInsets(EdgeInsets(
                         top: DesignSystem.Spacing.xs,
@@ -150,7 +132,7 @@ struct NavigationSidebarRow: View {
                 if destination.requiresPremium {
                     Image(systemName: "sparkles")
                         .font(.caption2)
-                        .foregroundColor(.adaptiveOrange)
+                        .foregroundColor(.orange)
                 }
                 
                 // Badge if present
@@ -202,15 +184,14 @@ struct NavigationIcon: View {
     let isHovered: Bool
     
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
-                .fill(iconBackground)
-                .frame(width: DesignSystem.IconSize.xl, height: DesignSystem.IconSize.xl)
-            
-            Image(systemName: icon)
-                .font(.system(size: DesignSystem.IconSize.sm, weight: .medium))
-                .foregroundColor(iconColor)
-        }
+        Image(systemName: icon)
+            .font(.system(size: DesignSystem.IconSize.md, weight: .medium))
+            .foregroundColor(iconColor)
+            .frame(width: DesignSystem.IconSize.xl, height: DesignSystem.IconSize.xl)
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.sm)
+                    .fill(iconBackground)
+            )
     }
     
     private var iconBackground: Color {
@@ -238,6 +219,7 @@ struct NavigationIcon: View {
 
 struct UserProfileRow: View {
     @EnvironmentObject var subscriptionManager: SubscriptionManager
+    @State private var showingSettings = false
     
     var body: some View {
         VStack(spacing: DesignSystem.Spacing.sm) {
@@ -246,7 +228,7 @@ struct UserProfileRow: View {
             
             HStack(spacing: DesignSystem.Spacing.sm) {
                 // Settings button
-                NavigationLink(destination: SettingsView()) {
+                Button(action: { showingSettings = true }) {
                     HStack(spacing: DesignSystem.Spacing.xs) {
                         Image(systemName: "gearshape.fill")
                             .font(.system(size: DesignSystem.IconSize.sm))
@@ -274,12 +256,16 @@ struct UserProfileRow: View {
                             Text(subscriptionManager.isPremium ? "Premium" : "Free Plan")
                                 .font(.system(size: 10))
                         }
-                        .foregroundColor(subscriptionManager.isPremium ? .adaptiveOrange : Color(UIColor.secondaryLabel))
+                        .foregroundColor(subscriptionManager.isPremium ? .orange : Color(UIColor.secondaryLabel))
                     }
                 }
             }
             .padding(.horizontal, DesignSystem.Spacing.md)
             .padding(.vertical, DesignSystem.Spacing.xs)
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
+                .presentationDetents([.large])
         }
     }
 }

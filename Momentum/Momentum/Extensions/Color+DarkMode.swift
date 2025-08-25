@@ -1,10 +1,38 @@
 import SwiftUI
+import UIKit
+
+// MARK: - UIColor Brightness Extensions
+extension UIColor {
+    func brightened(by percentage: CGFloat = 0.3) -> UIColor? {
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+        
+        if self.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) {
+            // Increase brightness but keep it under 1.0
+            let newBrightness = min(brightness + percentage, 1.0)
+            // Also reduce saturation slightly for a more pastel look in dark mode
+            let newSaturation = max(saturation * 0.8, 0)
+            return UIColor(hue: hue, saturation: newSaturation, brightness: newBrightness, alpha: alpha)
+        } else {
+            // Fallback for grayscale colors
+            var white: CGFloat = 0
+            var alpha: CGFloat = 0
+            if self.getWhite(&white, alpha: &alpha) {
+                let newWhite = min(white + percentage, 1.0)
+                return UIColor(white: newWhite, alpha: alpha)
+            }
+        }
+        return nil
+    }
+}
 
 // MARK: - Dark Mode Color System (Deprecated - Use Color+Theme.swift)
 // This file provides backward compatibility for existing code.
 // For new code, use the simplified color system in Color+Theme.swift
 
-@available(*, deprecated, renamed: "Color.background", message: "Use Color.background from Color+Theme.swift")
+@available(*, deprecated, renamed: "Color.label", message: "Use Color.label from Color+Theme.swift")
 extension Color {
     
     // MARK: - Semantic Colors for Dark Mode (Backward Compatibility)
@@ -28,14 +56,17 @@ extension Color {
     }
     
     /// Text colors - mapped to new system colors
+    @available(*, deprecated, renamed: "Color.label", message: "Use Color.label from Color+Theme.swift")
     static var adaptivePrimaryText: Color {
         Color.label
     }
     
+    @available(*, deprecated, renamed: "Color.secondaryLabel", message: "Use Color.secondaryLabel from Color+Theme.swift")
     static var adaptiveSecondaryText: Color {
         Color.secondaryLabel
     }
     
+    @available(*, deprecated, renamed: "Color.tertiaryLabel", message: "Use Color.tertiaryLabel from Color+Theme.swift")
     static var adaptiveTertiaryText: Color {
         Color.tertiaryLabel
     }
@@ -121,11 +152,11 @@ enum AdaptiveTextStyle {
     var color: Color {
         switch self {
         case .primary:
-            return .adaptivePrimaryText
+            return .label
         case .secondary:
-            return .adaptiveSecondaryText
+            return .secondaryLabel
         case .tertiary:
-            return .adaptiveTertiaryText
+            return .tertiaryLabel
         }
     }
 }

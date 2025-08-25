@@ -43,7 +43,7 @@ struct TaskDateFilterView: View {
             // Title - always visible
             HStack {
                 Text("Tasks")
-                    .font(.system(size: 28, weight: .bold))
+                    .scaledFont(size: 28, weight: .bold)
                     .foregroundColor(.white)
                 
                 Spacer()
@@ -66,15 +66,15 @@ struct TaskDateFilterView: View {
                                     }) {
                                         VStack(spacing: 2) {
                                             Image(systemName: filter.icon)
-                                                .font(.system(size: 20, weight: .medium))
+                                                .scaledFont(size: 20, weight: .medium)
                                                 .foregroundColor(selectedFilter == filter ? Color(red: 0.05, green: 0.1, blue: 0.25) : .white.opacity(0.7))
                                             
                                             Text(filter.rawValue)
-                                                .font(.system(size: 11, weight: .medium))
+                                                .scaledFont(size: 11, weight: .medium)
                                                 .foregroundColor(selectedFilter == filter ? Color(red: 0.05, green: 0.1, blue: 0.25) : .white.opacity(0.7))
                                             
                                             Text("\(taskCount(filter))")
-                                                .font(.system(size: 10, weight: .semibold))
+                                                .scaledFont(size: 10, weight: .semibold)
                                                 .foregroundColor(selectedFilter == filter ? Color(red: 0.05, green: 0.1, blue: 0.25) : .white)
                                         }
                                         .frame(width: 70, height: 70)
@@ -98,7 +98,7 @@ struct TaskDateFilterView: View {
                     // No collapsed content - just the title is visible
                 }
             }
-            .frame(height: collapsedHeight + (dragProgress * CGFloat(expandedHeight - collapsedHeight)))
+            .frame(height: max(0, collapsedHeight + (dragProgress * CGFloat(expandedHeight - collapsedHeight))))
             .clipped()
             
             // Swipe indicator at the bottom center with larger hit box

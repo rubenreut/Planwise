@@ -76,7 +76,7 @@ struct GoalAreaRow: View {
             
             // Name
             Text(category.name ?? "")
-                .font(.body)
+                .scaledFont(size: 17)
                 .foregroundColor(category.isActive ? .primary : .secondary)
             
             Spacer()
