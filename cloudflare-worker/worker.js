@@ -801,6 +801,16 @@ export default {
       }
       console.log('💬 Final messages count:', openAIMessages.length, 'Estimated tokens:', totalTokenEstimate);
       
+      // Skip adding duplicate context if it already exists in messages
+      const hasUserContext = openAIMessages.some(msg => 
+        msg.role === 'system' && 
+        (msg.content.includes('USER\'S CURRENT CONTEXT') || msg.content.includes('Current tasks:'))
+      );
+      
+      if (hasUserContext) {
+        console.log('✅ User context already present, skipping duplicate');
+      }
+      
       // Get timezone from user context or default to UTC
       const userTimezone = userContext?.timezone || 'UTC';
       const timezoneOffset = userContext?.timezoneOffset || '+00:00';
@@ -897,10 +907,13 @@ CRITICAL RULES:
         }
       }
       
-      openAIMessages.push({
-        role: 'system',
-        content: contextMessage,
-      });
+      // Only add context message if we don't already have user context
+      if (!hasUserContext) {
+        openAIMessages.push({
+          role: 'system',
+          content: contextMessage,
+        });
+      }
       
       console.log('📄 Final system messages:', openAIMessages.filter(m => m.role === 'system').map(m => m.content));
       
@@ -933,7 +946,20 @@ CRITICAL RULES:
       if (!isO4Model && !isO1Model) {
         // Standard models support all parameters
         openAIRequestBody.tools = tools;
-        openAIRequestBody.tool_choice = 'auto';
+        
+        // FORCE function usage when user is clearly asking for data
+        const userWantsData = lastUserMessage.toLowerCase().match(
+          /show|list|display|what|check|view|see|tell me|get|fetch|find|my tasks|my events|my goals|my habits/
+        );
+        
+        if (userWantsData) {
+          console.log('🎯 User wants data - FORCING function call usage');
+          openAIRequestBody.tool_choice = 'required';
+        } else {
+          console.log('💬 Regular conversation - functions optional');
+          openAIRequestBody.tool_choice = 'auto';
+        }
+        
         openAIRequestBody.temperature = 0.7;
         openAIRequestBody.max_tokens = 15000;
       } else {
