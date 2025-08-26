@@ -121,6 +121,20 @@ class ChatViewModel: ObservableObject {
         )
         print("🔴 ChatViewModel aiServiceViewModel created")
         
+        // Set up callback for function results
+        self.aiServiceViewModel.onFunctionResult = { [weak self] resultMessage in
+            guard let self = self else { return }
+            _Concurrency.Task { @MainActor in
+                // Add the result as a new message
+                let resultChatMessage = ChatMessage(
+                    content: resultMessage,
+                    sender: .assistant,
+                    timestamp: Date()
+                )
+                self.messages.append(resultChatMessage)
+            }
+        }
+        
         // Skip property bindings to prevent crash - accessing sub-ViewModels directly
         print("🔴 ChatViewModel skipping property bindings to prevent crash")
         

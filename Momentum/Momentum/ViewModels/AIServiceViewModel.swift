@@ -16,6 +16,9 @@ class AIServiceViewModel: ObservableObject {
     @Published var isProcessingAI: Bool = false
     @Published var streamingMessageId: UUID?
     
+    // Store callback for function results
+    var onFunctionResult: ((String) -> Void)?
+    
     // MARK: - Dependencies
     
     private let openAIService: OpenAIService
@@ -302,16 +305,23 @@ class AIServiceViewModel: ObservableObject {
         print("Function call: \(functionCall.name) with arguments: \(arguments)")
         
         // Route to appropriate handler based on function name
+        var resultMessage = ""
         switch functionCall.name {
         case "manage_tasks":
-            await handleTaskManagement(arguments)
+            resultMessage = await handleTaskManagement(arguments)
         case "manage_events":
             await handleEventManagement(arguments)
+            resultMessage = "Event operation completed."
         case "manage_habits":
             await handleHabitManagement(arguments)
+            resultMessage = "Habit operation completed."
         default:
             print("Unknown function: \(functionCall.name)")
+            resultMessage = "Unknown function called."
         }
+        
+        // Send result back through callback
+        onFunctionResult?(resultMessage)
     }
     
     private func handleToolCall(_ toolCall: ChatResponse.ToolCall) async {
@@ -325,23 +335,30 @@ class AIServiceViewModel: ObservableObject {
         print("Tool call: \(toolCall.function.name) with arguments: \(arguments)")
         
         // Route to appropriate handler
+        var resultMessage = ""
         switch toolCall.function.name {
         case "manage_tasks":
-            await handleTaskManagement(arguments)
+            resultMessage = await handleTaskManagement(arguments)
         case "manage_events":
             await handleEventManagement(arguments)
+            resultMessage = "Event operation completed."
         case "manage_habits":
             await handleHabitManagement(arguments)
+            resultMessage = "Habit operation completed."
         default:
             print("Unknown tool: \(toolCall.function.name)")
+            resultMessage = "Unknown tool called."
         }
+        
+        // Send result back through callback
+        onFunctionResult?(resultMessage)
     }
     
-    private func handleTaskManagement(_ arguments: [String: Any]) async {
+    private func handleTaskManagement(_ arguments: [String: Any]) async -> String {
         guard let action = arguments["action"] as? String,
               let parameters = arguments["parameters"] as? [String: Any] else {
             print("Invalid task management arguments")
-            return
+            return "Sorry, I couldn't process your task request."
         }
         
         print("Task action: \(action) with parameters: \(parameters)")
@@ -349,6 +366,38 @@ class AIServiceViewModel: ObservableObject {
         // Call the actual task manager through AICoordinator
         let result = await aiCoordinator.manage_tasks(action: action, parameters: parameters)
         print("Task management result: \(result)")
+        
+        // Format the result for display
+        if action == "list", let items = result["items"] as? [[String: Any]] {
+            if items.isEmpty {
+                return "You don't have any tasks."
+            }
+            
+            var response = "Here are your tasks:\n\n"
+            for (index, task) in items.prefix(20).enumerated() {
+                let title = task["title"] as? String ?? "Untitled"
+                let isCompleted = task["isCompleted"] as? Bool ?? false
+                let priority = task["priority"] as? Int ?? 1
+                let dueDate = task["dueDate"] as? String ?? ""
+                
+                let statusIcon = isCompleted ? "✅" : "⬜"
+                let priorityText = priority == 3 ? "🔴" : priority == 2 ? "🟡" : ""
+                
+                response += "\(index + 1). \(statusIcon) \(title) \(priorityText)"
+                if !dueDate.isEmpty {
+                    response += " (Due: \(dueDate))"
+                }
+                response += "\n"
+            }
+            
+            if items.count > 20 {
+                response += "\n... and \(items.count - 20) more tasks"
+            }
+            
+            return response
+        }
+        
+        return "Task operation completed successfully."
     }
     
     private func handleEventManagement(_ arguments: [String: Any]) async {
