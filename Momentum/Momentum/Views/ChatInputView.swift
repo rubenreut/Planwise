@@ -37,6 +37,113 @@ struct ChatInputView: View {
         subscriptionManager.canSendMessage()
     }
     
+    @ViewBuilder
+    private var recordingIndicator: some View {
+        HStack {
+            Image(systemName: "mic.fill")
+                .scaledIcon()
+                .foregroundColor(.red)
+                .font(.system(size: 14))
+            
+            Text("Recording...")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.red)
+            
+            Spacer()
+        }
+        .padding(.horizontal, baseUnit * 2)
+        .padding(.vertical, baseUnit / 2)
+        .background(Color.red.opacity(0.1))
+    }
+    
+    @ViewBuilder
+    private var inputAreaContent: some View {
+        HStack(spacing: baseUnit) {
+            // Add button
+            Button(action: {
+                showAttachmentMenu.toggle()
+            }) {
+                Image(systemName: "plus.circle.fill")
+                    .scaledIcon()
+                    .scaledFont(size: 24)
+                    .foregroundColor(Color.fromAccentString(selectedAccentColor))
+                    .scaleEffect(showAttachmentMenu ? 0.9 : 1.0)
+            }
+            .accessibilityLabel("Add attachment")
+            .accessibilityHint("Show attachment options")
+            .animation(.spring(response: 0.3, dampingFraction: 0.86), value: showAttachmentMenu)
+            
+            // Text field container
+            textFieldContainer
+        }
+        .padding(.horizontal, baseUnit * 2)
+        .padding(.vertical, baseUnit)
+        .padding(.bottom, 10)
+    }
+    
+    @ViewBuilder
+    private var textFieldContainer: some View {
+        VStack(alignment: .leading, spacing: baseUnit) {
+            attachmentPreviews
+            messageInputField
+        }
+        .background(
+            RoundedRectangle(cornerRadius: baseUnit * 2.5)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: baseUnit * 2.5)
+                        .stroke(borderColor.opacity(0.3), lineWidth: 0.5)
+                )
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isTextFieldFocused = true
+        }
+    }
+    
+    @ViewBuilder
+    private var attachmentPreviews: some View {
+        Group {
+            // Image preview
+            if let image = viewModel.selectedImage {
+                imagePreview(image)
+            }
+            
+            // Document preview
+            if let fileName = viewModel.selectedFileName,
+               let fileExtension = viewModel.selectedFileExtension {
+                documentPreview(fileName: fileName, fileExtension: fileExtension)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var messageInputField: some View {
+        HStack(spacing: baseUnit) {
+            TextField(placeholderText, text: viewModel.isRecordingVoice ? $viewModel.inputText : $text, axis: .vertical)
+                .font(.system(size: 16, weight: .regular, design: .default))
+                .disabled(!canSendMessage)
+                .tracking(-0.2)
+                .textFieldStyle(.plain)
+                .focused($isTextFieldFocused)
+                .lineLimit(1...6)
+                .onSubmit {
+                    sendMessageWithImage()
+                }
+                .accessibilityLabel("Message input")
+                .accessibilityHint(canSendMessage ? "Type your message to the assistant" : "Upgrade to premium to send messages")
+            
+            // Send or microphone button
+            Button(action: handleSendButtonAction) {
+                sendButtonContent
+            }
+            .accessibilityLabel(viewModel.isRecordingVoice ? "Stop recording" : (text.isEmpty ? "Voice input" : "Send message"))
+            .accessibilityHint(viewModel.isRecordingVoice ? "Stop voice recording" : (text.isEmpty ? "Start voice recording" : "Send the typed message"))
+        }
+        .padding(.horizontal, baseUnit * 1.5)
+        .padding(.vertical, baseUnit)
+    }
+    
     private var placeholderText: String {
         if viewModel.isRateLimited {
             return "Rate limited - please wait"
@@ -56,6 +163,83 @@ struct ChatInputView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             isTextFieldFocused = true
         }
+    }
+    
+    @ViewBuilder
+    private func imagePreview(_ image: UIImage) -> some View {
+        HStack {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 80, height: 80)
+                .cornerRadius(8)
+                .overlay(
+                    Button(action: {
+                        viewModel.selectedImage = nil
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .scaledIcon()
+                            .scaledFont(size: 22)
+                            .foregroundColor(.white)
+                            .background(Circle().fill(Color.black.opacity(0.6)))
+                    }
+                    .offset(x: 10, y: -10),
+                    alignment: .topTrailing
+                )
+            
+            Spacer()
+        }
+        .padding(.horizontal, baseUnit * 1.5)
+        .padding(.top, baseUnit)
+    }
+    
+    @ViewBuilder
+    private func documentPreview(fileName: String, fileExtension: String) -> some View {
+        HStack {
+            // Document icon
+            VStack {
+                Image(systemName: documentIcon(for: fileExtension))
+                    .font(.system(size: 30))
+                    .foregroundColor(documentColor(for: fileExtension))
+                Text(fileExtension.uppercased())
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
+            .frame(width: 80, height: 80)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(.tertiarySystemFill))
+            )
+            .overlay(
+                Button(action: {
+                    viewModel.clearFileAttachment()
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .scaledIcon()
+                        .scaledFont(size: 22)
+                        .foregroundColor(.white)
+                        .background(Circle().fill(Color.black.opacity(0.6)))
+                }
+                .offset(x: 10, y: -10),
+                alignment: .topTrailing
+            )
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(fileName)
+                    .font(.system(size: 14, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                if let fileData = viewModel.selectedFileData {
+                    Text("\(String(format: "%.1f", Double(fileData.count) / 1024)) KB")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, baseUnit * 1.5)
+        .padding(.top, baseUnit)
     }
     
     private func documentIcon(for extension: String) -> String {
@@ -208,167 +392,15 @@ struct ChatInputView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Separator
-            Rectangle()
-                .fill(Color(UIColor.separator).opacity(0.2))
-                .frame(height: 1)
+            Divider()
             
             // Recording indicator
             if viewModel.isRecordingVoice {
-                HStack {
-                    Image(systemName: "mic.fill")
-                        .scaledIcon()                        .foregroundColor(.red)
-                        .font(.system(size: 14))
-                    
-                    Text("Recording...")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.red)
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, baseUnit * 2)
-                .padding(.vertical, baseUnit / 2)
-                .background(Color.red.opacity(0.1))
+                recordingIndicator
             }
             
             // Input area
-            HStack(spacing: baseUnit) {
-                // Add button
-                Button(action: {
-                    showAttachmentMenu.toggle()
-                }) {
-                    Image(systemName: "plus.circle.fill")
-                        .scaledIcon()
-                    .scaledFont(size: 24)
-                        .foregroundColor(Color.fromAccentString(selectedAccentColor))
-                        .scaleEffect(showAttachmentMenu ? 0.9 : 1.0)
-                }
-                .accessibilityLabel("Add attachment")
-                .accessibilityHint("Show attachment options")
-                .animation(.spring(response: 0.3, dampingFraction: 0.86), value: showAttachmentMenu)
-                
-                // Text field container
-                VStack(alignment: .leading, spacing: baseUnit) {
-                    // Attached image preview
-                    if let image = viewModel.selectedImage {
-                        HStack {
-                            Image(uiImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 80, height: 80)
-                                .cornerRadius(8)
-                                .overlay(
-                                    // X button to remove
-                                    Button(action: {
-                                        viewModel.selectedImage = nil
-                                    }) {
-                                        Image(systemName: "xmark.circle.fill")
-                        .scaledIcon()
-                    .scaledFont(size: 22)
-                                            .foregroundColor(.white)
-                                            .background(Circle().fill(Color.black.opacity(0.6)))
-                                    }
-                                    .offset(x: 10, y: -10),
-                                    alignment: .topTrailing
-                                )
-                            
-                            Spacer()
-                        }
-                        .padding(.horizontal, baseUnit * 1.5)
-                        .padding(.top, baseUnit)
-                    }
-                    
-                    // Attached document preview
-                    if let fileName = viewModel.selectedFileName,
-                       let fileExtension = viewModel.selectedFileExtension {
-                        HStack {
-                            // Document icon
-                            VStack {
-                                Image(systemName: documentIcon(for: fileExtension))
-                                    .font(.system(size: 30))
-                                    .foregroundColor(documentColor(for: fileExtension))
-                                Text(fileExtension.uppercased())
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundColor(.secondary)
-                            }
-                            .frame(width: 80, height: 80)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color(.tertiarySystemFill))
-                            )
-                            .overlay(
-                                // X button to remove
-                                Button(action: {
-                                    viewModel.clearFileAttachment()
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                        .scaledIcon()
-                    .scaledFont(size: 22)
-                                        .foregroundColor(.white)
-                                        .background(Circle().fill(Color.black.opacity(0.6)))
-                                }
-                                .offset(x: 10, y: -10),
-                                alignment: .topTrailing
-                            )
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(fileName)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                if let fileData = viewModel.selectedFileData {
-                                    Text("\(String(format: "%.1f", Double(fileData.count) / 1024)) KB")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            
-                            Spacer()
-                        }
-                        .padding(.horizontal, baseUnit * 1.5)
-                        .padding(.top, baseUnit)
-                    }
-                    
-                    HStack(spacing: baseUnit) {
-                        TextField(placeholderText, text: viewModel.isRecordingVoice ? $viewModel.inputText : $text, axis: .vertical)
-                            .font(.system(size: 16, weight: .regular, design: .default))
-                            .disabled(!canSendMessage)
-                            .tracking(-0.2)
-                            .textFieldStyle(.plain)
-                            .focused($isTextFieldFocused)
-                            .lineLimit(1...6)
-                            .onSubmit {
-                                sendMessageWithImage()
-                            }
-                            .accessibilityLabel("Message input")
-                            .accessibilityHint(canSendMessage ? "Type your message to the assistant" : "Upgrade to premium to send messages")
-                        
-                        // Send or microphone button
-                        Button(action: handleSendButtonAction) {
-                            sendButtonContent
-                        }
-                        .accessibilityLabel(viewModel.isRecordingVoice ? "Stop recording" : (text.isEmpty ? "Voice input" : "Send message"))
-                        .accessibilityHint(viewModel.isRecordingVoice ? "Stop voice recording" : (text.isEmpty ? "Start voice recording" : "Send the typed message"))
-                    }
-                    .padding(.horizontal, baseUnit * 1.5)
-                    .padding(.vertical, baseUnit)
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: baseUnit * 2.5)
-                        .fill(.ultraThinMaterial)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: baseUnit * 2.5)
-                                .stroke(borderColor.opacity(0.3), lineWidth: 0.5)
-                        )
-                )
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    // Make text field focused when tapping anywhere on the input container
-                    isTextFieldFocused = true
-                }
-            }
-            .padding(.horizontal, baseUnit * 2)
-            .padding(.vertical, baseUnit)
-            .padding(.bottom, 10) // Fixed 10px padding
+            inputAreaContent
         }
         .background(Color.clear) // Make entire view background transparent
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("TabBarCollapseChanged"))) { notification in

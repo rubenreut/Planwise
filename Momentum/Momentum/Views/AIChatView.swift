@@ -451,7 +451,7 @@ struct AIChatView: View {
                     viewModel.handleMultiEventAction(action, messageId: messageId)
                 },
                 onBulkAction: { messageId, action in
-                    viewModel.handleBulkAction(action, for: messageId)
+                    viewModel.handleBulkAction(action, for: messageId.uuidString)
                 }
             )
         } else {
@@ -472,7 +472,7 @@ struct AIChatView: View {
                     viewModel.handleMultiEventAction(action, messageId: messageId)
                 },
                 onBulkAction: { messageId, action in
-                    viewModel.handleBulkAction(action, for: messageId)
+                    viewModel.handleBulkAction(action, for: messageId.uuidString)
                 }
             )
         }

@@ -117,7 +117,7 @@ class AIServiceViewModel: ObservableObject {
         }
         
         // Prepare request
-        let _ = withFunctions ? getSimplifiedTools() : nil
+        let tools = withFunctions ? getSimplifiedTools() : nil
         
         // Send with retry logic
         var retryCount = 0
@@ -126,7 +126,8 @@ class AIServiceViewModel: ObservableObject {
         while retryCount < maxRetries {
             do {
                 let response = try await openAIService.sendChatRequest(
-                    messages: messages
+                    messages: messages,
+                    tools: tools
                 )
                 
                 return processAIResponse(response)
@@ -228,13 +229,154 @@ class AIServiceViewModel: ObservableObject {
     // MARK: - Helper Methods
     
     private func processAIResponse(_ response: ChatResponse) -> ChatMessage {
-        let content = response.choices.first?.message.content ?? ""
+        guard let firstChoice = response.choices.first else {
+            return ChatMessage(
+                content: "Sorry, I didn't receive a proper response.",
+                sender: .assistant,
+                timestamp: Date(),
+                error: "No response choices"
+            )
+        }
         
+        let message = firstChoice.message
+        
+        // Check if there's a function call
+        if let functionCall = message.functionCall {
+            // Process the function call asynchronously
+            _Concurrency.Task {
+                await self.handleFunctionCall(functionCall)
+            }
+            
+            return ChatMessage(
+                content: "Processing your request...",
+                sender: .assistant,
+                timestamp: Date(),
+                functionCall: FunctionCallResult(
+                    functionName: functionCall.name,
+                    success: true,
+                    message: "Function called: \(functionCall.name)",
+                    details: nil
+                )
+            )
+        }
+        
+        // Check for tool calls (newer format)
+        if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
+            let firstTool = toolCalls[0]
+            
+            // Process the tool call asynchronously
+            _Concurrency.Task {
+                await self.handleToolCall(firstTool)
+            }
+            
+            return ChatMessage(
+                content: "Processing your request...",
+                sender: .assistant,
+                timestamp: Date(),
+                functionCall: FunctionCallResult(
+                    functionName: firstTool.function.name,
+                    success: true,
+                    message: "Processing: \(firstTool.function.name)",
+                    details: nil
+                )
+            )
+        }
+        
+        // Regular text response
+        let content = message.content ?? ""
         return ChatMessage(
             content: content,
             sender: .assistant,
             timestamp: Date()
         )
+    }
+    
+    private func handleFunctionCall(_ functionCall: ChatResponse.FunctionCall) async {
+        // Parse arguments and call the appropriate coordinator method
+        guard let argumentsData = functionCall.arguments.data(using: .utf8),
+              let arguments = try? JSONSerialization.jsonObject(with: argumentsData) as? [String: Any] else {
+            print("Failed to parse function arguments")
+            return
+        }
+        
+        print("Function call: \(functionCall.name) with arguments: \(arguments)")
+        
+        // Route to appropriate handler based on function name
+        switch functionCall.name {
+        case "manage_tasks":
+            await handleTaskManagement(arguments)
+        case "manage_events":
+            await handleEventManagement(arguments)
+        case "manage_habits":
+            await handleHabitManagement(arguments)
+        default:
+            print("Unknown function: \(functionCall.name)")
+        }
+    }
+    
+    private func handleToolCall(_ toolCall: ChatResponse.ToolCall) async {
+        // Similar to handleFunctionCall but for the newer tool call format
+        guard let argumentsData = toolCall.function.arguments.data(using: .utf8),
+              let arguments = try? JSONSerialization.jsonObject(with: argumentsData) as? [String: Any] else {
+            print("Failed to parse tool arguments")
+            return
+        }
+        
+        print("Tool call: \(toolCall.function.name) with arguments: \(arguments)")
+        
+        // Route to appropriate handler
+        switch toolCall.function.name {
+        case "manage_tasks":
+            await handleTaskManagement(arguments)
+        case "manage_events":
+            await handleEventManagement(arguments)
+        case "manage_habits":
+            await handleHabitManagement(arguments)
+        default:
+            print("Unknown tool: \(toolCall.function.name)")
+        }
+    }
+    
+    private func handleTaskManagement(_ arguments: [String: Any]) async {
+        guard let action = arguments["action"] as? String,
+              let parameters = arguments["parameters"] as? [String: Any] else {
+            print("Invalid task management arguments")
+            return
+        }
+        
+        print("Task action: \(action) with parameters: \(parameters)")
+        
+        // Call the actual task manager through AICoordinator
+        let result = await aiCoordinator.manage_tasks(action: action, parameters: parameters)
+        print("Task management result: \(result)")
+    }
+    
+    private func handleEventManagement(_ arguments: [String: Any]) async {
+        guard let action = arguments["action"] as? String,
+              let parameters = arguments["parameters"] as? [String: Any] else {
+            print("Invalid event management arguments")
+            return
+        }
+        
+        print("Event action: \(action) with parameters: \(parameters)")
+        
+        // Call the actual event manager through AICoordinator
+        let result = await aiCoordinator.manage_events(action: action, parameters: parameters)
+        print("Event management result: \(result)")
+    }
+    
+    private func handleHabitManagement(_ arguments: [String: Any]) async {
+        guard let action = arguments["action"] as? String,
+              let parameters = arguments["parameters"] as? [String: Any] else {
+            print("Invalid habit management arguments")
+            return
+        }
+        
+        print("Habit action: \(action) with parameters: \(parameters)")
+        
+        // Call the actual habit manager through AICoordinator
+        let result = await aiCoordinator.manage_habits(action: action, parameters: parameters)
+        print("Habit management result: \(result)")
     }
     
     private func getSimplifiedTools() -> [[String: Any]] {

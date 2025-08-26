@@ -289,6 +289,16 @@ class ChatViewModel: ObservableObject {
         // For now just reset the properties
     }
     
+    func clearFileAttachment() {
+        selectedFileName = nil
+        selectedFileData = nil
+        selectedFileExtension = nil
+        selectedFileText = nil
+        pdfFileName = nil
+        pdfPageCount = 1
+        attachmentViewModel.clearFileAttachment()
+    }
+    
     // MARK: - Private Helper Methods
     
     private func sendToAI(content: String, image: UIImage? = nil) async {
@@ -365,13 +375,13 @@ class ChatViewModel: ObservableObject {
     private func loadPersistedMessages() {
         // Simple loading - full implementation in conversationViewModel
         if let messageData = UserDefaults.standard.array(forKey: "ChatMessages") as? [[String: Any]] {
-            messages = messageData.compactMap { data in
+            messages = messageData.compactMap { data -> ChatMessage? in
                 guard let content = data["content"] as? String,
                       let senderString = data["sender"] as? String else {
                     return nil
                 }
                 
-                let sender: MessageSender = senderString == "user" ? 
+                let sender: ChatMessage.MessageSender = senderString == "user" ? 
                     .user(name: userName) : .assistant
                     
                 return ChatMessage(
