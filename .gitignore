@@ -1,5 +1,8 @@
 # Xcode
 build/
+Index.noindex/
+ModuleCache.noindex/
+SDKStatCaches.noindex/
 *.pbxuser
 !default.pbxuser
 *.mode1v3
@@ -53,9 +56,14 @@ cloudflare-worker/wrangler.toml
 cloudflare-worker/.env
 cloudflare-worker/.dev.vars
 
-# Build outputs
+# Build outputs and directories
 build_output.log
 build_errors*.log
+build_output/
+build_test/
+build_output*.txt
+build_log*.txt
+*.dSYM.zip
 
 # Node modules (for Cloudflare worker)
 node_modules/
@@ -71,6 +79,12 @@ yarn-error.log
 *.swp
 *~.nib
 *.tmp
+
+# Backup files
+*.backup
+*_backup.*
+*.backup.*
+*.bak
 
 # OS generated files
 .DS_Store
