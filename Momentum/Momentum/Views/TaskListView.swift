@@ -71,7 +71,7 @@ struct TaskListView: View {
                 
                 ZStack(alignment: .top) {
                     // Background - either custom image or gradient
-                    if let headerData = SettingsView.loadHeaderImage() {
+                    if let headerData = AppearanceSettingsViewModel.loadHeaderImage() {
                         ZStack {
                             // Simple image display
                             GeometryReader { imageGeo in
@@ -226,7 +226,7 @@ struct TaskListView: View {
                 self.extractedColors = UserDefaults.standard.getExtractedColors()
                 
                 // If no colors saved but we have an image, extract them
-                if extractedColors == nil, let headerData = SettingsView.loadHeaderImage() {
+                if extractedColors == nil, let headerData = AppearanceSettingsViewModel.loadHeaderImage() {
                     let colors = ColorExtractor.extractColors(from: headerData.image)
                     UserDefaults.standard.setExtractedColors(colors)
                     self.extractedColors = (colors.primary, colors.secondary)

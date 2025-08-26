@@ -59,7 +59,7 @@ struct HabitTimerView: View {
             // Background matching DayView header
             ZStack {
                 // Check for custom header image using the same method as DayView
-                if let headerData = SettingsView.loadHeaderImage() {
+                if let headerData = AppearanceSettingsViewModel.loadHeaderImage() {
                     // Use the custom header image with slight blur
                     Image(uiImage: headerData.image)
                         .resizable()

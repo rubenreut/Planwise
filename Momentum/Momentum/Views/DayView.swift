@@ -63,7 +63,7 @@ struct DayView: View {
                 // Stack with blue header extending behind content
                 ZStack(alignment: .top) {
                     // Background - either custom image or gradient
-                    if let headerData = SettingsView.loadHeaderImage() {
+                    if let headerData = AppearanceSettingsViewModel.loadHeaderImage() {
                         // Image with gesture
                         GeometryReader { imageGeo in
                             Image(uiImage: headerData.image)
@@ -206,7 +206,7 @@ struct DayView: View {
                 print("🎨 Loaded extracted colors: \(extractedColors != nil ? "Found" : "None")")
                 
                 // If no colors saved but we have an image, extract them
-                if extractedColors == nil, let headerData = SettingsView.loadHeaderImage() {
+                if extractedColors == nil, let headerData = AppearanceSettingsViewModel.loadHeaderImage() {
                     print("🎨 No saved colors, extracting from image...")
                     let colors = ColorExtractor.extractColors(from: headerData.image)
                     UserDefaults.standard.setExtractedColors(colors)

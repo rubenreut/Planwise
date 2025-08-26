@@ -143,7 +143,7 @@ struct GoalsView: View {
                 self.extractedColors = UserDefaults.standard.getExtractedColors()
                 
                 // If no colors saved but we have an image, extract them
-                if extractedColors == nil, let headerData = SettingsView.loadHeaderImage() {
+                if extractedColors == nil, let headerData = AppearanceSettingsViewModel.loadHeaderImage() {
                     let colors = ColorExtractor.extractColors(from: headerData.image)
                     UserDefaults.standard.setExtractedColors(colors)
                     self.extractedColors = (colors.primary, colors.secondary)
@@ -227,7 +227,7 @@ struct GoalsView: View {
     
     @ViewBuilder
     var headerBackgroundView: some View {
-        if let headerData = SettingsView.loadHeaderImage() {
+        if let headerData = AppearanceSettingsViewModel.loadHeaderImage() {
             // Image with gesture
             GeometryReader { imageGeo in
                 Image(uiImage: headerData.image)
