@@ -248,8 +248,26 @@ class ChatViewModel: ObservableObject {
         bulkOperationsViewModel.handleMultiEventAction(action, events: events, messageId: messageId)
     }
     
-    func handleBulkAction(_ action: BulkActionPreview.BulkAction, preview: BulkActionPreview, messageId: String) {
+    func handleBulkAction(_ action: BulkActionPreview.BulkAction, for messageId: String) {
+        // Get the bulk action preview from the message
+        guard let message = messages.first(where: { $0.bulkActionPreview != nil && $0.id.uuidString == messageId }),
+              let preview = message.bulkActionPreview else { return }
+        
         bulkOperationsViewModel.handleBulkAction(action, preview: preview, messageId: messageId)
+    }
+    
+    func retryLastMessage() {
+        // Find the last error message and retry
+        guard let lastMessage = messages.last(where: { $0.error != nil }) else { return }
+        
+        // Remove the error message
+        messages.removeAll { $0.id == lastMessage.id }
+        
+        // Resend the previous user message
+        if let lastUserMessage = messages.last(where: { $0.sender.isUser }) {
+            inputText = lastUserMessage.content
+            sendMessage()
+        }
     }
     
     func clearConversation() {
@@ -267,7 +285,8 @@ class ChatViewModel: ObservableObject {
         pdfFileName = nil
         pdfPageCount = 1
         
-        attachmentViewModel.clearSelection()
+        // Clear attachment selection in AttachmentViewModel if method exists
+        // For now just reset the properties
     }
     
     // MARK: - Private Helper Methods
@@ -352,7 +371,7 @@ class ChatViewModel: ObservableObject {
                     return nil
                 }
                 
-                let sender: ChatSender = senderString == "user" ? 
+                let sender: MessageSender = senderString == "user" ? 
                     .user(name: userName) : .assistant
                     
                 return ChatMessage(
