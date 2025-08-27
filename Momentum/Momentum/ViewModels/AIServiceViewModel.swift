@@ -310,11 +310,9 @@ class AIServiceViewModel: ObservableObject {
         case "manage_tasks":
             resultMessage = await handleTaskManagement(arguments)
         case "manage_events":
-            await handleEventManagement(arguments)
-            resultMessage = "Event operation completed."
+            resultMessage = await handleEventManagement(arguments)
         case "manage_habits":
-            await handleHabitManagement(arguments)
-            resultMessage = "Habit operation completed."
+            resultMessage = await handleHabitManagement(arguments)
         default:
             print("Unknown function: \(functionCall.name)")
             resultMessage = "Unknown function called."
@@ -340,11 +338,9 @@ class AIServiceViewModel: ObservableObject {
         case "manage_tasks":
             resultMessage = await handleTaskManagement(arguments)
         case "manage_events":
-            await handleEventManagement(arguments)
-            resultMessage = "Event operation completed."
+            resultMessage = await handleEventManagement(arguments)
         case "manage_habits":
-            await handleHabitManagement(arguments)
-            resultMessage = "Habit operation completed."
+            resultMessage = await handleHabitManagement(arguments)
         default:
             print("Unknown tool: \(toolCall.function.name)")
             resultMessage = "Unknown tool called."
@@ -400,25 +396,75 @@ class AIServiceViewModel: ObservableObject {
         return "Task operation completed successfully."
     }
     
-    private func handleEventManagement(_ arguments: [String: Any]) async {
-        guard let action = arguments["action"] as? String,
-              let parameters = arguments["parameters"] as? [String: Any] else {
-            print("Invalid event management arguments")
-            return
+    private func handleEventManagement(_ arguments: [String: Any]) async -> String {
+        guard let action = arguments["action"] as? String else {
+            print("Invalid event management arguments - missing action")
+            print("Arguments received: \(arguments)")
+            return "Sorry, I couldn't process your event request."
         }
+        
+        // Parameters can be optional for list action
+        let parameters = arguments["parameters"] as? [String: Any] ?? [:]
         
         print("Event action: \(action) with parameters: \(parameters)")
         
         // Call the actual event manager through AICoordinator
         let result = await aiCoordinator.manage_events(action: action, parameters: parameters)
         print("Event management result: \(result)")
+        
+        // Format the result for display
+        if action == "list" {
+            let items = result["items"] as? [[String: Any]] ?? []
+            if items.isEmpty {
+                return "You don't have any events for the specified time period."
+            }
+            
+            var response = "Here are your events:\n\n"
+            for (index, event) in items.prefix(20).enumerated() {
+                let title = event["title"] as? String ?? "Untitled"
+                let startTime = event["start_time"] as? String ?? ""
+                let endTime = event["end_time"] as? String ?? ""
+                let location = event["location"] as? String ?? ""
+                let isCompleted = event["is_completed"] as? Bool ?? false
+                
+                let statusIcon = isCompleted ? "✅" : "📅"
+                response += "\(index + 1). \(statusIcon) \(title)"
+                
+                if !startTime.isEmpty {
+                    response += " (\(startTime)"
+                    if !endTime.isEmpty {
+                        response += " - \(endTime)"
+                    }
+                    response += ")"
+                }
+                
+                if !location.isEmpty {
+                    response += " 📍 \(location)"
+                }
+                
+                response += "\n"
+            }
+            
+            if items.count > 20 {
+                response += "\n... and \(items.count - 20) more events"
+            }
+            
+            return response
+        }
+        
+        // For other actions, return a success message with details if available
+        if let message = result["message"] as? String {
+            return message
+        }
+        
+        return "Event operation completed successfully."
     }
     
-    private func handleHabitManagement(_ arguments: [String: Any]) async {
+    private func handleHabitManagement(_ arguments: [String: Any]) async -> String {
         guard let action = arguments["action"] as? String,
               let parameters = arguments["parameters"] as? [String: Any] else {
             print("Invalid habit management arguments")
-            return
+            return "Sorry, I couldn't process your habit request."
         }
         
         print("Habit action: \(action) with parameters: \(parameters)")
@@ -426,6 +472,46 @@ class AIServiceViewModel: ObservableObject {
         // Call the actual habit manager through AICoordinator
         let result = await aiCoordinator.manage_habits(action: action, parameters: parameters)
         print("Habit management result: \(result)")
+        
+        // Format the result for display
+        if action == "list", let items = result["items"] as? [[String: Any]] {
+            if items.isEmpty {
+                return "You don't have any habits set up."
+            }
+            
+            var response = "Here are your habits:\n\n"
+            for (index, habit) in items.prefix(20).enumerated() {
+                let name = habit["name"] as? String ?? "Unnamed"
+                let frequency = habit["frequency"] as? String ?? "daily"
+                let currentStreak = habit["current_streak"] as? Int ?? 0
+                let goalTarget = habit["goal_target"] as? Int ?? 1
+                let todayProgress = habit["today_progress"] as? Int ?? 0
+                
+                let statusIcon = todayProgress >= goalTarget ? "✅" : "⭕"
+                response += "\(index + 1). \(statusIcon) \(name)"
+                response += " (\(frequency))"
+                
+                if currentStreak > 0 {
+                    response += " 🔥\(currentStreak)"
+                }
+                
+                response += " [\(todayProgress)/\(goalTarget)]"
+                response += "\n"
+            }
+            
+            if items.count > 20 {
+                response += "\n... and \(items.count - 20) more habits"
+            }
+            
+            return response
+        }
+        
+        // For other actions, return a success message with details if available
+        if let message = result["message"] as? String {
+            return message
+        }
+        
+        return "Habit operation completed successfully."
     }
     
     private func getSimplifiedTools() -> [[String: Any]] {
@@ -434,20 +520,21 @@ class AIServiceViewModel: ObservableObject {
                 "type": "function",
                 "function": [
                     "name": "manage_events",
-                    "description": "Manage calendar events - create, update, delete, list",
+                    "description": "Manage calendar events - create, update, delete, or list events. Use 'list' action to show events for today or a specific date.",
                     "parameters": [
                         "type": "object",
                         "properties": [
                             "action": [
                                 "type": "string",
-                                "enum": ["create", "update", "delete", "list"]
+                                "enum": ["create", "update", "delete", "list"],
+                                "description": "The action to perform. Use 'list' to see events."
                             ],
                             "parameters": [
                                 "type": "object",
-                                "description": "Action-specific parameters"
+                                "description": "Action-specific parameters. For 'list', optionally include 'date' (defaults to today)."
                             ]
                         ],
-                        "required": ["action", "parameters"]
+                        "required": ["action"]
                     ]
                 ]
             ],

@@ -346,10 +346,50 @@ class ChatViewModel: ObservableObject {
     private func buildRequestMessages(content: String, image: UIImage?) -> [ChatRequestMessage] {
         var messages: [ChatRequestMessage] = []
         
-        // Add system context
+        // Add system context with current date/time
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .full
+        dateFormatter.timeStyle = .short
+        dateFormatter.timeZone = TimeZone.current
+        
+        let timeZone = TimeZone.current
+        let currentDateTime = dateFormatter.string(from: Date())
+        let weekday = Calendar.current.component(.weekday, from: Date())
+        let weekdayName = DateFormatter().weekdaySymbols[weekday - 1]
+        
+        // Also get ISO format for precise parsing
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.timeZone = TimeZone.current
+        let isoDate = isoFormatter.string(from: Date())
+        
+        // Get just the date in YYYY-MM-DD format
+        let dateOnlyFormatter = DateFormatter()
+        dateOnlyFormatter.dateFormat = "yyyy-MM-dd"
+        let todayDate = dateOnlyFormatter.string(from: Date())
+        
+        let systemContent = """
+        You are a helpful AI assistant for the Momentum productivity app.
+        
+        Current Information:
+        - Current date and time: \(currentDateTime)
+        - Today's date (for events): \(todayDate)
+        - ISO timestamp: \(isoDate)
+        - Day of week: \(weekdayName)
+        - User's timezone: \(timeZone.identifier) (\(timeZone.abbreviation() ?? timeZone.identifier))
+        - Timezone offset: GMT\(timeZone.secondsFromGMT() >= 0 ? "+" : "")\(timeZone.secondsFromGMT() / 3600)
+        
+        Important Instructions for Date/Time Handling:
+        - When the user says "today" or mentions times like "8pm", use \(todayDate) as the date
+        - When creating events, use the format "YYYY-MM-DD HH:mm" or ISO 8601 format
+        - If user says "8pm to 10pm", that means "\(todayDate) 20:00" to "\(todayDate) 22:00"
+        - If user says "tomorrow at 3pm", add 1 day to today's date
+        - Always preserve the user's timezone in all date/time operations
+        - For all-day events, you can omit the time portion
+        """
+        
         let systemMessage = ChatRequestMessage(
             role: "system",
-            content: "You are a helpful AI assistant for the Momentum productivity app."
+            content: systemContent
         )
         messages.append(systemMessage)
         

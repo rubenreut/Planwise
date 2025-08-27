@@ -58,17 +58,14 @@ final class DependencyContainer: ObservableObject {
     
     /// Creates a test container with mock dependencies
     static func makeTestContainer() -> DependencyContainer {
-        let mockPersistence = MockPersistenceProvider()
-        let mockSchedule = MockScheduleManager()
-        let mockScroll = MockScrollPositionManager()
-        let mockTasks = MockTaskManager(context: mockPersistence.container.viewContext)
+        // TODO: Implement mock providers when needed
+        // let mockPersistence = MockPersistenceProvider()
+        // let mockSchedule = MockScheduleManager()
+        // let mockScroll = MockScrollPositionManager()
+        // let mockTasks = MockTaskManager(context: mockPersistence.container.viewContext)
         
-        return DependencyContainer(
-            persistenceProvider: mockPersistence,
-            scheduleManager: mockSchedule,
-            scrollPositionManager: mockScroll,
-            taskManager: mockTasks
-        )
+        // For now, return a production container
+        return DependencyContainer.shared
     }
     
     /// Creates a container with a custom configuration
